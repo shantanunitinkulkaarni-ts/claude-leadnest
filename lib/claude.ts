@@ -1,25 +1,31 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { AnthropicVertex } from '@anthropic-ai/vertex-sdk'
 
-// For Vertex AI — uses Google Cloud credentials automatically
-// No API key needed, billed to your Google account
-let client: any
+let client: AnthropicVertex
 
-function getClient() {
+export function getClient(): AnthropicVertex {
   if (client) return client
 
-  // Check if we're using Vertex AI or direct Anthropic
-  if (process.env.GOOGLE_CLOUD_PROJECT) {
-    const { AnthropicVertex } = require('@anthropic-ai/vertex-sdk')
+  // If running on Vercel, credentials come from env var JSON
+  if (process.env.GOOGLE_CREDENTIALS_JSON) {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON)
     client = new AnthropicVertex({
-      projectId: process.env.GOOGLE_CLOUD_PROJECT,
-      region: process.env.VERTEX_REGION || 'us-east5'
+      projectId: process.env.GOOGLE_CLOUD_PROJECT || 'gen-lang-client-0794202345',
+      region: process.env.VERTEX_REGION || 'us-east5',
+      googleAuth: {
+        credentials,
+        scopes: ['https://www.googleapis.com/auth/cloud-platform']
+      }
     })
   } else {
-    // Fallback to direct Anthropic if API key provided
-    client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    // Local dev — uses gcloud CLI credentials
+    client = new AnthropicVertex({
+      projectId: process.env.GOOGLE_CLOUD_PROJECT || 'gen-lang-client-0794202345',
+      region: process.env.VERTEX_REGION || 'us-east5'
+    })
   }
 
   return client
 }
 
-export { getClient }
+// Model to use — Sonnet 4.6 on Vertex
+export const CLAUDE_MODEL = 'claude-sonnet-4-6@20251114'

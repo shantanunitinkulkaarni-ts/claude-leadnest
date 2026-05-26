@@ -165,7 +165,7 @@ export async function generateBotReply(
 
   // Use Claude Sonnet on Vertex — best balance of quality and cost
   const model = process.env.GOOGLE_CLOUD_PROJECT
-    ? 'claude-sonnet-4-5@20251101'  // Vertex AI model string
+    ? 'claude-sonnet-4-6@20251114'  // Vertex AI model string
     : 'claude-sonnet-4-5'           // Direct Anthropic model string
 
   const response = await claude.messages.create({
