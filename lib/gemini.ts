@@ -1,5 +1,5 @@
-import { supabaseAdmin } from './supabase'
-import { getClient } from './claude'
+import { supabase } from './supabase'
+import { getClient, CLAUDE_MODEL } from './claude'
 
 export interface BotContext {
   agent: {
@@ -129,10 +129,10 @@ export async function generateBotReply(
 ): Promise<{ reply: string; metadata: any }> {
 
   const [{ data: agent }, { data: lead }, { data: properties }, { data: recentMessages }] = await Promise.all([
-    supabaseAdmin.from('agents').select('*').eq('id', agentId).single(),
-    supabaseAdmin.from('leads').select('*').eq('id', leadId).single(),
-    supabaseAdmin.from('properties').select('*').eq('agent_id', agentId).eq('status', 'active'),
-    supabaseAdmin.from('messages').select('direction, content, sent_by').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(6)
+    supabase.from('agents').select('*').eq('id', agentId).single(),
+    supabase.from('leads').select('*').eq('id', leadId).single(),
+    supabase.from('properties').select('*').eq('agent_id', agentId).eq('status', 'active'),
+    supabase.from('messages').select('direction, content, sent_by').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(6)
   ])
 
   if (!agent) throw new Error('Agent not found')
@@ -149,13 +149,11 @@ export async function generateBotReply(
 
   const systemPrompt = buildSystemPrompt(ctx)
 
-  // Build conversation history for Claude
   const history = (recentMessages || []).reverse().slice(0, -1).map((m: any) => ({
     role: m.direction === 'inbound' ? 'user' : 'assistant' as 'user' | 'assistant',
     content: m.content
   }))
 
-  // Add current message
   const messages = [
     ...history,
     { role: 'user' as const, content: incomingMessage }
@@ -163,13 +161,8 @@ export async function generateBotReply(
 
   const claude = getClient()
 
-  // Use Claude Sonnet on Vertex — best balance of quality and cost
-  const model = process.env.GOOGLE_CLOUD_PROJECT
-    ? 'claude-sonnet-4-6@20251114'  // Vertex AI model string
-    : 'claude-sonnet-4-5'           // Direct Anthropic model string
-
   const response = await claude.messages.create({
-    model,
+    model: CLAUDE_MODEL,
     max_tokens: 1024,
     system: systemPrompt,
     messages
@@ -179,12 +172,10 @@ export async function generateBotReply(
     ? response.content[0].text
     : ''
 
-  // Parse message and metadata
   const lines = responseText.trim().split('\n')
   let reply = responseText.trim()
   let metadata = {}
 
-  // Extract JSON metadata from last line if present
   try {
     const lastLine = lines[lines.length - 1].trim()
     if (lastLine.startsWith('{')) {
@@ -192,7 +183,7 @@ export async function generateBotReply(
       reply = lines.slice(0, -1).join('\n').trim()
     }
   } catch (e) {
-    // No metadata, that is fine
+    // No metadata — fine
   }
 
   return { reply, metadata }
