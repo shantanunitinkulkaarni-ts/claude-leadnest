@@ -9,12 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@anthropic-ai/vertex-sdk": "^0.16.1",
+    "@anthropic-ai/sdk": "^0.99.0",
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.106.2",
     "axios": "^1.7.2",
     "date-fns": "^3.6.0",
-    "google-auth-library": "^9.14.2",
     "next": "14.2.29",
     "react": "^18",
     "react-dom": "^18",
