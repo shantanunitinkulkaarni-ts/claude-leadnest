@@ -1,11 +1,28 @@
 import axios from 'axios'
-import { supabaseAdmin } from './supabase'
+import { supabase } from './supabase'
+
+// ─── Provider detection ───────────────────────────────────────────────────────
+// Set WHATSAPP_PROVIDER=twilio in env for Twilio, anything else = Meta
+const PROVIDER = process.env.WHATSAPP_PROVIDER || 'meta'
 
 const WA_API_VERSION = 'v19.0'
 const WA_BASE_URL = `https://graph.facebook.com/${WA_API_VERSION}`
 
-// Send a plain text message
+// ─── Send plain text message ──────────────────────────────────────────────────
 export async function sendWhatsAppMessage(
+  phoneNumberId: string,  // Meta: phone_number_id | Twilio: ignored (uses env)
+  accessToken: string,    // Meta: access token    | Twilio: ignored (uses env)
+  toPhone: string,
+  message: string
+): Promise<string | null> {
+  if (PROVIDER === 'twilio') {
+    return sendViaTwilio(toPhone, message)
+  }
+  return sendViaMeta(phoneNumberId, accessToken, toPhone, message)
+}
+
+// ─── Meta sender ──────────────────────────────────────────────────────────────
+async function sendViaMeta(
   phoneNumberId: string,
   accessToken: string,
   toPhone: string,
@@ -30,12 +47,43 @@ export async function sendWhatsAppMessage(
     )
     return res.data?.messages?.[0]?.id || null
   } catch (err: any) {
-    console.error('WhatsApp send error:', err?.response?.data || err.message)
+    console.error('Meta send error:', err?.response?.data || err.message)
     return null
   }
 }
 
-// Send a template message (for outbound / marketing / reminders)
+// ─── Twilio sender ────────────────────────────────────────────────────────────
+async function sendViaTwilio(
+  toPhone: string,
+  message: string
+): Promise<string | null> {
+  try {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID!
+    const authToken = process.env.TWILIO_AUTH_TOKEN!
+    const fromNumber = process.env.TWILIO_WHATSAPP_NUMBER! // whatsapp:+12184757450
+
+    // Ensure numbers are in whatsapp: format
+    const from = fromNumber.startsWith('whatsapp:') ? fromNumber : `whatsapp:${fromNumber}`
+    const to = toPhone.startsWith('whatsapp:') ? toPhone : `whatsapp:${toPhone}`
+
+    const params = new URLSearchParams({ From: from, To: to, Body: message })
+
+    const res = await axios.post(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+      params.toString(),
+      {
+        auth: { username: accountSid, password: authToken },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      }
+    )
+    return res.data?.sid || null
+  } catch (err: any) {
+    console.error('Twilio send error:', err?.response?.data || err.message)
+    return null
+  }
+}
+
+// ─── Template message (Meta only — Twilio uses free-form for sandbox) ─────────
 export async function sendWhatsAppTemplate(
   phoneNumberId: string,
   accessToken: string,
@@ -44,6 +92,12 @@ export async function sendWhatsAppTemplate(
   languageCode: string,
   components: any[]
 ): Promise<string | null> {
+  if (PROVIDER === 'twilio') {
+    // Twilio sandbox doesn't support templates — send plain text fallback
+    console.log('Template send skipped (Twilio sandbox) — would send:', templateName)
+    return null
+  }
+
   try {
     const res = await axios.post(
       `${WA_BASE_URL}/${phoneNumberId}/messages`,
@@ -66,12 +120,12 @@ export async function sendWhatsAppTemplate(
     )
     return res.data?.messages?.[0]?.id || null
   } catch (err: any) {
-    console.error('WhatsApp template error:', err?.response?.data || err.message)
+    console.error('Meta template error:', err?.response?.data || err.message)
     return null
   }
 }
 
-// Deduct from agent WA balance and log transaction
+// ─── Balance deduction ────────────────────────────────────────────────────────
 export async function deductWABalance(
   agentId: string,
   amount: number,
@@ -79,7 +133,7 @@ export async function deductWABalance(
   templateName?: string,
   leadId?: string
 ) {
-  const { data: agent } = await supabaseAdmin
+  const { data: agent } = await supabase
     .from('agents')
     .select('wa_balance')
     .eq('id', agentId)
@@ -89,12 +143,12 @@ export async function deductWABalance(
 
   const newBalance = Number(agent.wa_balance) - amount
 
-  await supabaseAdmin
+  await supabase
     .from('agents')
     .update({ wa_balance: newBalance })
     .eq('id', agentId)
 
-  await supabaseAdmin.from('wa_transactions').insert({
+  await supabase.from('wa_transactions').insert({
     agent_id: agentId,
     type: 'deduction',
     amount,
@@ -105,21 +159,32 @@ export async function deductWABalance(
   })
 }
 
-// Pre-approved templates
+// ─── Templates ────────────────────────────────────────────────────────────────
 export const TEMPLATES = {
   APPOINTMENT_REMINDER: 'leadnest_appointment_reminder',
   NURTURE_FOLLOWUP: 'leadnest_nurture_followup',
   REENGAGEMENT: 'leadnest_reengagement',
-  KEEPALIVE: null // Uses free-form text (within 24h window)
+  KEEPALIVE: null
 }
 
-// Appointment reminder template message
+// ─── Appointment reminder ─────────────────────────────────────────────────────
 export async function sendAppointmentReminder(
   agent: any,
   lead: any,
   appointment: any,
   property: any
 ) {
+  if (PROVIDER === 'twilio') {
+    const dateStr = new Date(appointment.scheduled_at).toLocaleDateString('en-IN', {
+      weekday: 'long', day: 'numeric', month: 'long'
+    })
+    const timeStr = new Date(appointment.scheduled_at).toLocaleTimeString('en-IN', {
+      hour: '2-digit', minute: '2-digit'
+    })
+    const message = `Hi ${lead.name || 'there'}! Reminder: your site visit for ${property?.title || 'the property'} is on ${dateStr} at ${timeStr}. See you there! 🏠`
+    return sendViaTwilio(lead.phone, message)
+  }
+
   const components = [
     {
       type: 'body',
@@ -141,17 +206,12 @@ export async function sendAppointmentReminder(
     components
   )
 
-  // Deduct Meta charge (utility template ~₹0.32)
   await deductWABalance(agent.id, 0.32, `Appointment reminder — ${lead.name}`, TEMPLATES.APPOINTMENT_REMINDER, lead.id)
-
   return waMessageId
 }
 
-// 23-hour window keep-alive message (free — within session window)
-export async function sendWindowKeepalive(
-  agent: any,
-  lead: any
-) {
+// ─── 23-hour keepalive ────────────────────────────────────────────────────────
+export async function sendWindowKeepalive(agent: any, lead: any) {
   const messages = [
     `Just checking in — did you get a chance to look at the property details I shared? 😊`,
     `Hi ${lead.name || 'there'}! Is there anything else you'd like to know about the property?`,
@@ -160,7 +220,6 @@ export async function sendWindowKeepalive(
     `Hi ${lead.name || 'there'}! The property you liked is still available. Want to schedule a quick visit this week?`
   ]
 
-  // Pick a random message
   const message = messages[Math.floor(Math.random() * messages.length)]
 
   const waMessageId = await sendWhatsAppMessage(
@@ -170,8 +229,7 @@ export async function sendWindowKeepalive(
     message
   )
 
-  // Update keepalive timestamp
-  await supabaseAdmin
+  await supabase
     .from('leads')
     .update({ window_keepalive_sent_at: new Date().toISOString() })
     .eq('id', lead.id)
