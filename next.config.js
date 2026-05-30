@@ -9,7 +9,13 @@ const nextConfig = {
   },
   experimental: {
     serverActions: {
-      allowedOrigins: ['localhost:3000', 'leadnest.in']
+      allowedOrigins: [
+        'localhost:3000',
+        'leadnest.in',
+        'www.leadnest.in',
+        'leadnest-629032564012.us-central1.run.app',
+        '*.run.app'
+      ]
     }
   },
   images: {
