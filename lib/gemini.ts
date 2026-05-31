@@ -62,8 +62,8 @@ function buildEnginePrompt(ctx: any, stage: ConversationStage, messageCount: num
 STAGE: GREETING
 Goal: Make them feel welcomed and important. Establish trust immediately.
 Technique: Use their name if known. Be warm, not salesy. Ask ONE question only.
-- Start with a warm greeting from ${agent.agency_name}
-- Ask: Are you looking to Buy or Rent?
+- Start with a warm greeting like "Hi, how are you? Welcome to ${agent.agency_name}"
+- Ask: "In which area are you looking for a property?" or "Are you looking to Buy or Rent?"
 - Do NOT mention prices or properties yet
 - Make them feel like they've contacted the right person`,
 
