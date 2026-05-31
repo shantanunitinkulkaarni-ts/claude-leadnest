@@ -1,5 +1,13 @@
 import { supabaseAdmin } from './supabase'
-import { getClient, CLAUDE_MODEL } from './claude'
+import { GoogleGenerativeAI, type Content } from '@google/generative-ai'
+
+const GEMINI_MODEL = 'gemini-2.0-flash'
+
+function getGeminiClient() {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) throw new Error('GEMINI_API_KEY env var is missing')
+  return new GoogleGenerativeAI(apiKey)
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LeadNest Conversion Engine v1
@@ -229,25 +237,24 @@ export async function generateBotReply(
 
   const systemPrompt = buildEnginePrompt(ctx, stage, messageCount)
 
-  // Build conversation history (last 8 messages for context)
-  const history = recentMessages.slice(-8).slice(0, -1).map((m: any) => ({
-    role: (m.direction === 'inbound' ? 'user' : 'assistant') as 'user' | 'assistant',
-    content: m.content
+  // Build conversation history in Gemini format (last 8 messages, excluding current)
+  const geminiHistory: Content[] = recentMessages.slice(-8).slice(0, -1).map((m: any) => ({
+    role: (m.direction === 'inbound' ? 'user' : 'model') as 'user' | 'model',
+    parts: [{ text: m.content as string }]
   }))
 
-  const messages = [...history, { role: 'user' as const, content: incomingMessage }]
-
-  const claude = getClient()
-  const response = await claude.messages.create({
-    model: CLAUDE_MODEL,
-    max_tokens: 1024,
-    system: systemPrompt,
-    messages
+  // ─── Call Gemini Flash ────────────────────────────────────────────────────
+  const genAI = getGeminiClient()
+  const model = genAI.getGenerativeModel({
+    model: GEMINI_MODEL,
+    systemInstruction: systemPrompt
   })
 
-  const responseText = response.content[0].type === 'text' ? response.content[0].text : ''
+  const chat = model.startChat({ history: geminiHistory })
+  const result = await chat.sendMessage(incomingMessage)
+  const responseText = result.response.text()
 
-  // Parse reply and metadata
+  // Parse reply and metadata JSON from the structured response
   const lines = responseText.trim().split('\n')
   let reply = responseText.trim()
   let metadata: any = { stage }
