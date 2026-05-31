@@ -1,7 +1,7 @@
 import { supabaseAdmin } from './supabase'
 import { GoogleGenerativeAI, type Content } from '@google/generative-ai'
 
-const GEMINI_MODEL = 'gemini-2.0-flash'
+const GEMINI_MODEL = 'gemini-2.5-flash'
 
 function getGeminiClient() {
   const apiKey = process.env.GEMINI_API_KEY

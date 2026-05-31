@@ -59,9 +59,18 @@ export async function POST(request: NextRequest) {
       agent = data
     }
 
-    if (!agent) return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'agent_not_found' })
-    if (!agent.bot_active) return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'bot_paused' })
-    if (agent.messages_used >= agent.messages_limit) return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'limit_reached' })
+    if (!agent) {
+      console.log('Webhook Debug: Agent not found')
+      return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'agent_not_found' })
+    }
+    if (!agent.bot_active) {
+      console.log('Webhook Debug: Bot is paused for agent')
+      return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'bot_paused' })
+    }
+    if (agent.messages_used >= agent.messages_limit) {
+      console.log('Webhook Debug: Message limit reached')
+      return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'limit_reached' })
+    }
 
     const now = new Date().toISOString()
     const windowExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
@@ -87,9 +96,14 @@ export async function POST(request: NextRequest) {
       content: messageText, wa_message_id: waMessageId, sent_by: 'lead'
     })
 
-    if (lead.bot_paused) return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'manual_mode' })
+    if (lead.bot_paused) {
+      console.log('Webhook Debug: Lead is in manual mode (bot paused)')
+      return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'manual_mode' })
+    }
 
+    console.log(`Webhook Debug: Calling Gemini for lead ${lead.phone} with message: "${messageText}"`)
     const { reply, metadata } = await generateBotReply(agent.id, lead.id, messageText)
+    console.log(`Webhook Debug: Gemini replied with: "${reply}" and metadata:`, metadata)
 
     const leadUpdates: any = { updated_at: now }
     if (metadata.score) leadUpdates.ai_score = metadata.score
@@ -114,7 +128,9 @@ export async function POST(request: NextRequest) {
     }
 
     const toPhone = PROVIDER === 'twilio' ? `whatsapp:${fromPhone}` : fromPhone
+    console.log(`Webhook Debug: Sending WhatsApp message via Twilio to ${toPhone}`)
     const outWaId = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, toPhone, reply)
+    console.log(`Webhook Debug: WhatsApp message sent. Twilio SID/ID: ${outWaId}`)
 
     await supabaseAdmin.from('messages').insert({
       lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
