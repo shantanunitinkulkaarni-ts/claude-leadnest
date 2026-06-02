@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
 export async function GET(request: Request) {
   let { searchParams, origin } = new URL(request.url)
@@ -15,26 +16,6 @@ export async function GET(request: Request) {
   const next = searchParams.get('next') ?? '/dashboard'
 
   if (code) {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hinqahjhtgsmljrrozql.supabase.co',
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhpbnFhaGpodGdzbWxqcnJvenFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NDgxMzAsImV4cCI6MjA5NTIyNDEzMH0.0LJNkJwdj5A12XaB8wFXCVI4uyfy19N6sjS5dKTg6JE',
-      {
-        cookies: {
-          getAll() {
-            return request.headers.get('cookie') ? request.headers.get('cookie')!.split(';').map(c => {
-              const [name, ...rest] = c.split('=')
-              return { name: name.trim(), value: rest.join('=') }
-            }) : []
-          },
-          setAll(cookiesToSet) {
-            // This is just a dummy setter because the actual setting happens via the response
-          },
-        },
-      }
-    )
-    
-    // We actually need the route handler specific cookie handling
-    // It's easier to just use the standard route handler setup
     const response = NextResponse.redirect(`${origin}${next}`)
     
     const supabaseRoute = createServerClient(
@@ -43,8 +24,7 @@ export async function GET(request: Request) {
       {
         cookies: {
           getAll() {
-            // Not needed for code exchange
-            return []
+            return cookies().getAll()
           },
           setAll(cookiesToSet) {
             cookiesToSet.forEach(({ name, value, options }) => {
