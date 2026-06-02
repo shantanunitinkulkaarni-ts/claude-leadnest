@@ -179,6 +179,7 @@ ABSOLUTE RULES:
 - ONE message at a time. Never send multiple questions.
 - NEVER fabricate property details not in the listing
 - NEVER make promises about price, availability, or terms
+- NEVER schedule a visit outside of the agent's OFFICE HOURS (${agent.office_open} to ${agent.office_close}). If requested, gracefully inform them of the operating hours and ask for an alternative time.
 - NEVER be pushy or desperate — scarcity should feel natural
 - If you don't know something: "Let me check with the team"
 - Keep messages under 80 words unless sharing property details
@@ -186,13 +187,15 @@ ABSOLUTE RULES:
 
 RESPONSE FORMAT — return EXACTLY this structure:
 [Your WhatsApp message here]
-{"score":7,"temperature":"warm","intent":"buy","areas":["Baner"],"budget_min":5000000,"budget_max":9000000,"timeline":"within_3_months","name":"Rahul","stage":"presentation","matched_property_id":"uuid-if-property-was-shared"}
+{"score":7,"temperature":"warm","intent":"buy","areas":["Baner"],"budget_min":5000000,"budget_max":9000000,"timeline":"within_3_months","name":"Rahul","stage":"presentation","matched_property_id":"uuid","appointment_booked_time":"2026-06-05T10:00:00Z","appointment_status":"upcoming"}
 
 Rules for JSON:
 - score: 1-10 (1=cold, 10=ready to buy today)
 - temperature: "hot" (8-10), "warm" (5-7), "cold" (1-4), "new" (first contact)
 - Only include fields you are confident about from THIS conversation
-- matched_property_id: include ONLY if you just recommended a specific property`
+- matched_property_id: include ONLY if you just recommended a specific property
+- appointment_booked_time: CRITICAL AND MANDATORY if you just confirmed an appointment time with the user. Must be a valid ISO 8601 string in Indian Standard Time (IST, UTC+05:30). For example, if the user says "5 PM tomorrow" and tomorrow is June 2nd, output "2026-06-02T17:00:00+05:30". Do NOT omit this if an appointment was agreed upon. Current IST time: ${ctx.currentTime}.
+- appointment_status: Output "upcoming" if you booked/rescheduled a visit. Output "cancelled" if the user explicitly cancels their visit. Omit otherwise.`
 }
 
 function isOfficeHours(openTime: string, closeTime: string): boolean {
@@ -237,11 +240,33 @@ export async function generateBotReply(
 
   const systemPrompt = buildEnginePrompt(ctx, stage, messageCount)
 
-  // Build conversation history in Gemini format (last 8 messages, excluding current)
-  const geminiHistory: Content[] = recentMessages.slice(-8).slice(0, -1).map((m: any) => ({
-    role: (m.direction === 'inbound' ? 'user' : 'model') as 'user' | 'model',
-    parts: [{ text: m.content as string }]
-  }))
+  // Build conversation history — exclude the LAST message (the one we just inserted)
+  const historyMessages = recentMessages.slice(0, -1).slice(-8)
+  
+  // Convert to Gemini format and merge consecutive same-role messages
+  let geminiHistory: Content[] = []
+  for (const m of historyMessages) {
+    const role = (m.direction === 'inbound' ? 'user' : 'model') as 'user' | 'model'
+    const text = (m.content || '').toString()
+    if (!text.trim()) continue
+    
+    const last = geminiHistory[geminiHistory.length - 1]
+    if (last && last.role === role) {
+      // Merge consecutive same-role messages
+      last.parts[0] = { text: (last.parts[0] as any).text + '\n' + text }
+    } else {
+      geminiHistory.push({ role, parts: [{ text }] })
+    }
+  }
+
+  // Gemini strictly requires the first message in history to be from 'user'.
+  while (geminiHistory.length > 0 && geminiHistory[0].role !== 'user') {
+    geminiHistory.shift()
+  }
+  // And must end with 'model' (since we're about to send a user message)
+  while (geminiHistory.length > 0 && geminiHistory[geminiHistory.length - 1].role !== 'model') {
+    geminiHistory.pop()
+  }
 
   // ─── Call Gemini Flash ────────────────────────────────────────────────────
   const genAI = getGeminiClient()
@@ -250,9 +275,17 @@ export async function generateBotReply(
     systemInstruction: systemPrompt
   })
 
-  const chat = model.startChat({ history: geminiHistory })
-  const result = await chat.sendMessage(incomingMessage)
-  const responseText = result.response.text()
+  let responseText: string
+  try {
+    const chat = model.startChat({ history: geminiHistory })
+    const result = await chat.sendMessage(incomingMessage)
+    responseText = result.response.text()
+  } catch (chatErr: any) {
+    // Fallback: if chat mode fails (history issue), use single-turn generation
+    console.error('Gemini chat failed, falling back to single-turn:', chatErr.message)
+    const fallbackResult = await model.generateContent(incomingMessage)
+    responseText = fallbackResult.response.text()
+  }
 
   // Parse reply and metadata JSON from the structured response
   const lines = responseText.trim().split('\n')

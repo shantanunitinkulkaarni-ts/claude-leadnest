@@ -17,12 +17,17 @@ export function getSupabaseAdmin() {
   return _supabaseAdmin
 }
 
+import { createBrowserClient } from '@supabase/ssr'
+
 export function getSupabase() {
   if (!_supabase) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!url || !key) throw new Error('Supabase env vars missing')
-    _supabase = createClient(url, key)
+    
+    // Use createBrowserClient so sessions are automatically synced to cookies!
+    // This allows middleware.ts to see the user and not kick them to /login
+    _supabase = createBrowserClient(url, key) as any
   }
   return _supabase
 }

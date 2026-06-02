@@ -20,45 +20,57 @@ export default function OverviewScreen({ agentId, onNavigate }: Props) {
     <div style={{ padding: '24px 28px' }}>
       {/* Metrics */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
-        <MetricCard label="Total leads" value={s.totalLeads ?? 47} change="+12 this week" color="#2E8B5F" />
-        <MetricCard label="Hot leads" value={s.hotLeads ?? 12} change="+3 today" color="#C0392B" />
-        <MetricCard label="Site visits booked" value={s.visitsBooked ?? 8} change="+2 this week" color="#1A5FA5" />
-        <MetricCard label="Bot handled" value={`${s.botHandled ?? 94}%`} change="of all conversations" color="#B7770D" />
+        <MetricCard label="Total leads" value={s.totalLeads ?? 0} change={s.totalLeads > 0 ? "Up to date" : "No leads yet"} color="#2E8B5F" />
+        <MetricCard label="Hot leads" value={s.hotLeads ?? 0} change={s.hotLeads > 0 ? "Requires attention" : "No hot leads"} color="#C0392B" />
+        <MetricCard label="Site visits booked" value={s.visitsBooked ?? 0} change="This month" color="#1A5FA5" />
+        <MetricCard label="Bot handled" value={`${s.botHandled ?? 0}%`} change="of all conversations" color="#B7770D" />
       </div>
 
       {/* Two col */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '18px 20px' }}>
           <div style={{ fontSize: 11, fontWeight: 500, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 14 }}>Recent hot leads</div>
-          {[
-            { name: 'Rahul Kumar', prop: '3BHK · Baner · ₹90L', score: '9/10', scoreColor: '#C0392B', time: '2m ago', av: 'RK', bg: '#FDF0F0', c: '#8B1A1A' },
-            { name: 'Anita Desai', prop: '4BHK · Koregaon Park · ₹2.2Cr', score: '9/10', scoreColor: '#C0392B', time: '1h ago', av: 'AD', bg: '#EEF4FC', c: '#0F3D6E' },
-            { name: 'Priya Sharma', prop: '2BHK · Wakad · ₹65L', score: '8/10', scoreColor: '#B7770D', time: '18m ago', av: 'PS', bg: '#FEF9E7', c: '#7A5200' },
-            { name: 'Deepak Rao', prop: '3BHK · Aundh · ₹1.1Cr', score: '7/10', scoreColor: '#B7770D', time: '5h ago', av: 'DR', bg: '#EEEDFE', c: '#3C3489' },
-          ].map((lead, i) => (
-            <div key={i} onClick={() => onNavigate('inbox')} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < 3 ? '1px solid rgba(26,25,22,0.06)' : 'none', cursor: 'pointer' }}>
-              <div style={{ width: 30, height: 30, borderRadius: '50%', background: lead.bg, color: lead.c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 500, flexShrink: 0 }}>{lead.av}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 500, color: '#1A1916' }}>{lead.name}</div>
-                <div style={{ fontSize: 11, color: '#9E9B92' }}>{lead.prop}</div>
+          {(() => {
+            const displayLeads = s.recentHotLeads && s.recentHotLeads.length > 0 
+              ? s.recentHotLeads.map((l: any) => ({
+                  name: l.name || 'Unknown',
+                  prop: l.intent || 'Unknown intent',
+                  score: `${l.score || 0}/10`,
+                  scoreColor: (l.score || 0) >= 8 ? '#C0392B' : '#B7770D',
+                  time: new Date(l.updated_at || l.created_at).toLocaleDateString(),
+                  av: (l.name || 'U').substring(0,2).toUpperCase(),
+                  bg: (l.score || 0) >= 8 ? '#FDF0F0' : '#FEF9E7',
+                  c: (l.score || 0) >= 8 ? '#8B1A1A' : '#7A5200'
+                }))
+              : [
+                  { name: 'No hot leads yet', prop: 'Waiting for activity', score: '-', scoreColor: '#9E9B92', time: '', av: '-', bg: '#F4F3EE', c: '#9E9B92' }
+                ];
+
+            return displayLeads.map((lead: any, i: number) => (
+              <div key={i} onClick={() => onNavigate('inbox')} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < 3 ? '1px solid rgba(26,25,22,0.06)' : 'none', cursor: 'pointer' }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: lead.bg, color: lead.c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 500, flexShrink: 0 }}>{lead.av}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: '#1A1916' }}>{lead.name}</div>
+                  <div style={{ fontSize: 11, color: '#9E9B92' }}>{lead.prop}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 11, fontWeight: 500, color: lead.scoreColor }}>{lead.score}</div>
+                  <div style={{ fontSize: 10, color: '#C8C5BC' }}>{lead.time}</div>
+                </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 11, fontWeight: 500, color: lead.scoreColor }}>{lead.score}</div>
-                <div style={{ fontSize: 10, color: '#C8C5BC' }}>{lead.time}</div>
-              </div>
-            </div>
-          ))}
+            ))
+          })()}
         </div>
 
         <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '18px 20px' }}>
           <div style={{ fontSize: 11, fontWeight: 500, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 14 }}>Lead breakdown</div>
-          <BarChart label="Hot" value={s.hotLeads ?? 12} max={50} color="#E74C3C" />
-          <BarChart label="Warm" value={s.warmLeads ?? 21} max={50} color="#E9A530" />
-          <BarChart label="Cold" value={s.coldLeads ?? 14} max={50} color="#3B82F6" />
+          <BarChart label="Hot" value={s.hotLeads ?? 0} max={Math.max(s.totalLeads || 10, 10)} color="#E74C3C" />
+          <BarChart label="Warm" value={s.warmLeads ?? 0} max={Math.max(s.totalLeads || 10, 10)} color="#E9A530" />
+          <BarChart label="Cold" value={s.coldLeads ?? 0} max={Math.max(s.totalLeads || 10, 10)} color="#3B82F6" />
           <div style={{ marginTop: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 500, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Message usage</div>
-            <UsageBar label="Messages" used={s.messagesUsed ?? 3241} total={s.messagesLimit ?? 5000} color="#1A5FA5" />
-            <UsageBar label="WA balance" used={158} total={500} color="#2E8B5F" prefix="₹" />
+            <UsageBar label="Messages" used={s.messagesUsed ?? 0} total={s.messagesLimit ?? 5000} color="#1A5FA5" />
+            <UsageBar label="WA balance" used={s.waBalance ?? 0} total={Math.max(s.waBalance || 500, 500)} color="#2E8B5F" prefix="₹" />
           </div>
         </div>
       </div>

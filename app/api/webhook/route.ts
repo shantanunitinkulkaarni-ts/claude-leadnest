@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { generateBotReply } from '@/lib/gemini'
 import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import * as chrono from 'chrono-node'
 
 const PROVIDER = process.env.WHATSAPP_PROVIDER || 'meta'
 
@@ -21,14 +22,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get('content-type') || ''
-    let fromPhone = '', messageText = '', waMessageId = '', phoneNumberId = ''
+    let fromPhone = '', messageText = '', waMessageId = '', phoneNumberId = '', forcedAgentId = ''
 
     if (PROVIDER === 'twilio' || contentType.includes('application/x-www-form-urlencoded')) {
       const text = await request.text()
       const params = new URLSearchParams(text)
       fromPhone = (params.get('From') || '').replace('whatsapp:', '').trim()
+      // Normalize: always ensure + prefix for consistent DB matching
+      if (fromPhone && !fromPhone.startsWith('+')) fromPhone = '+' + fromPhone
       messageText = params.get('Body') || ''
       waMessageId = params.get('MessageSid') || ''
+      forcedAgentId = params.get('AgentId') || ''
       phoneNumberId = 'twilio'
       if (!messageText || !fromPhone) return new NextResponse('OK', { status: 200 })
     } else {
@@ -45,7 +49,10 @@ export async function POST(request: NextRequest) {
     }
 
     let agent: any = null
-    if (PROVIDER === 'twilio') {
+    if (forcedAgentId) {
+      const { data } = await supabaseAdmin.from('agents').select('*').eq('id', forcedAgentId).single()
+      agent = data
+    } else if (PROVIDER === 'twilio') {
       const testAgentId = process.env.TWILIO_TEST_AGENT_ID
       if (testAgentId) {
         const { data } = await supabaseAdmin.from('agents').select('*').eq('id', testAgentId).single()
@@ -75,7 +82,14 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString()
     const windowExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 
-    let { data: lead } = await supabaseAdmin.from('leads').select('*').eq('agent_id', agent.id).eq('phone', fromPhone).maybeSingle()
+    let { data: leads } = await supabaseAdmin.from('leads')
+      .select('*')
+      .eq('agent_id', agent.id)
+      .or(`phone.eq.${fromPhone},phone.eq.${fromPhone.replace('+', '')}`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      
+    let lead = leads?.[0]
 
     if (!lead) {
       const { data: newLead } = await supabaseAdmin.from('leads').insert({
@@ -116,6 +130,116 @@ export async function POST(request: NextRequest) {
     if (metadata.name) leadUpdates.name = metadata.name
     if (metadata.score >= 7) leadUpdates.status = 'qualified'
     else if (metadata.score >= 4) leadUpdates.status = 'contacted'
+
+    // 1. Check for Cancellation
+    if (metadata.appointment_status === 'cancelled' || /(cancel|drop|abort)[\s\S]*?(visit|appointment|viewing|meeting)/i.test(reply)) {
+       console.log('APPT-DEBUG: Cancellation detected');
+       leadUpdates.status = 'contacted'; // reset status
+       
+       const { data: existingAppts } = await supabaseAdmin
+        .from('appointments')
+        .select('id')
+        .eq('lead_id', lead.id)
+        .eq('status', 'upcoming')
+        .limit(1)
+        
+       if (existingAppts && existingAppts.length > 0) {
+         await supabaseAdmin.from('appointments').update({ status: 'cancelled' }).eq('id', existingAppts[0].id);
+         await supabaseAdmin.from('activity_log').insert({
+            agent_id: agent.id, lead_id: lead.id, type: 'status_change',
+            title: 'Site visit cancelled',
+            description: 'Lead cancelled their scheduled site visit via WhatsApp.'
+         })
+       }
+    } else {
+      // 2. Ultimate fallback: If Gemini stubbornly omits appointment_booked_time from JSON,
+      if (!metadata.appointment_booked_time && /(confirm|lock in|schedule|set|book|confirmed|updat|reschedul|chang)[\s\S]*?(visit|appointment|viewing|tomorrow|today|at\s+\d+|on\s+\d+)/i.test(reply)) {
+         console.log('APPT-DEBUG: Regex fallback triggered — extracting time from reply text using chrono-node')
+         const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+         const parsedResults = chrono.parse(reply, nowIST, { forwardDate: true });
+         
+         if (parsedResults && parsedResults.length > 0) {
+             const comp = parsedResults[0].start;
+             
+             if (!comp.isCertain('hour')) {
+                 console.log('APPT-DEBUG: Chrono found a date but no explicit time, ignoring to avoid aggressive booking.')
+             } else {
+                 const year = comp.get('year') || nowIST.getUTCFullYear();
+                 const month = comp.get('month') ? comp.get('month') - 1 : nowIST.getUTCMonth();
+                 const day = comp.get('day') || nowIST.getUTCDate();
+                 const hours = comp.get('hour') || 0;
+                 const minutes = comp.get('minute') || 0;
+
+                 const istMs = Date.UTC(year, month, day, hours, minutes, 0) - (5.5 * 60 * 60 * 1000);
+                 metadata.appointment_booked_time = new Date(istMs).toISOString();
+                 console.log('APPT-DEBUG: Chrono extracted appointment time (IST->UTC):', metadata.appointment_booked_time)
+             }
+         } else {
+             console.log('APPT-DEBUG: Regex matched but chrono could not find a date in reply')
+         }
+      }
+
+      console.log('APPT-DEBUG: metadata.appointment_booked_time =', metadata.appointment_booked_time || 'NOT SET')
+
+    if (metadata.appointment_booked_time) {
+      let parsedDate = new Date(metadata.appointment_booked_time);
+      if (isNaN(parsedDate.getTime())) {
+         parsedDate = new Date(Date.now() + 24 * 60 * 60 * 1000); 
+         console.log('APPT-DEBUG: Date was unparseable, using fallback:', parsedDate.toISOString())
+      }
+      
+      leadUpdates.status = 'visit_booked'
+      
+      let safePropertyId = null;
+      if (metadata.matched_property_id) {
+          const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(metadata.matched_property_id);
+          safePropertyId = isUUID ? metadata.matched_property_id : null;
+      }
+
+      // Check if there is already an upcoming appointment for this lead
+      const { data: existingAppts } = await supabaseAdmin
+        .from('appointments')
+        .select('id')
+        .eq('lead_id', lead.id)
+        .eq('status', 'upcoming')
+        .limit(1)
+
+      let apptData, apptError;
+      
+      if (existingAppts && existingAppts.length > 0) {
+        console.log('APPT-DEBUG: Found existing upcoming appointment, updating time to:', parsedDate.toISOString())
+        const res = await supabaseAdmin.from('appointments').update({
+          scheduled_at: parsedDate.toISOString(),
+          property_id: safePropertyId || undefined // don't clear it if they just rescheduled
+        }).eq('id', existingAppts[0].id).select()
+        apptData = res.data
+        apptError = res.error
+      } else {
+        console.log('APPT-DEBUG: Inserting new appointment — agent_id:', agent.id, 'lead_id:', lead.id, 'property_id:', safePropertyId, 'scheduled_at:', parsedDate.toISOString())
+        const res = await supabaseAdmin.from('appointments').insert({
+          agent_id: agent.id,
+          lead_id: lead.id,
+          property_id: safePropertyId,
+          scheduled_at: parsedDate.toISOString(),
+          status: 'upcoming'
+        }).select()
+        apptData = res.data
+        apptError = res.error
+      }
+      
+      if (apptError) {
+        console.error('APPT-DEBUG: SAVE FAILED:', apptError)
+      } else {
+        console.log('APPT-DEBUG: SAVE SUCCESS:', apptData)
+      }
+      
+      await supabaseAdmin.from('activity_log').insert({
+        agent_id: agent.id, lead_id: lead.id, type: 'visit_booked',
+        title: existingAppts && existingAppts.length > 0 ? 'Site visit rescheduled by AI' : 'Site visit booked by AI',
+        description: `Scheduled for ${parsedDate.toLocaleString('en-IN')}`
+      })
+    } // end of Book/Reschedule Logic
+    }
 
     await supabaseAdmin.from('leads').update(leadUpdates).eq('id', lead.id)
 

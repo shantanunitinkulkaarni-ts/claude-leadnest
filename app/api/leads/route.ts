@@ -26,6 +26,29 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data })
 }
 
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const isArray = Array.isArray(body)
+    
+    let query = supabaseAdmin
+      .from('leads')
+      .insert(body)
+      .select()
+      
+    if (!isArray) {
+      query = query.single()
+    }
+    
+    const { data, error } = await query
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ data })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   const body = await request.json()
   const { id, ...updates } = body

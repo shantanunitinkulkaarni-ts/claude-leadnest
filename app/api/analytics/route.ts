@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   if (!agentId) return NextResponse.json({ error: 'agent_id required' }, { status: 400 })
 
   const [leadsRes, messagesRes, appointmentsRes, agentRes] = await Promise.all([
-    supabaseAdmin.from('leads').select('temperature, status, source, created_at').eq('agent_id', agentId),
+    supabaseAdmin.from('leads').select('*').eq('agent_id', agentId).order('updated_at', { ascending: false }),
     supabaseAdmin.from('messages').select('direction, sent_by, created_at').eq('agent_id', agentId),
     supabaseAdmin.from('appointments').select('status, created_at').eq('agent_id', agentId),
     supabaseAdmin.from('agents').select('messages_used, messages_limit, wa_balance').eq('id', agentId).single()
@@ -30,6 +30,10 @@ export async function GET(request: NextRequest) {
   const closedWon = leads.filter((l: any) => l.status === 'closed_won').length
   const conversionRate = totalLeads > 0 ? ((closedWon / totalLeads) * 100).toFixed(1) : '0'
 
+  const recentHotLeads = leads
+    .filter((l: any) => l.temperature === 'hot' || l.score >= 8)
+    .slice(0, 4)
+
   return NextResponse.json({
     totalLeads,
     hotLeads,
@@ -41,6 +45,7 @@ export async function GET(request: NextRequest) {
     conversionRate,
     messagesUsed: agent?.messages_used || 0,
     messagesLimit: agent?.messages_limit || 5000,
-    waBalance: agent?.wa_balance || 0
+    waBalance: agent?.wa_balance || 0,
+    recentHotLeads
   })
 }
