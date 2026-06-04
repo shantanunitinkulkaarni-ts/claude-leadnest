@@ -31,3 +31,4 @@ env_vars:
 
 notes:
   - Add any notes for the AI here
+  - ALWAYS use gemini-2.5 models (e.g. gemini-2.5-flash). Gemini 1.5 is deprecated and should not be used.

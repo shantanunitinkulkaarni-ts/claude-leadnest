@@ -31,9 +31,14 @@ function Nav() {
               {item}
             </a>
           ))}
-          <a href="/waitlist" style={{ padding: '8px 16px', borderRadius: 8, background: G.green, color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}>
-            Get Started
-          </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <a href="/login" style={{ fontSize: 13, color: G.dark, textDecoration: 'none', fontWeight: 600 }}>
+              Log in
+            </a>
+            <a href="/waitlist" style={{ padding: '8px 16px', borderRadius: 8, background: G.green, color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}>
+              Get Started
+            </a>
+          </div>
         </div>
       </div>
     </nav>

@@ -122,10 +122,7 @@ export default function OnboardingPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         setIsAuthenticated(true)
-        // Pre-fill data from Google
-        setFirstName(session.user.user_metadata?.full_name?.split(' ')[0] || '')
-        setLastName(session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '')
-        setEmail(session.user.email || '')
+        // Pre-fill data from Google is removed per user request
 
         // Only auto-route them if they are on Step 0 (just landed from Google Auth)
         if (currentStep === 0) {
@@ -532,7 +529,10 @@ export default function OnboardingPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
                 <button className="btn-back" onClick={() => setCurrentStep(2)}>← Back</button>
-                <button className="btn-next" onClick={handleConnectWA}>Verify & connect</button>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button className="btn-back" onClick={() => setCurrentStep(4)} style={{ border: '1px solid rgba(26,25,22,0.1)' }}>Skip for now</button>
+                  <button className="btn-next" onClick={handleConnectWA}>Verify & connect</button>
+                </div>
               </div>
             </div>
           )}
