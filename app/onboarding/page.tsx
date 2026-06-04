@@ -21,7 +21,7 @@ export default function OnboardingPage() {
   const [agencyName, setAgencyName] = useState('')
   const [city, setCity] = useState('')
   const [stateLoc, setStateLoc] = useState('Maharashtra')
-  const [areas, setAreas] = useState<string[]>(['Baner', 'Wakad'])
+  const [areas, setAreas] = useState<string[]>([])
   const [yearsInBusiness, setYearsInBusiness] = useState('1 – 3 years')
 
   // Step 3: Preferences
@@ -441,11 +441,27 @@ export default function OnboardingPage() {
                 </div>
                 <div className="field">
                   <label className="field-label">Areas you cover</label>
-                  <div className="tag-select">
-                    {['Baner', 'Wakad', 'Kothrud', 'Hinjewadi'].map(area => (
-                      <span key={area} className={`tag-opt ${areas.includes(area) ? 'sel' : ''}`} onClick={() => toggleArrayItem(areas, setAreas, area)}>{area}</span>
+                  <div className="tag-select" style={{ marginBottom: 12 }}>
+                    {areas.map(area => (
+                      <span key={area} className="tag-opt sel" onClick={() => setAreas(areas.filter(a => a !== area))}>{area} ✕</span>
                     ))}
                   </div>
+                  <input 
+                    className="field-input" 
+                    type="text" 
+                    placeholder="Type an area and press Enter..." 
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const val = e.currentTarget.value.trim();
+                        if (val && !areas.includes(val)) {
+                          setAreas([...areas, val]);
+                        }
+                        e.currentTarget.value = '';
+                      }
+                    }} 
+                  />
+                  <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 6 }}>Press Enter to add an area</div>
                 </div>
               </div>
               <div className="form-footer">
