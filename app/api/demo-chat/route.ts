@@ -45,7 +45,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Initialize Gemini 1.5 Flash
+    // 2. Initialize Gemini 2.5 Flash
     const apiKey = process.env.GEMINI_API_KEY
     if (!apiKey) {
       return NextResponse.json({ error: 'Missing Gemini API Key' }, { status: 500 })
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     `
 
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.5-flash-preview-05-20',
       systemInstruction: { parts: [{ text: systemInstructionText }], role: "system" }
     })
 

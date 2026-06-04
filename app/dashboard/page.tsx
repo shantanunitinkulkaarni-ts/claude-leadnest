@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { getSupabase } from '@/lib/supabase'
 import Sidebar from '@/components/Sidebar'
@@ -23,6 +23,14 @@ export default function DashboardPage() {
   const [agentId, setAgentId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  const refreshAgent = useCallback(async (id: string) => {
+    try {
+      const r = await fetch(`/api/agent?id=${id}`)
+      const d = await r.json()
+      if (d.data) setAgent(d.data)
+    } catch (err) {}
+  }, [])
+
   useEffect(() => {
     const init = async () => {
       const supabase = getSupabase()
@@ -33,7 +41,6 @@ export default function DashboardPage() {
         return
       }
 
-      // Get agent_id from team_members
       const { data: teamMember, error } = await supabase
         .from('team_members')
         .select('agent_id')
@@ -46,18 +53,11 @@ export default function DashboardPage() {
       }
       
       setAgentId(teamMember.agent_id)
-      
-      // Fetch agent details
-      try {
-        const r = await fetch(`/api/agent?id=${teamMember.agent_id}`)
-        const d = await r.json()
-        if (d.data) setAgent(d.data)
-      } catch (err) {}
-      
+      await refreshAgent(teamMember.agent_id)
       setIsLoading(false)
     }
     init()
-  }, [router])
+  }, [router, refreshAgent])
 
   const renderScreen = () => {
     if (!agentId) return null
@@ -68,7 +68,7 @@ export default function DashboardPage() {
       case 'properties': return <PropertiesScreen agentId={agentId} />
       case 'appointments': return <AppointmentsScreen agentId={agentId} />
       case 'analytics': return <AnalyticsScreen agentId={agentId} />
-      case 'balance': return <BalanceScreen agentId={agentId} />
+      case 'balance': return <BalanceScreen agentId={agentId} onTopUp={() => agentId && refreshAgent(agentId)} />
       case 'settings': return <SettingsScreen agentId={agentId} agent={agent} />
       default: return <OverviewScreen agentId={agentId} onNavigate={setScreen} />
     }
@@ -86,7 +86,7 @@ export default function DashboardPage() {
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", background: '#FAFAF7' }}>
       <Sidebar activeScreen={screen} onNavigate={setScreen} agent={agent} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar screen={screen} />
+        <Topbar screen={screen} agentId={agentId ?? undefined} />
         <div style={{ flex: 1, overflow: 'auto' }}>
           {renderScreen()}
         </div>

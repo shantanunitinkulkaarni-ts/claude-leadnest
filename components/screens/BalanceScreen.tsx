@@ -3,9 +3,10 @@ import { useState, useEffect } from 'react'
 
 interface Props {
   agentId: string
+  onTopUp?: () => void
 }
 
-export default function BalanceScreen({ agentId }: Props) {
+export default function BalanceScreen({ agentId, onTopUp }: Props) {
   const [balance, setBalance] = useState<number | null>(null)
   const [isToppingUp, setIsToppingUp] = useState(false)
 
@@ -35,6 +36,7 @@ export default function BalanceScreen({ agentId }: Props) {
       if (d.data) {
         setBalance(d.data.wa_balance)
         alert(`Test mode: Successfully topped up ₹${amount}. New balance: ₹${d.data.wa_balance}`)
+        onTopUp?.() // Refresh Sidebar balance
       }
     } catch(err) {
       console.error(err)

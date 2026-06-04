@@ -1,6 +1,8 @@
 'use client'
 import { Screen } from '@/app/dashboard/page'
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { getSupabase } from '@/lib/supabase'
 
 const titles: Record<Screen, string> = {
   overview: 'Overview',
@@ -13,11 +15,12 @@ const titles: Record<Screen, string> = {
   settings: 'Settings'
 }
 
-export default function Topbar({ screen, agentId, isSuperadmin = false }: { screen: Screen, agentId?: string, isSuperadmin?: boolean }) {
+export default function Topbar({ screen, agentId, isSuperadmin = false, onNavigate }: { screen: Screen, agentId?: string, isSuperadmin?: boolean, onNavigate?: (s: Screen) => void }) {
+  const router = useRouter()
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   
-  const [userName, setUserName] = useState('Loading...')
+  const [userName, setUserName] = useState('')
   const [role, setRole] = useState(isSuperadmin ? 'Superadmin' : 'Agent')
   
   const notifRef = useRef<HTMLDivElement>(null)
@@ -132,22 +135,26 @@ export default function Topbar({ screen, agentId, isSuperadmin = false }: { scre
                 <div style={{ fontSize: 11, color: '#737373' }}>{role}</div>
               </div>
               <button 
+                onClick={() => { setShowProfile(false); onNavigate?.('settings'); }}
                 onMouseEnter={(e) => e.currentTarget.style.background = '#F4F3EE'}
                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 style={{ 
                   width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, color: '#1A1916',
-                  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'background 0.2s'
+                  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'background 0.2s',
+                  display: 'flex', alignItems: 'center', gap: 8
                 }}>
-                My Profile
+                ⚙️ Settings
               </button>
               <button 
+                onClick={async () => { await getSupabase().auth.signOut(); router.push('/login'); }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#FDECEA'; e.currentTarget.style.color = '#C0392B'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#1A1916'; }}
                 style={{ 
                   width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, color: '#1A1916',
-                  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'all 0.2s'
+                  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'all 0.2s',
+                  display: 'flex', alignItems: 'center', gap: 8
                 }}>
-                Sign out
+                🚪 Sign out
               </button>
             </div>
           )}
