@@ -287,7 +287,7 @@ export default function InboxScreen({ agentId }: Props) {
                   <div style={{ fontSize: 12, color: '#9E9B92', marginTop: 1 }}>{selected.phone}</div>
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 500, background: tc.bg, color: tc.c }}>⭐ {selected.qualification_score}/10</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 500, background: tc.bg, color: tc.c }}>⭐ {selected.ai_score || 0}/10</span>
                   <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, fontWeight: 500, background: winState.bg, color: winState.c, border: `1px solid ${winState.b}` }}>{winState.text}</span>
                   <button className="inbox-btn" onClick={() => { setIsSimulating(!isSimulating); setIsManual(false); }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: '1px solid', borderColor: isSimulating ? '#1A5FA5' : 'rgba(26,95,165,0.2)', background: isSimulating ? '#EEF4FC' : '#F4F8FD', color: isSimulating ? '#1A5FA5' : '#4A88C6', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>{isSimulating ? 'Stop simulating' : 'Simulate lead'}</button>
                   <button className="inbox-btn" onClick={() => { setIsManual(!isManual); setIsSimulating(false); }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: '1px solid', borderColor: isManual ? '#2E8B5F' : 'rgba(192,57,43,0.2)', background: isManual ? '#E8F5EE' : '#FDF0F0', color: isManual ? '#1A6B4A' : '#C0392B', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>{isManual ? 'Resume bot' : 'Take over'}</button>
@@ -376,7 +376,7 @@ export default function InboxScreen({ agentId }: Props) {
                     ))}
                     <div style={{ display: 'flex', flexDirection: 'column', padding: '10px 0', gridColumn: 'span 2' }}>
                       <span style={{ fontSize: 11, color: '#9E9B92', marginBottom: 3 }}>AI lead score</span>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: '#C0392B' }}>{selected.qualification_score} / 10 — {tc.label} lead</span>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: '#C0392B' }}>{selected.ai_score || 0} / 10 — {tc.label} lead</span>
                     </div>
                   </div>
                 )}

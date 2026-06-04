@@ -33,6 +33,73 @@ export default function OnboardingPage() {
   // Step 4: WhatsApp
   const [waStatus, setWaStatus] = useState('Pending')
 
+  const [authMethod, setAuthMethod] = useState<'google' | 'email' | 'phone'>('google')
+  const [signupPassword, setSignupPassword] = useState('')
+  const [otpToken, setOtpToken] = useState('')
+  const [otpSent, setOtpSent] = useState(false)
+  const [phoneSignup, setPhoneSignup] = useState('')
+
+  const handleEmailSignup = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setIsSubmitting(true)
+    try {
+      const supabase = getSupabase()
+      const { error } = await supabase.auth.signUp({
+        email,
+        password: signupPassword,
+        options: {
+          data: {
+            full_name: `${firstName} ${lastName}`.trim()
+          }
+        }
+      })
+      if (error) throw error
+      // If auto confirm is enabled, it logs them in
+      setCurrentStep(1)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleSendOtpSignup = async () => {
+    setError('')
+    if (!phoneSignup || !firstName) { setError('Name and phone number are required'); return; }
+    setIsSubmitting(true)
+    try {
+      const supabase = getSupabase()
+      const { error } = await supabase.auth.signInWithOtp({ 
+        phone: phoneSignup,
+        options: { data: { full_name: `${firstName} ${lastName}`.trim() } }
+      })
+      if (error) throw error
+      setOtpSent(true)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleVerifyOtpSignup = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    if (!otpToken) return
+    setIsSubmitting(true)
+    try {
+      const supabase = getSupabase()
+      const { error } = await supabase.auth.verifyOtp({ phone: phoneSignup, token: otpToken, type: 'sms' })
+      if (error) throw error
+      setPhone(phoneSignup)
+      setCurrentStep(1)
+    } catch (err: any) {
+      setError(err.message)
+      setIsSubmitting(false)
+    }
+  }
+
   const headers = [
     ['Create your account', "Let's get you set up in under 5 minutes"],
     ['Your business details', 'Tell us about your agency'],
@@ -93,7 +160,7 @@ export default function OnboardingPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/onboarding` : undefined
+          redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback?next=/onboarding` : undefined
         }
       })
       if (error) throw error
@@ -205,6 +272,14 @@ export default function OnboardingPage() {
           <div>
             <div className="progress-bar"><div className="progress-fill" style={{ width: `${progVals[currentStep]}%` }}></div></div>
             <div className="progress-label"><span>Step {currentStep + 1} of 5</span><span>{progVals[currentStep]}%</span></div>
+            <div style={{ marginTop: 24, textAlign: 'center' }}>
+              <button onClick={async () => {
+                await getSupabase().auth.signOut()
+                router.push('/login')
+              }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 11, cursor: 'pointer', textDecoration: 'underline' }}>
+                Sign out & Start over
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -221,24 +296,97 @@ export default function OnboardingPage() {
           {error && <div style={{ background: '#FDF0F0', color: '#C0392B', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 20 }}>{error}</div>}
 
           {currentStep === 0 && (
-            <div className="form-card" style={{ padding: '40px 32px', textAlign: 'center' }}>
-              <div style={{ marginBottom: 32 }}>
+            <div className="form-card" style={{ padding: '40px 32px' }}>
+              <div style={{ textAlign: 'center', marginBottom: 32 }}>
                 <div className="form-card-icon" style={{ background: '#EEF2FF', margin: '0 auto 16px' }}>🚀</div>
                 <div className="form-card-title" style={{ fontSize: 24 }}>Welcome to LeadNest</div>
-                <div className="form-card-desc">Sign up with Google to set up your WhatsApp AI assistant instantly. No email verification required.</div>
+                <div className="form-card-desc">Create your account to set up your WhatsApp AI assistant.</div>
               </div>
               
-              <button 
-                className="btn-next" 
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, background: '#fff', color: '#1A1916', border: '1px solid rgba(26,25,22,0.2)', height: 48, cursor: 'pointer' }} 
-                disabled={isSubmitting} 
-                onClick={handleGoogleAuth}
-              >
-                <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.7 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-                {isSubmitting ? 'Connecting...' : 'Sign up with Google'}
-              </button>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 24, borderBottom: '1px solid rgba(26,25,22,0.1)' }}>
+                <button onClick={() => { setAuthMethod('google'); setError(''); setOtpSent(false); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderBottom: authMethod === 'google' ? '2px solid var(--ink)' : '2px solid transparent', color: authMethod === 'google' ? 'var(--ink)' : 'var(--ink-4)', fontWeight: authMethod === 'google' ? 500 : 400, cursor: 'pointer', transition: 'all 0.2s' }}>Google</button>
+                <button onClick={() => { setAuthMethod('email'); setError(''); setOtpSent(false); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderBottom: authMethod === 'email' ? '2px solid var(--ink)' : '2px solid transparent', color: authMethod === 'email' ? 'var(--ink)' : 'var(--ink-4)', fontWeight: authMethod === 'email' ? 500 : 400, cursor: 'pointer', transition: 'all 0.2s' }}>Email</button>
+                <button onClick={() => { setAuthMethod('phone'); setError(''); setOtpSent(false); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderBottom: authMethod === 'phone' ? '2px solid var(--ink)' : '2px solid transparent', color: authMethod === 'phone' ? 'var(--ink)' : 'var(--ink-4)', fontWeight: authMethod === 'phone' ? 500 : 400, cursor: 'pointer', transition: 'all 0.2s' }}>Phone OTP</button>
+              </div>
 
-              <div style={{ marginTop: 24, fontSize: 13, color: 'var(--ink-4)' }}>
+              {authMethod === 'google' && (
+                <button 
+                  className="btn-next" 
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, background: '#fff', color: '#1A1916', border: '1px solid rgba(26,25,22,0.2)', height: 48, cursor: 'pointer' }} 
+                  disabled={isSubmitting} 
+                  onClick={handleGoogleAuth}
+                >
+                  <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.7 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                  {isSubmitting ? 'Connecting...' : 'Sign up with Google'}
+                </button>
+              )}
+
+              {authMethod === 'email' && (
+                <form onSubmit={handleEmailSignup} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>First Name</label>
+                      <input required type="text" value={firstName} onChange={e => setFirstName(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} placeholder="John" />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>Last Name</label>
+                      <input required type="text" value={lastName} onChange={e => setLastName(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} placeholder="Doe" />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>Email Address</label>
+                    <input required type="email" value={email} onChange={e => setEmail(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} placeholder="you@agency.com" />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>Password</label>
+                    <input required type="password" value={signupPassword} onChange={e => setSignupPassword(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} placeholder="••••••••" />
+                  </div>
+                  <button type="submit" className="btn-next" style={{ width: '100%', marginTop: 8 }} disabled={isSubmitting}>
+                    {isSubmitting ? 'Creating account...' : 'Create Account'}
+                  </button>
+                </form>
+              )}
+
+              {authMethod === 'phone' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {!otpSent ? (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>First Name</label>
+                          <input required type="text" value={firstName} onChange={e => setFirstName(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} placeholder="John" />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>Last Name</label>
+                          <input required type="text" value={lastName} onChange={e => setLastName(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} placeholder="Doe" />
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>Phone Number (with country code)</label>
+                        <input required type="tel" value={phoneSignup} onChange={e => setPhoneSignup(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} placeholder="+91 9000000000" />
+                      </div>
+                      <button onClick={handleSendOtpSignup} className="btn-next" style={{ width: '100%', marginTop: 8 }} disabled={isSubmitting || !phoneSignup}>
+                        {isSubmitting ? 'Sending...' : 'Send OTP'}
+                      </button>
+                    </>
+                  ) : (
+                    <form onSubmit={handleVerifyOtpSignup} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>Enter 6-digit OTP sent to {phoneSignup}</label>
+                        <input required type="text" value={otpToken} onChange={e => setOtpToken(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none', letterSpacing: '2px' }} placeholder="123456" />
+                      </div>
+                      <button type="submit" className="btn-next" style={{ width: '100%', marginTop: 8 }} disabled={isSubmitting || !otpToken}>
+                        {isSubmitting ? 'Verifying...' : 'Verify & Continue'}
+                      </button>
+                      <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink-4)', marginTop: 8 }}>
+                        <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => { setOtpSent(false); setOtpToken(''); }}>Change phone number</span>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              )}
+
+              <div style={{ marginTop: 24, fontSize: 13, color: 'var(--ink-4)', textAlign: 'center' }}>
                 Already have an account? <span style={{ color: 'var(--green)', cursor: 'pointer', fontWeight: 500 }} onClick={() => router.push('/login')}>Sign in</span>
               </div>
             </div>

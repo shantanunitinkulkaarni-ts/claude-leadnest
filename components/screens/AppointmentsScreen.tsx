@@ -80,6 +80,7 @@ export default function AppointmentsScreen({ agentId }: { agentId: string }) {
       // Instead of showing the modal with raw data, let's just trigger it with basic structure
       setShowFeedbackModal({
         id: apptData.data.id,
+        lead_id: leadData.data.id,
         leads: { name: visitorName },
         properties: { title: properties.find(p => p.id === visitedPropertyId)?.title || 'Selected Property' }
       })
