@@ -7,6 +7,7 @@ import './onboarding.css'
 export default function OnboardingPage() {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(0)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -120,6 +121,7 @@ export default function OnboardingPage() {
     const checkAuthAndRoute = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
+        setIsAuthenticated(true)
         // Pre-fill data from Google
         setFirstName(session.user.user_metadata?.full_name?.split(' ')[0] || '')
         setLastName(session.user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '')
@@ -297,11 +299,22 @@ export default function OnboardingPage() {
 
           {currentStep === 0 && (
             <div className="form-card" style={{ padding: '40px 32px' }}>
-              <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                <div className="form-card-icon" style={{ background: '#EEF2FF', margin: '0 auto 16px' }}>🚀</div>
-                <div className="form-card-title" style={{ fontSize: 24 }}>Welcome to LeadNest</div>
-                <div className="form-card-desc">Create your account to set up your WhatsApp AI assistant.</div>
-              </div>
+              {isAuthenticated ? (
+                <div style={{ textAlign: 'center' }}>
+                  <div className="form-card-icon" style={{ background: '#E8F5EE', margin: '0 auto 16px' }}>✅</div>
+                  <div className="form-card-title" style={{ fontSize: 24, marginBottom: 8 }}>Account Connected</div>
+                  <div className="form-card-desc" style={{ marginBottom: 32 }}>You are signed in as <strong style={{ color: 'var(--ink)' }}>{email}</strong>.</div>
+                  <button className="btn-next" style={{ width: '100%' }} onClick={() => setCurrentStep(1)}>
+                    Continue to Business Details
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                    <div className="form-card-icon" style={{ background: '#EEF2FF', margin: '0 auto 16px' }}>🚀</div>
+                    <div className="form-card-title" style={{ fontSize: 24 }}>Welcome to LeadNest</div>
+                    <div className="form-card-desc">Create your account to set up your WhatsApp AI assistant.</div>
+                  </div>
               
               <div style={{ display: 'flex', gap: 10, marginBottom: 24, borderBottom: '1px solid rgba(26,25,22,0.1)' }}>
                 <button onClick={() => { setAuthMethod('google'); setError(''); setOtpSent(false); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderBottom: authMethod === 'google' ? '2px solid var(--ink)' : '2px solid transparent', color: authMethod === 'google' ? 'var(--ink)' : 'var(--ink-4)', fontWeight: authMethod === 'google' ? 500 : 400, cursor: 'pointer', transition: 'all 0.2s' }}>Google</button>
@@ -386,9 +399,11 @@ export default function OnboardingPage() {
                 </div>
               )}
 
-              <div style={{ marginTop: 24, fontSize: 13, color: 'var(--ink-4)', textAlign: 'center' }}>
-                Already have an account? <span style={{ color: 'var(--green)', cursor: 'pointer', fontWeight: 500 }} onClick={() => router.push('/login')}>Sign in</span>
-              </div>
+                  <div style={{ marginTop: 24, fontSize: 13, color: 'var(--ink-4)', textAlign: 'center' }}>
+                    Already have an account? <span style={{ color: 'var(--green)', cursor: 'pointer', fontWeight: 500 }} onClick={() => router.push('/login')}>Sign in</span>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
