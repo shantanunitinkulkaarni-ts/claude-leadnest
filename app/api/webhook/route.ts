@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(1)
       
-    let lead = leads?.[0]
+    let lead: any = leads?.[0] || null
 
     if (!lead) {
       const { data: newLead } = await supabaseAdmin.from('leads').insert({

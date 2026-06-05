@@ -1,7 +1,7 @@
 import { supabaseAdmin } from './supabase'
 import { VertexAI, type Content } from '@google-cloud/vertexai'
 
-const GEMINI_MODEL = 'gemini-2.5-flash'
+const GEMINI_MODEL = 'gemini-1.5-flash-002'
 
 function getGeminiClient() {
   const project = process.env.GOOGLE_CLOUD_PROJECT
@@ -280,7 +280,7 @@ export async function generateBotReply(
   let responseText: string
   try {
     const chat = model.startChat({ history: geminiHistory as any })
-    const result = await chat.sendMessage({ role: 'user', parts: [{ text: incomingMessage }] })
+    const result = await chat.sendMessage(incomingMessage)
     if (!result.response.candidates?.[0]?.content?.parts?.[0]?.text) {
       throw new Error('Vertex AI returned empty or blocked response')
     }
