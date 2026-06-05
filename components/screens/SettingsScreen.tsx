@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 
 interface Props {
   agentId: string
+  agent?: any
 }
 
 export default function SettingsScreen({ agentId }: Props) {
@@ -77,13 +78,45 @@ export default function SettingsScreen({ agentId }: Props) {
     }
   }
 
-  const handleEditDetail = (index: number) => {
+  const handleEditDetail = async (index: number) => {
     const item = businessDetails[index]
     const newVal = prompt(`Edit ${item.k}:`, item.v)
     if (newVal !== null && newVal !== '') {
       const newDetails = [...businessDetails]
       newDetails[index].v = newVal
       setBusinessDetails(newDetails)
+
+      const keyMap: any = {
+        'Agency name': 'agency_name',
+        'City': 'city',
+        'Areas covered': 'areas',
+        'Bot tone': 'bot_tone',
+        'Office hours': 'office_open',
+        'Language': 'languages'
+      }
+      const dbKey = keyMap[item.k]
+      if (dbKey) {
+        try {
+          const body: any = {}
+          if (item.k === 'Areas covered' || item.k === 'Language') {
+            body[dbKey] = newVal.split(',').map(s => s.trim())
+          } else if (item.k === 'Office hours') {
+            const parts = newVal.split('–').map(s => s.trim())
+            body.office_open = parts[0]
+            if (parts[1]) body.office_close = parts[1]
+          } else {
+            body[dbKey] = newVal
+          }
+          await fetch('/api/agent?id=' + agentId, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          })
+        } catch (e) {
+          console.error(e)
+          alert('Failed to save changes.')
+        }
+      }
     }
   }
 
@@ -105,10 +138,10 @@ export default function SettingsScreen({ agentId }: Props) {
     { 
       title: 'Subscription', 
       rows: [
-        { k: 'Plan', v: 'Monthly — ₹999 / month' },
-        { k: 'Next billing', v: '25 Jun 2026' },
+        { k: 'Plan', v: (agentData?.plan ? agentData.plan.charAt(0).toUpperCase() + agentData.plan.slice(1) : 'Monthly') + ' — ' + (agentData?.plan === 'free' ? '₹0' : '₹999') + ' / month' },
+        { k: 'Next billing', v: agentData?.plan === 'free' ? '-' : '25 Jun 2026' },
         { k: 'Message usage', v: `${agentData?.messages_used ?? 0} / ${agentData?.messages_limit ?? 5000} this month` },
-        { k: 'WhatsApp', v: '+91 98765 43210 — Connected ✓' }
+        { k: 'WhatsApp', v: `${agentData?.phone || 'Not set'} — Connected ✓` }
       ], 
       toggles: [] 
     },

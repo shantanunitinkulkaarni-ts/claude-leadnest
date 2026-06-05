@@ -23,15 +23,63 @@ export default function InboxScreen({ agentId }: Props) {
   const [filter, setFilter] = useState('all')
   const [msgInput, setMsgInput] = useState('')
   const [loadingLeads, setLoadingLeads] = useState(true)
+  const [sendLoading, setSendLoading] = useState(false)
   const [now, setNow] = useState(Date.now())
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const handleManualBookVisit = async () => {
+    if (!selected) return
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    tomorrow.setHours(11, 0, 0, 0)
+    
+    try {
+      const res = await fetch('/api/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_id: agentId,
+          lead_id: selected.id,
+          scheduled_at: tomorrow.toISOString(),
+          status: 'upcoming'
+        })
+      })
+      if (res.ok) {
+        alert('Visit successfully booked for tomorrow at 11:00 AM.')
+        fetchLeads()
+      } else {
+        alert('Failed to book visit.')
+      }
+    } catch(err) {
+      console.error(err)
+      alert('Failed to book visit.')
+    }
+  }
 
   // Timer to force countdown re-render every second
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
+
+  const handleToggleManualMode = async (forceResume = false) => {
+    if (!selected) return
+    const newState = forceResume ? false : !isManual
+    setIsManual(newState)
+    setIsSimulating(false)
+    
+    try {
+      await fetch(`/api/leads`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selected.id, bot_paused: newState })
+      })
+      fetchLeads()
+    } catch (err) {
+      console.error('Failed to update manual mode', err)
+    }
+  }
 
   // Fetch functions
   const fetchLeads = () => {
@@ -160,10 +208,14 @@ export default function InboxScreen({ agentId }: Props) {
     setMsgInput('')
 
     try {
+      const agentRes = await fetch(`/api/agent?id=${agentId}`)
+      const agentData = await agentRes.json()
+      const toPhone = agentData.data?.phone || '+919999999999'
+
       const params = new URLSearchParams()
       params.append('Body', inputContent)
       params.append('From', `whatsapp:${selected.phone}`)
-      params.append('To', `whatsapp:+919999999999`) // Hits our dummy agent
+      params.append('To', `whatsapp:${toPhone}`) // Hits our real agent
       params.append('AgentId', agentId)
 
       const res = await fetch('/api/webhook', {
@@ -289,9 +341,9 @@ export default function InboxScreen({ agentId }: Props) {
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 500, background: tc.bg, color: tc.c }}>⭐ {selected.ai_score || 0}/10</span>
                   <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, fontWeight: 500, background: winState.bg, color: winState.c, border: `1px solid ${winState.b}` }}>{winState.text}</span>
-                  <button className="inbox-btn" onClick={() => { setIsSimulating(!isSimulating); setIsManual(false); }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: '1px solid', borderColor: isSimulating ? '#1A5FA5' : 'rgba(26,95,165,0.2)', background: isSimulating ? '#EEF4FC' : '#F4F8FD', color: isSimulating ? '#1A5FA5' : '#4A88C6', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>{isSimulating ? 'Stop simulating' : 'Simulate lead'}</button>
-                  <button className="inbox-btn" onClick={() => { setIsManual(!isManual); setIsSimulating(false); }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: '1px solid', borderColor: isManual ? '#2E8B5F' : 'rgba(192,57,43,0.2)', background: isManual ? '#E8F5EE' : '#FDF0F0', color: isManual ? '#1A6B4A' : '#C0392B', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>{isManual ? 'Resume bot' : 'Take over'}</button>
-                  <button className="inbox-btn-dark" onClick={() => alert('Book visit modal would open here')} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: 'none', background: '#1A1916', color: '#fff', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>Book visit</button>
+                  <button className="inbox-btn" onClick={() => { setIsSimulating(!isSimulating); }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: '1px solid', borderColor: isSimulating ? '#1A5FA5' : 'rgba(26,95,165,0.2)', background: isSimulating ? '#EEF4FC' : '#F4F8FD', color: isSimulating ? '#1A5FA5' : '#4A88C6', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>{isSimulating ? 'Stop simulating' : 'Simulate lead'}</button>
+                  <button className="inbox-btn" onClick={() => handleToggleManualMode(false)} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: '1px solid', borderColor: isManual ? '#2E8B5F' : 'rgba(192,57,43,0.2)', background: isManual ? '#E8F5EE' : '#FDF0F0', color: isManual ? '#1A6B4A' : '#C0392B', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>{isManual ? 'Resume bot' : 'Take over'}</button>
+                  <button className="inbox-btn-dark" onClick={handleManualBookVisit} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: 'none', background: '#1A1916', color: '#fff', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>Book visit</button>
                 </div>
               </div>
 
@@ -299,7 +351,7 @@ export default function InboxScreen({ agentId }: Props) {
               {isManual && (
                 <div style={{ background: '#FEF9E7', borderBottom: '1px solid rgba(183,119,13,0.2)', padding: '7px 22px', fontSize: 12, color: '#7A5200', display: 'flex', alignItems: 'center', gap: 8 }}>
                   👤 You are in manual mode — bot is paused on this conversation. Messages sent here will go to their WhatsApp.
-                  <button className="inbox-btn" onClick={() => setIsManual(false)} style={{ marginLeft: 'auto', fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer', border: '1px solid rgba(183,119,13,0.25)', background: '#fff', color: '#7A5200', fontFamily: 'inherit', transition: 'all 0.15s' }}>Resume bot</button>
+                  <button className="inbox-btn" onClick={() => handleToggleManualMode(true)} style={{ marginLeft: 'auto', fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer', border: '1px solid rgba(183,119,13,0.25)', background: '#fff', color: '#7A5200', fontFamily: 'inherit', transition: 'all 0.15s' }}>Resume bot</button>
                 </div>
               )}
               {isSimulating && (

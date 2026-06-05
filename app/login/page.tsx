@@ -48,7 +48,12 @@ export default function LoginPage() {
         password
       })
       if (error) throw error
-      if (data.session) router.push('/dashboard')
+      if (data.session) {
+        router.push('/dashboard')
+      } else {
+        setError('Please verify your email before logging in.')
+        setIsLoading(false)
+      }
     } catch (err: any) {
       setError(err.message)
       setIsLoading(false)
@@ -82,7 +87,12 @@ export default function LoginPage() {
       const supabase = getSupabase()
       const { error, data } = await supabase.auth.verifyOtp({ phone, token: otp, type: 'sms' })
       if (error) throw error
-      if (data.session) router.push('/dashboard')
+      if (data.session) {
+        router.push('/dashboard')
+      } else {
+        setError('Failed to create session from OTP.')
+        setIsLoading(false)
+      }
     } catch (err: any) {
       setError(err.message)
       setIsLoading(false)

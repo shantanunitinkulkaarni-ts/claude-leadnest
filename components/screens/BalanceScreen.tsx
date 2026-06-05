@@ -9,6 +9,9 @@ interface Props {
 export default function BalanceScreen({ agentId, onTopUp }: Props) {
   const [balance, setBalance] = useState<number | null>(null)
   const [isToppingUp, setIsToppingUp] = useState(false)
+  const [customAmount, setCustomAmount] = useState('')
+  const [showRazorpay, setShowRazorpay] = useState(false)
+  const [pendingAmount, setPendingAmount] = useState(0)
 
   useEffect(() => {
     fetch('/api/agent?id=' + agentId)
@@ -20,13 +23,20 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
       })
   }, [agentId])
 
-  const handleTopup = async (amountStr: string) => {
-    const amount = parseInt(amountStr.replace(/[^0-9]/g, ''), 10)
-    if (isNaN(amount)) return
+  const handleTopup = (amountStr: string | number) => {
+    const amount = typeof amountStr === 'string' ? parseInt(amountStr.replace(/[^0-9]/g, ''), 10) : amountStr
+    if (isNaN(amount) || amount <= 0) return
 
+    setPendingAmount(amount)
+    setShowRazorpay(true)
+  }
+
+  const completePayment = async () => {
     setIsToppingUp(true)
+    setShowRazorpay(false)
     try {
       const current = balance || 0
+      const amount = pendingAmount
       const res = await fetch('/api/agent?id=' + agentId, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -74,6 +84,25 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
             </button>
           ))}
         </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          <input 
+            type="number" 
+            placeholder="Custom amount (₹)" 
+            value={customAmount}
+            onChange={e => setCustomAmount(e.target.value)}
+            style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, outline: 'none' }}
+          />
+          <button 
+            onClick={() => handleTopup(parseInt(customAmount, 10))}
+            disabled={!customAmount || isToppingUp}
+            style={{ 
+              padding: '10px 16px', borderRadius: 8, background: '#1A5FA5', color: '#fff', border: 'none', 
+              cursor: (!customAmount || isToppingUp) ? 'default' : 'pointer', fontSize: 13, fontWeight: 500, opacity: (!customAmount || isToppingUp) ? 0.6 : 1 
+            }}
+          >
+            Add
+          </button>
+        </div>
       </div>
       <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '18px 20px' }}>
         <div style={{ fontSize: 11, fontWeight: 500, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>Transaction history</div>
@@ -87,6 +116,32 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
           <div style={{ fontSize: 12, color: '#9E9B92', textAlign: 'center', padding: '20px 0' }}>No recent transactions.</div>
         )}
       </div>
+
+      {showRazorpay && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: 12, width: 360, overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
+            <div style={{ background: '#02042B', padding: '24px 20px', color: '#fff', textAlign: 'center' }}>
+              <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 4 }}>Razorpay Test Environment</div>
+              <div style={{ opacity: 0.8, fontSize: 13 }}>LeadNest Pvt Ltd</div>
+              <div style={{ fontSize: 32, fontWeight: 500, marginTop: 16 }}>₹{pendingAmount}</div>
+            </div>
+            <div style={{ padding: 24 }}>
+              <button 
+                onClick={completePayment}
+                style={{ width: '100%', padding: '14px 0', background: '#3399CC', color: '#fff', border: 'none', borderRadius: 6, fontSize: 15, fontWeight: 500, cursor: 'pointer', marginBottom: 12 }}
+              >
+                Success (Simulate Payment)
+              </button>
+              <button 
+                onClick={() => setShowRazorpay(false)}
+                style={{ width: '100%', padding: '14px 0', background: '#fff', color: '#666', border: '1px solid #ccc', borderRadius: 6, fontSize: 15, fontWeight: 500, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

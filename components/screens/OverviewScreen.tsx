@@ -70,7 +70,7 @@ export default function OverviewScreen({ agentId, onNavigate }: Props) {
           <div style={{ marginTop: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 500, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Message usage</div>
             <UsageBar label="Messages" used={s.messagesUsed ?? 0} total={s.messagesLimit ?? 5000} color="#1A5FA5" />
-            <UsageBar label="WA balance" used={s.waBalance ?? 0} total={Math.max(s.waBalance || 500, 500)} color="#2E8B5F" prefix="₹" />
+            <UsageBar label="WA balance" used={s.waBalance ?? 0} total={(s.waBalance ?? 0) > 500 ? Math.ceil((s.waBalance ?? 0) / 500) * 500 : 500} color="#2E8B5F" prefix="₹" />
           </div>
         </div>
       </div>

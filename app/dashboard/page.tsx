@@ -13,6 +13,8 @@ import AppointmentsScreen from '@/components/screens/AppointmentsScreen'
 import AnalyticsScreen from '@/components/screens/AnalyticsScreen'
 import BalanceScreen from '@/components/screens/BalanceScreen'
 import SettingsScreen from '@/components/screens/SettingsScreen'
+import SupportChat from '@/components/SupportChat'
+import TutorialWalkthrough from '@/components/TutorialWalkthrough'
 
 export type Screen = 'overview' | 'inbox' | 'leads' | 'properties' | 'appointments' | 'analytics' | 'balance' | 'settings'
 
@@ -22,6 +24,7 @@ export default function DashboardPage() {
   const [agent, setAgent] = useState<any>(null)
   const [agentId, setAgentId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [showTutorial, setShowTutorial] = useState(true)
 
   const refreshAgent = useCallback(async (id: string) => {
     try {
@@ -91,6 +94,8 @@ export default function DashboardPage() {
           {renderScreen()}
         </div>
       </div>
+      <SupportChat />
+      {showTutorial && <TutorialWalkthrough onComplete={() => setShowTutorial(false)} />}
     </div>
   )
 }

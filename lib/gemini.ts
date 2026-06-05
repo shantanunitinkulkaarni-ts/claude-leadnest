@@ -1,12 +1,14 @@
 import { supabaseAdmin } from './supabase'
-import { GoogleGenerativeAI, type Content } from '@google/generative-ai'
+import { VertexAI, type Content } from '@google-cloud/vertexai'
 
 const GEMINI_MODEL = 'gemini-2.5-flash'
 
 function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) throw new Error('GEMINI_API_KEY env var is missing')
-  return new GoogleGenerativeAI(apiKey)
+  const project = process.env.GOOGLE_CLOUD_PROJECT
+  const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1'
+  if (!project) throw new Error('GOOGLE_CLOUD_PROJECT env var is missing')
+  
+  return new VertexAI({ project, location })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -268,23 +270,31 @@ export async function generateBotReply(
     geminiHistory.pop()
   }
 
-  // ─── Call Gemini Flash ────────────────────────────────────────────────────
-  const genAI = getGeminiClient()
-  const model = genAI.getGenerativeModel({
+  // ─── Call Vertex AI (Gemini Flash) ────────────────────────────────────────
+  const vertexAI = getGeminiClient()
+  const model = vertexAI.preview.getGenerativeModel({
     model: GEMINI_MODEL,
-    systemInstruction: systemPrompt
+    systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] }
   })
 
   let responseText: string
   try {
-    const chat = model.startChat({ history: geminiHistory })
-    const result = await chat.sendMessage(incomingMessage)
-    responseText = result.response.text()
+    const chat = model.startChat({ history: geminiHistory as any })
+    const result = await chat.sendMessage({ role: 'user', parts: [{ text: incomingMessage }] })
+    if (!result.response.candidates?.[0]?.content?.parts?.[0]?.text) {
+      throw new Error('Vertex AI returned empty or blocked response')
+    }
+    responseText = result.response.candidates[0].content.parts[0].text
   } catch (chatErr: any) {
     // Fallback: if chat mode fails (history issue), use single-turn generation
-    console.error('Gemini chat failed, falling back to single-turn:', chatErr.message)
-    const fallbackResult = await model.generateContent(incomingMessage)
-    responseText = fallbackResult.response.text()
+    console.error('Vertex AI chat failed, falling back to single-turn:', chatErr.message)
+    const fallbackResult = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: incomingMessage }] }]
+    })
+    if (!fallbackResult.response.candidates?.[0]?.content?.parts?.[0]?.text) {
+      throw new Error('Vertex AI fallback returned empty or blocked response')
+    }
+    responseText = fallbackResult.response.candidates[0].content.parts[0].text
   }
 
   // Parse reply and metadata JSON from the structured response

@@ -181,11 +181,16 @@ export default function OnboardingPage() {
       const { data: userData } = await supabase.auth.getUser()
       if (!userData.user) throw new Error('Not authenticated. Please start over.')
 
+      const userMeta = userData.user.user_metadata || {}
+      const finalEmail = email || userData.user.email || ''
+      const finalName = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : (userMeta.full_name || userMeta.name || 'Agent')
+      const finalPhone = phone || userMeta.phone || ''
+
       // Insert into agents (Workspace)
       const { data: agentData, error: agentError } = await supabase.from('agents').insert({
-        email,
-        name: `${firstName} ${lastName}`,
-        phone,
+        email: finalEmail,
+        name: finalName,
+        phone: finalPhone,
         agency_name: agencyName,
         city,
         state: stateLoc,
@@ -208,9 +213,9 @@ export default function OnboardingPage() {
         agent_id: agentData.id,
         auth_user_id: userData.user.id,
         role: 'owner',
-        name: `${firstName} ${lastName}`,
-        email,
-        phone
+        name: finalName,
+        email: finalEmail,
+        phone: finalPhone
       })
 
       if (teamError) throw teamError

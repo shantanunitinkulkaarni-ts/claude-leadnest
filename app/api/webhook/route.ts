@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`Webhook Debug: Calling Gemini for lead ${lead.phone} with message: "${messageText}"`)
-    const { reply, metadata } = await generateBotReply(agent.id, lead.id, messageText)
+    let { reply, metadata } = await generateBotReply(agent.id, lead.id, messageText)
     console.log(`Webhook Debug: Gemini replied with: "${reply}" and metadata:`, metadata)
 
     const leadUpdates: any = { updated_at: now }
@@ -207,13 +207,36 @@ export async function POST(request: NextRequest) {
       let apptData, apptError;
       
       if (existingAppts && existingAppts.length > 0) {
-        console.log('APPT-DEBUG: Found existing upcoming appointment, updating time to:', parsedDate.toISOString())
-        const res = await supabaseAdmin.from('appointments').update({
-          scheduled_at: parsedDate.toISOString(),
-          property_id: safePropertyId || undefined // don't clear it if they just rescheduled
-        }).eq('id', existingAppts[0].id).select()
-        apptData = res.data
-        apptError = res.error
+        // Troll detection: Check how many times they have rescheduled
+        const { count: rescheduleCount } = await supabaseAdmin
+          .from('activity_log')
+          .select('*', { count: 'exact', head: true })
+          .eq('lead_id', lead.id)
+          .eq('title', 'Site visit rescheduled by AI')
+
+        if (rescheduleCount !== null && rescheduleCount >= 2) {
+          console.log('APPT-DEBUG: Troll detected (>=3 reschedules). Handing over to human.')
+          reply = "I notice we've had to reschedule a few times. To ensure we find a time that works perfectly without any back-and-forth, I'll have a human agent reach out to coordinate with you directly."
+          leadUpdates.bot_paused = true
+          leadUpdates.status = 'contacted'
+          
+          await supabaseAdmin.from('activity_log').insert({
+            agent_id: agent.id, lead_id: lead.id, type: 'bot_paused',
+            title: 'Bot Paused (Troll Detection)',
+            description: 'Lead rescheduled 3 times. Handed over to human.'
+          })
+          
+          // Skip updating the appointment time in DB
+          metadata.appointment_booked_time = null 
+        } else {
+          console.log('APPT-DEBUG: Found existing upcoming appointment, updating time to:', parsedDate.toISOString())
+          const res = await supabaseAdmin.from('appointments').update({
+            scheduled_at: parsedDate.toISOString(),
+            property_id: safePropertyId || undefined // don't clear it if they just rescheduled
+          }).eq('id', existingAppts[0].id).select()
+          apptData = res.data
+          apptError = res.error
+        }
       } else {
         console.log('APPT-DEBUG: Inserting new appointment — agent_id:', agent.id, 'lead_id:', lead.id, 'property_id:', safePropertyId, 'scheduled_at:', parsedDate.toISOString())
         const res = await supabaseAdmin.from('appointments').insert({
@@ -227,17 +250,19 @@ export async function POST(request: NextRequest) {
         apptError = res.error
       }
       
-      if (apptError) {
-        console.error('APPT-DEBUG: SAVE FAILED:', apptError)
-      } else {
-        console.log('APPT-DEBUG: SAVE SUCCESS:', apptData)
+      if (metadata.appointment_booked_time) {
+        if (apptError) {
+          console.error('APPT-DEBUG: SAVE FAILED:', apptError)
+        } else {
+          console.log('APPT-DEBUG: SAVE SUCCESS:', apptData)
+        }
+        
+        await supabaseAdmin.from('activity_log').insert({
+          agent_id: agent.id, lead_id: lead.id, type: 'visit_booked',
+          title: existingAppts && existingAppts.length > 0 ? 'Site visit rescheduled by AI' : 'Site visit booked by AI',
+          description: `Scheduled for ${parsedDate.toLocaleString('en-IN')}`
+        })
       }
-      
-      await supabaseAdmin.from('activity_log').insert({
-        agent_id: agent.id, lead_id: lead.id, type: 'visit_booked',
-        title: existingAppts && existingAppts.length > 0 ? 'Site visit rescheduled by AI' : 'Site visit booked by AI',
-        description: `Scheduled for ${parsedDate.toLocaleString('en-IN')}`
-      })
     } // end of Book/Reschedule Logic
     }
 

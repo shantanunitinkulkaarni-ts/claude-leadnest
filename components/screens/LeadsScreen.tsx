@@ -91,7 +91,7 @@ export default function LeadsScreen({ agentId }: Props) {
       })
     } catch (err) {
       console.error('Failed to update status', err)
-      // fetchLeads() to revert in case of failure
+      fetchLeads() // Revert in case of failure
     }
     setDraggedId(null)
   }

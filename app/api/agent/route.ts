@@ -22,9 +22,16 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json()
+    const allowedFields = ['agency_name', 'city', 'state', 'areas', 'bot_tone', 'office_open', 'office_close', 'languages', 'bot_active']
+    const safeBody: any = {}
+    for (const key of allowedFields) {
+      if (key in body) safeBody[key] = body[key]
+    }
+    if (Object.keys(safeBody).length === 0) return NextResponse.json({ error: 'No valid fields provided' }, { status: 400 })
+
     const { data, error } = await supabaseAdmin
       .from('agents')
-      .update(body)
+      .update(safeBody)
       .eq('id', agentId)
       .select()
       .single()
