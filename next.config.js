@@ -11,9 +11,10 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: [
         'localhost:3000',
+        'localhost:3003',
         'leadnest.in',
         'www.leadnest.in',
-        'leadnest-629032564012.us-central1.run.app',
+        '*.awsapprunner.com',
         '*.run.app'
       ]
     }
