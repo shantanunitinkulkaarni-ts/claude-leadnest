@@ -1,7 +1,7 @@
 import { supabaseAdmin } from './supabase'
 import { VertexAI, type Content } from '@google-cloud/vertexai'
 
-const GEMINI_MODEL = 'gemini-1.5-flash-002'
+const GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20'
 
 function getGeminiClient() {
   const project = process.env.GOOGLE_CLOUD_PROJECT
