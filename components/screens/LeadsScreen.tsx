@@ -4,10 +4,25 @@ import Papa from 'papaparse'
 
 interface Props { agentId: string }
 
-const COLUMNS = ['New', 'Qualified', 'Visit booked', 'Closed']
+const COLUMNS = ['New', 'Qualified', 'Visit Booked', 'Closed']
+
+const STATUS_MAP: Record<string, string[]> = {
+  'New': ['new', 'contacted'],
+  'Qualified': ['qualified'],
+  'Visit Booked': ['visit_booked', 'visit_done'],
+  'Closed': ['closed_won', 'closed_lost']
+}
+
+const DROP_STATUS: Record<string, string> = {
+  'New': 'new',
+  'Qualified': 'qualified',
+  'Visit Booked': 'visit_booked',
+  'Closed': 'closed_won'
+}
 
 export default function LeadsScreen({ agentId }: Props) {
   const [leads, setLeads] = useState<any[]>([])
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [isUnlocked, setIsUnlocked] = useState(false)
   const [showPinModal, setShowPinModal] = useState(false)
   const [pinInput, setPinInput] = useState('')
@@ -17,7 +32,8 @@ export default function LeadsScreen({ agentId }: Props) {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showBulkModal, setShowBulkModal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  
+  const [addError, setAddError] = useState<string | null>(null)
+
   // Add Lead Form State
   const [leadName, setLeadName] = useState('')
   const [leadPhone, setLeadPhone] = useState('')
@@ -32,10 +48,16 @@ export default function LeadsScreen({ agentId }: Props) {
   // Fetch leads
   const fetchLeads = () => {
     fetch('/api/leads?agent_id=' + agentId)
-      .then(r => r.json())
-      .then(d => {
+      .then(async r => {
+        const d = await r.json()
+        if (!r.ok) {
+          setFetchError(d.error || `Error ${r.status}`)
+          return
+        }
+        setFetchError(null)
         if (d.data) setLeads(d.data)
       })
+      .catch(err => setFetchError(err.message))
   }
 
   useEffect(() => {
@@ -76,8 +98,8 @@ export default function LeadsScreen({ agentId }: Props) {
   const handleDrop = async (e: React.DragEvent, colStatus: string) => {
     e.preventDefault()
     if (!draggedId || !isUnlocked) return
-    
-    const dbStatus = colStatus.toLowerCase()
+
+    const dbStatus = DROP_STATUS[colStatus] || colStatus.toLowerCase()
 
     // Optimistic update
     setLeads(prev => prev.map(l => l.id === draggedId ? { ...l, status: dbStatus } : l))
@@ -100,26 +122,29 @@ export default function LeadsScreen({ agentId }: Props) {
   const handleSaveLead = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setAddError(null)
     const payload = {
       agent_id: agentId,
       name: leadName,
       phone: leadPhone,
       source: leadSource,
       status: 'new',
-      temperature: 'new',
-      ai_score: 0
+      temperature: 'new'
     }
     try {
-      await fetch('/api/leads', {
+      const res = await fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `Server error ${res.status}`)
       setShowAddModal(false)
-      setLeadName(''); setLeadPhone('')
+      setLeadName('')
+      setLeadPhone('')
       fetchLeads()
-    } catch(err) {
-      console.error(err)
+    } catch(err: any) {
+      setAddError(err.message)
     } finally {
       setIsSubmitting(false)
     }
@@ -188,7 +213,7 @@ export default function LeadsScreen({ agentId }: Props) {
   const grouped = COLUMNS.reduce((acc, col) => {
     acc[col] = leads.filter(l => {
       const s = l.status || 'new'
-      return s.toLowerCase() === col.toLowerCase()
+      return (STATUS_MAP[col] || []).includes(s)
     })
     return acc
   }, {} as Record<string, any[]>)
@@ -211,7 +236,14 @@ export default function LeadsScreen({ agentId }: Props) {
         .draggable-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.05) !important; }
         .locked-card:hover { filter: brightness(0.97); }
       `}</style>
-      
+
+      {fetchError && (
+        <div style={{ background: '#FDF0F0', border: '1px solid rgba(192,57,43,0.2)', color: '#8B1A1A', padding: '10px 16px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+          ⚠️ Could not load leads: <strong>{fetchError}</strong>
+          {fetchError.includes('401') || fetchError.includes('403') || fetchError.includes('Authentication') || fetchError.includes('Forbidden') ? ' — Please refresh the page or log out and log back in.' : ''}
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 500, color: '#1A1916' }}>Lead pipeline</div>
@@ -227,7 +259,7 @@ export default function LeadsScreen({ agentId }: Props) {
             Bulk Upload CSV
           </button>
           <button 
-            onClick={() => setShowAddModal(true)}
+            onClick={() => { setShowAddModal(true); setAddError(null) }}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#1A1916', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}
           >
             + Add Lead
@@ -328,6 +360,11 @@ export default function LeadsScreen({ agentId }: Props) {
             </div>
             
             <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {addError && (
+                <div style={{ background: '#FDF0F0', color: '#8B1A1A', padding: '10px 14px', borderRadius: 8, fontSize: 13 }}>
+                  ⚠️ {addError}
+                </div>
+              )}
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Lead Name</label>
                 <input required value={leadName} onChange={e => setLeadName(e.target.value)} placeholder="e.g. Rahul Kumar" style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />

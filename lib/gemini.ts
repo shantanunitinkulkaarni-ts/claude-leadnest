@@ -1,14 +1,12 @@
 import { supabaseAdmin } from './supabase'
-import { VertexAI, type Content } from '@google-cloud/vertexai'
+import Groq from 'groq-sdk'
 
-const GEMINI_MODEL = 'gemini-2.5-flash-preview-05-20'
+const GROQ_MODEL = 'llama-3.3-70b-versatile'
 
-function getGeminiClient() {
-  const project = process.env.GOOGLE_CLOUD_PROJECT
-  const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1'
-  if (!project) throw new Error('GOOGLE_CLOUD_PROJECT env var is missing')
-  
-  return new VertexAI({ project, location })
+function getGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY
+  if (!apiKey) throw new Error('GROQ_API_KEY env var is missing')
+  return new Groq({ apiKey })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -244,58 +242,36 @@ export async function generateBotReply(
 
   // Build conversation history — exclude the LAST message (the one we just inserted)
   const historyMessages = recentMessages.slice(0, -1).slice(-8)
-  
-  // Convert to Gemini format and merge consecutive same-role messages
-  let geminiHistory: Content[] = []
+
+  // Convert to Groq/OpenAI format
+  const chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
   for (const m of historyMessages) {
-    const role = (m.direction === 'inbound' ? 'user' : 'model') as 'user' | 'model'
+    const role = m.direction === 'inbound' ? 'user' : 'assistant'
     const text = (m.content || '').toString()
     if (!text.trim()) continue
-    
-    const last = geminiHistory[geminiHistory.length - 1]
+    const last = chatHistory[chatHistory.length - 1]
     if (last && last.role === role) {
-      // Merge consecutive same-role messages
-      last.parts[0] = { text: (last.parts[0] as any).text + '\n' + text }
+      last.content += '\n' + text
     } else {
-      geminiHistory.push({ role, parts: [{ text }] })
+      chatHistory.push({ role, content: text })
     }
   }
 
-  // Gemini strictly requires the first message in history to be from 'user'.
-  while (geminiHistory.length > 0 && geminiHistory[0].role !== 'user') {
-    geminiHistory.shift()
-  }
-  // And must end with 'model' (since we're about to send a user message)
-  while (geminiHistory.length > 0 && geminiHistory[geminiHistory.length - 1].role !== 'model') {
-    geminiHistory.pop()
-  }
-
-  // ─── Call Vertex AI (Gemini Flash) ────────────────────────────────────────
-  const vertexAI = getGeminiClient()
-  const model = vertexAI.preview.getGenerativeModel({
-    model: GEMINI_MODEL,
-    systemInstruction: { role: 'system', parts: [{ text: systemPrompt }] }
+  // ─── Call Groq (Llama 3.3 70B) ───────────────────────────────────────────
+  const groq = getGroqClient()
+  const completion = await groq.chat.completions.create({
+    model: GROQ_MODEL,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...chatHistory,
+      { role: 'user', content: incomingMessage }
+    ],
+    max_tokens: 600,
+    temperature: 0.7
   })
 
-  let responseText: string
-  try {
-    const chat = model.startChat({ history: geminiHistory as any })
-    const result = await chat.sendMessage(incomingMessage)
-    if (!result.response.candidates?.[0]?.content?.parts?.[0]?.text) {
-      throw new Error('Vertex AI returned empty or blocked response')
-    }
-    responseText = result.response.candidates[0].content.parts[0].text
-  } catch (chatErr: any) {
-    // Fallback: if chat mode fails (history issue), use single-turn generation
-    console.error('Vertex AI chat failed, falling back to single-turn:', chatErr.message)
-    const fallbackResult = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: incomingMessage }] }]
-    })
-    if (!fallbackResult.response.candidates?.[0]?.content?.parts?.[0]?.text) {
-      throw new Error('Vertex AI fallback returned empty or blocked response')
-    }
-    responseText = fallbackResult.response.candidates[0].content.parts[0].text
-  }
+  const responseText = completion.choices[0]?.message?.content?.trim() || ''
+  if (!responseText) throw new Error('Groq returned empty response')
 
   // Parse reply and metadata JSON from the structured response
   const lines = responseText.trim().split('\n')

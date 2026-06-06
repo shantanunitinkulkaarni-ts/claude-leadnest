@@ -2,10 +2,17 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { pickFields, requireAgentAccess, requirePropertyAccess } from '@/lib/apiAuth'
+
+const CREATE_FIELDS = ['agent_id', 'title', 'location', 'city', 'price', 'rent_per_month', 'type', 'category', 'bhk', 'size_sqft', 'description', 'features', 'status']
+const UPDATE_FIELDS = ['title', 'location', 'city', 'price', 'rent_per_month', 'type', 'category', 'bhk', 'size_sqft', 'description', 'features', 'status']
 
 export async function GET(request: NextRequest) {
   const agentId = request.nextUrl.searchParams.get('agent_id')
   if (!agentId) return NextResponse.json({ error: 'agent_id required' }, { status: 400 })
+
+  const access = await requireAgentAccess(agentId)
+  if ('error' in access) return access.error
 
   const { data, error } = await supabaseAdmin
     .from('properties')
@@ -19,10 +26,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json()
+  if (!body.agent_id) return NextResponse.json({ error: 'agent_id required' }, { status: 400 })
+
+  const access = await requireAgentAccess(body.agent_id)
+  if ('error' in access) return access.error
+
+  const safeBody = pickFields(body, CREATE_FIELDS)
 
   const { data, error } = await supabaseAdmin
     .from('properties')
-    .insert(body)
+    .insert(safeBody)
     .select()
     .single()
 
@@ -33,10 +46,17 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const body = await request.json()
   const { id, ...updates } = body
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  const access = await requirePropertyAccess(id)
+  if ('error' in access) return access.error
+
+  const safeUpdates = pickFields(updates, UPDATE_FIELDS)
+  if (Object.keys(safeUpdates).length === 0) return NextResponse.json({ error: 'No valid fields provided' }, { status: 400 })
 
   const { data, error } = await supabaseAdmin
     .from('properties')
-    .update(updates)
+    .update(safeUpdates)
     .eq('id', id)
     .select()
     .single()
@@ -48,6 +68,9 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const id = request.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  const access = await requirePropertyAccess(id)
+  if ('error' in access) return access.error
 
   const { error } = await supabaseAdmin.from('properties').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

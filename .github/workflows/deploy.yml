@@ -1,4 +1,4 @@
-name: Deploy LeadNest to GCP Cloud Run
+name: Deploy LeadNest to AWS App Runner
 
 on:
   push:
@@ -14,39 +14,39 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Configure Docker for GCP
-        run: gcloud auth configure-docker gcr.io --quiet
-
-      - name: Build and push Docker image
+      - name: Build, tag, and push image to ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: leadnest
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          IMAGE="gcr.io/${{ secrets.GCP_PROJECT_ID }}/leadnest:${{ github.sha }}"
-          docker build -t $IMAGE .
-          docker push $IMAGE
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Deploy to Cloud Run
-        run: |
-          IMAGE="gcr.io/${{ secrets.GCP_PROJECT_ID }}/leadnest:${{ github.sha }}"
-          gcloud run deploy leadnest \
-            --image $IMAGE \
-            --platform managed \
-            --region asia-south1 \
-            --project ${{ secrets.GCP_PROJECT_ID }} \
-            --allow-unauthenticated \
-            --quiet
+      - name: Deploy to App Runner
+        uses: awslabs/amazon-app-runner-deploy@main
+        with:
+          service: leadnest
+          image: ${{ steps.build-image.outputs.image }}
+          access-role-arn: ${{ secrets.APP_RUNNER_ROLE_ARN }}
+          region: us-east-1
+          cpu: 0.25
+          memory: 0.5
+          port: 8080
+          wait-for-service-stability-seconds: 300
 
-      - name: Get deployment URL
-        run: |
-          URL=$(gcloud run services describe leadnest \
-            --platform managed \
-            --region asia-south1 \
-            --project ${{ secrets.GCP_PROJECT_ID }} \
-            --format='value(status.url)')
-          echo "✅ LeadNest deployed to: $URL"
+      - name: App Runner URL
+        run: echo "✅ Deployed to App Runner"

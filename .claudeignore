@@ -1,0 +1,13 @@
+node_modules
+.next
+dist
+*.log
+package-lock.json
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+scratch
+public
+*.html
+*.sql
+*.txt
+.env

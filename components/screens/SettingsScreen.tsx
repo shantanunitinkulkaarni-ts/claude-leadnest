@@ -141,7 +141,7 @@ export default function SettingsScreen({ agentId }: Props) {
         { k: 'Plan', v: (agentData?.plan ? agentData.plan.charAt(0).toUpperCase() + agentData.plan.slice(1) : 'Monthly') + ' — ' + (agentData?.plan === 'free' ? '₹0' : '₹999') + ' / month' },
         { k: 'Next billing', v: agentData?.plan === 'free' ? '-' : '25 Jun 2026' },
         { k: 'Message usage', v: `${agentData?.messages_used ?? 0} / ${agentData?.messages_limit ?? 5000} this month` },
-        { k: 'WhatsApp', v: `${agentData?.phone || 'Not set'} — Connected ✓` }
+        { k: 'WhatsApp', v: agentData?.wa_verified ? `Connected ✓` : 'Not connected — awaiting Meta API setup' }
       ], 
       toggles: [] 
     },

@@ -18,13 +18,15 @@ export default function InboxScreen({ agentId }: Props) {
   
   const [isManual, setIsManual] = useState(false)
   const [isSimulating, setIsSimulating] = useState(false)
-  
+
   const [activeTab, setActiveTab] = useState<'chat' | 'profile' | 'matched' | 'activity'>('chat')
   const [filter, setFilter] = useState('all')
   const [msgInput, setMsgInput] = useState('')
   const [loadingLeads, setLoadingLeads] = useState(true)
   const [sendLoading, setSendLoading] = useState(false)
   const [now, setNow] = useState(Date.now())
+  const [properties, setProperties] = useState<any[]>([])
+  const [activityLog, setActivityLog] = useState<any[]>([])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -84,10 +86,12 @@ export default function InboxScreen({ agentId }: Props) {
   // Fetch functions
   const fetchLeads = () => {
     fetch('/api/leads?agent_id=' + agentId)
-      .then(r => r.json())
-      .then(d => {
+      .then(async r => {
+        const d = await r.json()
         if (d.data) {
           setLeads(d.data)
+          setLoadingLeads(false)
+        } else {
           setLoadingLeads(false)
         }
       })
@@ -108,14 +112,27 @@ export default function InboxScreen({ agentId }: Props) {
       })
   }
 
-  // Fetching Leads + WebSockets
+  const fetchProperties = () => {
+    fetch('/api/properties?agent_id=' + agentId)
+      .then(r => r.json())
+      .then(d => { if (d.data) setProperties(d.data) })
+  }
+
+  const fetchActivity = (leadId: string) => {
+    fetch('/api/activity?lead_id=' + leadId)
+      .then(r => r.json())
+      .then(d => { if (d.data) setActivityLog(d.data) })
+  }
+
+  // Fetching Leads + Properties + WebSockets
   useEffect(() => {
     fetchLeads()
+    fetchProperties()
     const interval = setInterval(fetchLeads, 30000)
 
     const supabase = getSupabase()
     const channel = supabase.channel('inbox-leads-changes')
-      .on('postgres', { event: '*', schema: 'public', table: 'leads', filter: `agent_id=eq.${agentId}` }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `agent_id=eq.${agentId}` }, () => {
         fetchLeads()
       })
       .subscribe()
@@ -126,15 +143,17 @@ export default function InboxScreen({ agentId }: Props) {
     }
   }, [agentId])
 
-  // Fetching Messages + WebSockets
+  // Fetching Messages + Activity + WebSockets
   useEffect(() => {
     if (!selected) return
     fetchMessages()
-    const interval = setInterval(fetchMessages, 30000)
+    fetchActivity(selected.id)
+    setActivityLog([])
+    const interval = setInterval(fetchMessages, 8000)
 
     const supabase = getSupabase()
     const channel = supabase.channel(`inbox-msgs-${selected.id}`)
-      .on('postgres', { event: 'INSERT', schema: 'public', table: 'messages', filter: `lead_id=eq.${selected.id}` }, () => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `lead_id=eq.${selected.id}` }, () => {
         fetchMessages()
       })
       .subscribe()
@@ -434,10 +453,49 @@ export default function InboxScreen({ agentId }: Props) {
                 )}
 
                 {activeTab === 'matched' && (
-                  <div style={{ padding: '16px 20px', color: '#9E9B92', fontSize: 13 }}>Dynamic property matching coming soon...</div>
+                  <div style={{ padding: '16px 20px' }}>
+                    {(() => {
+                      const matchedProps = properties.filter(p => {
+                        if (p.status !== 'active') return false
+                        if (selected.intent === 'buy' && p.type === 'rental') return false
+                        if (selected.intent === 'rent' && p.type === 'sale') return false
+                        if (selected.budget_max && p.price && p.price > selected.budget_max * 1.2) return false
+                        return true
+                      })
+                      if (matchedProps.length === 0) return (
+                        <div style={{ color: '#9E9B92', fontSize: 13, textAlign: 'center', paddingTop: 20 }}>
+                          No matching properties yet. Add properties in the Properties tab.
+                        </div>
+                      )
+                      return matchedProps.map((p: any) => (
+                        <div key={p.id} style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 10, padding: '12px 14px', marginBottom: 10 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: '#1A1916' }}>{p.title}</div>
+                          <div style={{ fontSize: 11, color: '#9E9B92', marginTop: 2 }}>{p.location}, {p.city}</div>
+                          <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: '#1A5FA5' }}>₹{(p.price || p.rent_per_month || 0).toLocaleString('en-IN')}{p.type === 'rental' ? '/mo' : ''}</span>
+                            {p.bhk && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#F4F3EE', color: '#6B6860' }}>{p.bhk}</span>}
+                            <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: p.type === 'sale' ? '#EEF4FC' : '#FEF9E7', color: p.type === 'sale' ? '#1A5FA5' : '#B7770D', textTransform: 'capitalize' }}>{p.type}</span>
+                          </div>
+                        </div>
+                      ))
+                    })()}
+                  </div>
                 )}
                 {activeTab === 'activity' && (
-                  <div style={{ padding: '16px 20px', color: '#9E9B92', fontSize: 13 }}>Dynamic activity log coming soon...</div>
+                  <div style={{ padding: '16px 20px' }}>
+                    {activityLog.length === 0 ? (
+                      <div style={{ color: '#9E9B92', fontSize: 13, textAlign: 'center', paddingTop: 20 }}>No activity yet for this lead.</div>
+                    ) : activityLog.map((a: any) => (
+                      <div key={a.id} style={{ display: 'flex', gap: 12, paddingBottom: 14, marginBottom: 14, borderBottom: '1px solid rgba(26,25,22,0.06)' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#2E8B5F', marginTop: 5, flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: '#1A1916' }}>{a.title}</div>
+                          {a.description && <div style={{ fontSize: 11, color: '#6B6860', marginTop: 2 }}>{a.description}</div>}
+                          <div style={{ fontSize: 10, color: '#C8C5BC', marginTop: 4 }}>{new Date(a.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </>

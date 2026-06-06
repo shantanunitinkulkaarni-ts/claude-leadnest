@@ -2,10 +2,14 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { requireAgentAccess } from '@/lib/apiAuth'
 
 export async function GET(request: NextRequest) {
   const agentId = request.nextUrl.searchParams.get('agent_id')
   if (!agentId) return NextResponse.json({ error: 'agent_id required' }, { status: 400 })
+
+  const access = await requireAgentAccess(agentId)
+  if ('error' in access) return access.error
 
   const [leadsRes, messagesRes, appointmentsRes, agentRes] = await Promise.all([
     supabaseAdmin.from('leads').select('*').eq('agent_id', agentId).order('updated_at', { ascending: false }),
@@ -31,7 +35,7 @@ export async function GET(request: NextRequest) {
   const conversionRate = totalLeads > 0 ? ((closedWon / totalLeads) * 100).toFixed(1) : '0'
 
   const recentHotLeads = leads
-    .filter((l: any) => l.temperature === 'hot' || l.score >= 8)
+    .filter((l: any) => l.temperature === 'hot' || l.ai_score >= 8)
     .slice(0, 4)
 
   return NextResponse.json({

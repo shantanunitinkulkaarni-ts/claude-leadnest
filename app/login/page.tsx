@@ -10,7 +10,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [msg, setMsg] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [authMethod, setAuthMethod] = useState<'google' | 'email' | 'phone'>('google')
+  const [authMethod, setAuthMethod] = useState<'google' | 'email' | 'phone'>('email')
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { requireAgentAccess } from '@/lib/apiAuth'
 
 // ─────────────────────────────────────────────────────────────────
 // ROI Analytics Engine
@@ -20,6 +21,9 @@ export async function GET(request: NextRequest) {
   const agentId = request.nextUrl.searchParams.get('agent_id')
   const period = request.nextUrl.searchParams.get('period') || '30' // days
   if (!agentId) return NextResponse.json({ error: 'agent_id required' }, { status: 400 })
+
+  const access = await requireAgentAccess(agentId)
+  if ('error' in access) return access.error
 
   const days = parseInt(period)
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()

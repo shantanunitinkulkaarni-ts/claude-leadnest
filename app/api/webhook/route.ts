@@ -276,15 +276,29 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const toPhone = PROVIDER === 'twilio' ? `whatsapp:${fromPhone}` : fromPhone
-    console.log(`Webhook Debug: Sending WhatsApp message via Twilio to ${toPhone}`)
-    const outWaId = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, toPhone, reply)
-    console.log(`Webhook Debug: WhatsApp message sent. Twilio SID/ID: ${outWaId}`)
-
+    // Save bot reply to DB first — ensures simulation mode always shows the reply
     await supabaseAdmin.from('messages').insert({
       lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
-      content: reply, wa_message_id: outWaId || undefined, sent_by: 'bot'
+      content: reply, sent_by: 'bot'
     })
+
+    // Then attempt WhatsApp delivery (non-blocking — simulation works even if this fails)
+    const toPhone = PROVIDER === 'twilio' ? `whatsapp:${fromPhone}` : fromPhone
+    try {
+      const outWaId = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, toPhone, reply)
+      if (outWaId) {
+        await supabaseAdmin.from('messages')
+          .update({ wa_message_id: outWaId })
+          .eq('lead_id', lead.id)
+          .eq('direction', 'outbound')
+          .eq('sent_by', 'bot')
+          .order('created_at', { ascending: false })
+          .limit(1)
+      }
+      console.log(`Webhook Debug: WhatsApp sent. ID: ${outWaId}`)
+    } catch (waErr: any) {
+      console.log(`Webhook Debug: WhatsApp send failed (simulation mode OK): ${waErr.message}`)
+    }
 
     await supabaseAdmin.from('agents').update({ messages_used: (agent.messages_used || 0) + 2 }).eq('id', agent.id)
 

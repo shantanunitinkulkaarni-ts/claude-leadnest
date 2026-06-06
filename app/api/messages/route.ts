@@ -2,10 +2,14 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { requireAgentAccess, requireLeadAccess } from '@/lib/apiAuth'
 
 export async function GET(request: NextRequest) {
   const leadId = request.nextUrl.searchParams.get('lead_id')
   if (!leadId) return NextResponse.json({ error: 'lead_id required' }, { status: 400 })
+
+  const access = await requireLeadAccess(leadId)
+  if ('error' in access) return access.error
 
   const { data, error } = await supabaseAdmin
     .from('messages')
@@ -20,6 +24,16 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   // Manual message from agent
   const body = await request.json()
+  if (!body.agent_id || !body.lead_id || !body.content) {
+    return NextResponse.json({ error: 'agent_id, lead_id and content required' }, { status: 400 })
+  }
+
+  const agentAccess = await requireAgentAccess(body.agent_id)
+  if ('error' in agentAccess) return agentAccess.error
+
+  const leadAccess = await requireLeadAccess(body.lead_id)
+  if ('error' in leadAccess) return leadAccess.error
+  if (leadAccess.agentId !== body.agent_id) return NextResponse.json({ error: 'Lead does not belong to agent' }, { status: 400 })
 
   const { data: agent } = await supabaseAdmin
     .from('agents')

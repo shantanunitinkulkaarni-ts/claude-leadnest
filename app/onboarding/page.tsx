@@ -34,7 +34,7 @@ export default function OnboardingPage() {
   // Step 4: WhatsApp
   const [waStatus, setWaStatus] = useState('Pending')
 
-  const [authMethod, setAuthMethod] = useState<'google' | 'email' | 'phone'>('google')
+  const [authMethod, setAuthMethod] = useState<'google' | 'email' | 'phone'>('email')
   const [signupPassword, setSignupPassword] = useState('')
   const [otpToken, setOtpToken] = useState('')
   const [otpSent, setOtpSent] = useState(false)

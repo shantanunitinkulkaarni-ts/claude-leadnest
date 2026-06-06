@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import Groq from 'groq-sdk'
 import { createClient } from '@supabase/supabase-js'
 
 export const maxDuration = 30; // max Vercel function timeout
@@ -45,54 +45,42 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Initialize Gemini 2.5 Flash
-    const apiKey = process.env.GEMINI_API_KEY
+    // 2. Initialize Groq
+    const apiKey = process.env.GROQ_API_KEY
     if (!apiKey) {
-      return NextResponse.json({ error: 'Missing Gemini API Key' }, { status: 500 })
+      return NextResponse.json({ error: 'Missing GROQ_API_KEY configuration' }, { status: 500 })
     }
-
-    const genAI = new GoogleGenerativeAI(apiKey)
+    const groq = new Groq({ apiKey })
 
     // 3. System Prompt
-    const systemInstructionText = `
-      You are Aisha, an elite and highly professional luxury real estate specialist for "The Azure Villas" located in Goa, India. 
-      You are an AI assistant designed to demonstrate the power of LeadNest's Conversion Engine.
-      
-      RULES:
-      1. Keep your answers extremely concise (1-2 sentences maximum).
-      2. You MUST communicate exclusively in the following language: ${language || 'English'}.
-      3. If the user asks for pictures, photos, images, or to see the property, you MUST include the exact string [SHOW_IMAGES] anywhere in your response.
-      4. Always maintain a premium, luxurious, and helpful tone. The villas cost upwards of ₹5 Cr.
-    `
+    const systemInstructionText = `You are Aisha, an elite and highly professional luxury real estate specialist for "The Azure Villas" located in Goa, India. You are an AI assistant designed to demonstrate the power of LeadNest's Conversion Engine.
 
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-flash',
-      systemInstruction: { parts: [{ text: systemInstructionText }], role: "system" }
-    })
+RULES:
+1. Keep your answers extremely concise (1-2 sentences maximum).
+2. You MUST communicate exclusively in the following language: ${language || 'English'}.
+3. If the user asks for pictures, photos, images, or to see the property, you MUST include the exact string [SHOW_IMAGES] anywhere in your response.
+4. Always maintain a premium, luxurious, and helpful tone. The villas cost upwards of ₹5 Cr.`
 
-    // Convert standard chat messages format to Gemini format
-    let geminiHistory = messages.map((msg: any) => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
+    // Build history excluding the last message (which we send separately)
+    const history = messages.slice(0, -1).map((msg: any) => ({
+      role: msg.role as 'user' | 'assistant',
+      content: msg.content
     }))
 
-    // Remove the last message (which is the prompt to be sent)
-    geminiHistory = geminiHistory.slice(0, -1)
+    const lastMessage = messages[messages.length - 1].content
 
-    // Gemini requires the history to start with a 'user' message.
-    // If the frontend's first message was the assistant's welcome, we remove it from history.
-    if (geminiHistory.length > 0 && geminiHistory[0].role === 'model') {
-      geminiHistory.shift()
-    }
-
-    // Start chat session with history
-    const chat = model.startChat({
-      history: geminiHistory
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: systemInstructionText },
+        ...history,
+        { role: 'user', content: lastMessage }
+      ],
+      max_tokens: 200,
+      temperature: 0.7
     })
 
-    const lastMessage = messages[messages.length - 1].content
-    const result = await chat.sendMessage(lastMessage)
-    const responseText = result.response.text()
+    const responseText = completion.choices[0]?.message?.content?.trim() || ''
 
     return NextResponse.json({ response: responseText })
 
