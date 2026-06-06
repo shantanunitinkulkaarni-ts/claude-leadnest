@@ -46,17 +46,25 @@ export default function OnboardingPage() {
     setIsSubmitting(true)
     try {
       const supabase = getSupabase()
-      const { error } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email,
         password: signupPassword,
-        options: {
-          data: {
-            full_name: `${firstName} ${lastName}`.trim()
-          }
-        }
+        options: { data: { full_name: `${firstName} ${lastName}`.trim() } }
       })
-      if (error) throw error
-      // If auto confirm is enabled, it logs them in
+      if (signUpError) throw signUpError
+
+      // Try immediate sign-in (works if email confirmation is disabled in Supabase)
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password: signupPassword
+      })
+
+      if (signInError) {
+        // Email confirmation is required — tell user to confirm then come back
+        setError('Account created! Please check your email inbox to confirm your account, then come back and log in to complete setup.')
+        return
+      }
+
       setCurrentStep(1)
     } catch (err: any) {
       setError(err.message)
