@@ -14,7 +14,7 @@ const navItems: { screen: Screen; label: string; icon: string; badge?: string }[
   { screen: 'leads', label: 'Leads', icon: '👥' },
   { screen: 'properties', label: 'Properties', icon: '🏠' },
   { screen: 'appointments', label: 'Appointments', icon: '📅' },
-  { screen: 'analytics', label: 'Analytics', icon: '📊' },
+  { screen: 'analytics', label: 'ROI Dashboard', icon: '📊' },
   { screen: 'balance', label: 'WA Balance', icon: '💳' },
   { screen: 'settings', label: 'Settings', icon: '⚙️' },
 ]
@@ -23,13 +23,18 @@ export default function Sidebar({ activeScreen, onNavigate, agent }: Props) {
   const [botActive, setBotActive] = useState(agent?.bot_active ?? true)
 
   const toggleBot = async () => {
+    if (!agent?.id) return
     const newVal = !botActive
     setBotActive(newVal)
-    await fetch('/api/agent', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: agent?.id, bot_active: newVal })
-    })
+    try {
+      await fetch(`/api/agent?id=${agent.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bot_active: newVal })
+      })
+    } catch {
+      setBotActive(!newVal) // revert on failure
+    }
   }
 
   const agentName = agent?.name || 'Loading...'

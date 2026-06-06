@@ -273,6 +273,19 @@ export default function LeadsScreen({ agentId }: Props) {
         </div>
       </div>
 
+      {!fetchError && leads.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '80px 20px', color: '#9E9B92' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>👥</div>
+          <div style={{ fontSize: 16, fontWeight: 500, color: '#1A1916', marginBottom: 8 }}>No leads yet</div>
+          <div style={{ fontSize: 13, marginBottom: 24 }}>
+            Add your first lead manually, or leads will appear automatically when someone messages you on WhatsApp.
+          </div>
+          <button onClick={() => { setShowAddModal(true); setAddError(null) }} style={{ padding: '10px 20px', borderRadius: 8, background: '#1A1916', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>
+            + Add your first lead
+          </button>
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, alignItems: 'start' }}>
         {COLUMNS.map(col => {
           const colLeads = grouped[col]

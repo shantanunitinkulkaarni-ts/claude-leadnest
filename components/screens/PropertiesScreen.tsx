@@ -6,7 +6,9 @@ interface Props { agentId: string }
 
 export default function PropertiesScreen({ agentId }: Props) {
   const [properties, setProperties] = useState<any[]>([])
-  
+  const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+
   // Modals
   const [showModal, setShowModal] = useState(false)
   const [showBulkModal, setShowBulkModal] = useState(false)
@@ -48,10 +50,14 @@ export default function PropertiesScreen({ agentId }: Props) {
 
   const fetchProperties = () => {
     fetch('/api/properties?agent_id=' + agentId)
-      .then(r => r.json())
-      .then(d => {
-        if (d.data) setProperties(d.data)
+      .then(async r => {
+        const d = await r.json()
+        if (!r.ok) { setFetchError(d.error || `Error ${r.status}`); setLoading(false); return }
+        setFetchError(null)
+        setProperties(d.data || [])
+        setLoading(false)
       })
+      .catch(err => { setFetchError(err.message); setLoading(false) })
   }
 
   useEffect(() => {
@@ -313,6 +319,29 @@ export default function PropertiesScreen({ agentId }: Props) {
           </button>
         </div>
       </div>
+
+      {fetchError && (
+        <div style={{ background: '#FDF0F0', border: '1px solid rgba(192,57,43,0.2)', color: '#8B1A1A', padding: '10px 16px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+          ⚠️ {fetchError}
+        </div>
+      )}
+
+      {loading && (
+        <div style={{ textAlign: 'center', padding: '60px 0', color: '#9E9B92', fontSize: 14 }}>Loading properties...</div>
+      )}
+
+      {!loading && !fetchError && properties.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '80px 20px' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🏠</div>
+          <div style={{ fontSize: 16, fontWeight: 500, color: '#1A1916', marginBottom: 8 }}>No properties yet</div>
+          <div style={{ fontSize: 13, color: '#9E9B92', marginBottom: 24, maxWidth: 320, margin: '0 auto 24px' }}>
+            Add your first property listing. The AI bot will use these to recommend matches to leads during conversations.
+          </div>
+          <button onClick={openNewModal} style={{ padding: '10px 20px', borderRadius: 8, background: '#1A1916', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>
+            + Add your first property
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
         {properties.map((p) => {

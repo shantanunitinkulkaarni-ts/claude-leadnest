@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 export default function AppointmentsScreen({ agentId }: { agentId: string }) {
   const [appointments, setAppointments] = useState<any[]>([])
   const [properties, setProperties] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   
   // Modals
   const [showFeedbackModal, setShowFeedbackModal] = useState<any>(null) // holds appointment object
@@ -27,10 +29,14 @@ export default function AppointmentsScreen({ agentId }: { agentId: string }) {
       ])
       const apptsD = await apptsRes.json()
       const propsD = await propsRes.json()
+      if (!apptsRes.ok) { setFetchError(apptsD.error || `Error ${apptsRes.status}`); setLoading(false); return }
+      setFetchError(null)
       if (apptsD.data) setAppointments(apptsD.data)
       if (propsD.data) setProperties(propsD.data)
-    } catch (e) {
-      console.error(e)
+      setLoading(false)
+    } catch (e: any) {
+      setFetchError(e.message)
+      setLoading(false)
     }
   }
 
@@ -189,11 +195,29 @@ export default function AppointmentsScreen({ agentId }: { agentId: string }) {
         </button>
       </div>
 
+      {fetchError && (
+        <div style={{ background: '#FDF0F0', border: '1px solid rgba(192,57,43,0.2)', color: '#8B1A1A', padding: '10px 16px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+          ⚠️ {fetchError}
+        </div>
+      )}
+      {loading && <div style={{ padding: '40px 0', color: '#9E9B92', fontSize: 14 }}>Loading appointments...</div>}
+
+      {!loading && !fetchError && appointments.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#9E9B92' }}>
+          <div style={{ fontSize: 42, marginBottom: 14 }}>📅</div>
+          <div style={{ fontSize: 15, fontWeight: 500, color: '#1A1916', marginBottom: 8 }}>No appointments yet</div>
+          <div style={{ fontSize: 13, marginBottom: 20 }}>Log a walk-in visit or wait for the AI bot to book a site visit automatically.</div>
+          <button onClick={() => setShowWalkinModal(true)} style={{ padding: '9px 18px', borderRadius: 8, background: '#1A1916', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>+ Log Walk-in</button>
+        </div>
+      )}
+
+      {!loading && !fetchError && appointments.length > 0 && <>
       <div style={{ fontSize: 13, fontWeight: 600, color: '#1A1916', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>Upcoming Visits ({upcoming.length})</div>
       {upcoming.length === 0 ? <div style={{ fontSize: 13, color: '#9E9B92', marginBottom: 30 }}>No upcoming visits scheduled.</div> : upcoming.map(renderCard)}
 
       <div style={{ fontSize: 13, fontWeight: 600, color: '#1A1916', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 30, marginBottom: 12 }}>Past Visits ({past.length})</div>
       {past.map(renderCard)}
+      </>}
 
       {/* Log Walk-in Modal */}
       {showWalkinModal && (

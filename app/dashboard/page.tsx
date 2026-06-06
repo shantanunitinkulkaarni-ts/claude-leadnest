@@ -10,7 +10,7 @@ import OverviewScreen from '@/components/screens/OverviewScreen'
 import LeadsScreen from '@/components/screens/LeadsScreen'
 import PropertiesScreen from '@/components/screens/PropertiesScreen'
 import AppointmentsScreen from '@/components/screens/AppointmentsScreen'
-import AnalyticsScreen from '@/components/screens/AnalyticsScreen'
+import { ROIScreen } from '@/components/screens/ROIScreen'
 import BalanceScreen from '@/components/screens/BalanceScreen'
 import SettingsScreen from '@/components/screens/SettingsScreen'
 import SupportChat from '@/components/SupportChat'
@@ -70,7 +70,7 @@ export default function DashboardPage() {
       case 'leads': return <LeadsScreen agentId={agentId} />
       case 'properties': return <PropertiesScreen agentId={agentId} />
       case 'appointments': return <AppointmentsScreen agentId={agentId} />
-      case 'analytics': return <AnalyticsScreen agentId={agentId} />
+      case 'analytics': return <ROIScreen agentId={agentId} />
       case 'balance': return <BalanceScreen agentId={agentId} onTopUp={() => agentId && refreshAgent(agentId)} />
       case 'settings': return <SettingsScreen agentId={agentId} agent={agent} />
       default: return <OverviewScreen agentId={agentId} onNavigate={setScreen} />
@@ -79,8 +79,10 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#FAFAF7', color: '#6B6860', fontFamily: "'DM Sans', sans-serif" }}>
-        Loading dashboard...
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#FAFAF7', fontFamily: "'DM Sans', sans-serif", flexDirection: 'column', gap: 16 }}>
+        <div style={{ width: 36, height: 36, border: '3px solid #E8E5DF', borderTopColor: '#2E8B5F', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <div style={{ fontSize: 13, color: '#9E9B92' }}>Loading your dashboard...</div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     )
   }

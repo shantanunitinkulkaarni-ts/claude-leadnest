@@ -10,7 +10,7 @@ const titles: Record<Screen, string> = {
   leads: 'Leads',
   properties: 'Properties',
   appointments: 'Appointments',
-  analytics: 'Analytics',
+  analytics: 'ROI Dashboard',
   balance: 'WA Balance',
   settings: 'Settings'
 }

@@ -6,15 +6,30 @@ interface Props { agentId: string; onNavigate: (s: Screen) => void }
 
 export default function OverviewScreen({ agentId, onNavigate }: Props) {
   const [stats, setStats] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetch(`/api/analytics?agent_id=${agentId}`)
       .then(r => r.json())
-      .then(d => setStats(d))
-      .catch(() => {})
+      .then(d => { setStats(d); setLoading(false) })
+      .catch(() => setLoading(false))
   }, [agentId])
 
   const s = stats || {}
+
+  if (loading) return (
+    <div style={{ padding: '24px 28px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
+        {[1,2,3,4].map(i => (
+          <div key={i} style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '18px 20px', height: 90, animation: 'pulse 1.5s ease-in-out infinite' }}>
+            <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }`}</style>
+            <div style={{ height: 10, background: '#F4F3EE', borderRadius: 4, marginBottom: 12, width: '60%' }} />
+            <div style={{ height: 28, background: '#F4F3EE', borderRadius: 4, width: '40%' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 
   return (
     <div style={{ padding: '24px 28px' }}>
