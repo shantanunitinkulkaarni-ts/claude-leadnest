@@ -22,6 +22,7 @@ const DROP_STATUS: Record<string, string> = {
 
 export default function LeadsScreen({ agentId }: Props) {
   const [leads, setLeads] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [isUnlocked, setIsUnlocked] = useState(false)
   const [showPinModal, setShowPinModal] = useState(false)
@@ -58,6 +59,7 @@ export default function LeadsScreen({ agentId }: Props) {
         if (d.data) setLeads(d.data)
       })
       .catch(err => setFetchError(err.message))
+      .finally(() => setLoading(false))
   }
 
   useEffect(() => {
@@ -143,6 +145,8 @@ export default function LeadsScreen({ agentId }: Props) {
       setLeadName('')
       setLeadPhone('')
       fetchLeads()
+      // Notify the onboarding tutorial that a lead was successfully added
+      window.dispatchEvent(new CustomEvent('leadnest:tour-action', { detail: 'lead-added' }))
     } catch(err: any) {
       setAddError(err.message)
     } finally {
@@ -219,7 +223,7 @@ export default function LeadsScreen({ agentId }: Props) {
   }, {} as Record<string, any[]>)
 
   const scoreStyle: Record<string, { bg: string; c: string }> = { 
-    high: { bg: '#E8F5EE', c: '#1A6B4A' }, 
+    high: { bg: '#EEF0FE', c: '#4338CA' }, 
     mid: { bg: '#FEF9E7', c: '#7A5200' }, 
     low: { bg: '#EEF4FC', c: '#0F3D6E' } 
   }
@@ -246,7 +250,7 @@ export default function LeadsScreen({ agentId }: Props) {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 500, color: '#1A1916' }}>Lead pipeline</div>
+          <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B' }}>Lead pipeline</div>
           <div style={{ fontSize: 12, color: '#6B6860', marginTop: 4 }}>
             🤖 AI automatically moves leads based on intent and qualification score.
           </div>
@@ -254,13 +258,14 @@ export default function LeadsScreen({ agentId }: Props) {
         <div style={{ display: 'flex', gap: 10 }}>
           <button 
             onClick={() => setShowBulkModal(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#fff', color: '#1A1916', border: '1px solid rgba(26,25,22,0.18)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#fff', color: '#15161B', border: '1px solid rgba(26,25,22,0.18)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}
           >
             Bulk Upload CSV
           </button>
-          <button 
+          <button
+            data-tour="add-lead"
             onClick={() => { setShowAddModal(true); setAddError(null) }}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#1A1916', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}
           >
             + Add Lead
           </button>
@@ -273,19 +278,28 @@ export default function LeadsScreen({ agentId }: Props) {
         </div>
       </div>
 
-      {!fetchError && leads.length === 0 && (
+      {loading && leads.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '80px 20px', color: '#9E9B92' }}>
+          <div style={{ width: 32, height: 32, margin: '0 auto 16px', border: '3px solid #E8E5DF', borderTopColor: '#4F46E5', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <div style={{ fontSize: 13 }}>Loading your pipeline...</div>
+          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+        </div>
+      )}
+
+      {!loading && !fetchError && leads.length === 0 && (
         <div style={{ textAlign: 'center', padding: '80px 20px', color: '#9E9B92' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>👥</div>
-          <div style={{ fontSize: 16, fontWeight: 500, color: '#1A1916', marginBottom: 8 }}>No leads yet</div>
+          <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B', marginBottom: 8 }}>No leads yet</div>
           <div style={{ fontSize: 13, marginBottom: 24 }}>
             Add your first lead manually, or leads will appear automatically when someone messages you on WhatsApp.
           </div>
-          <button onClick={() => { setShowAddModal(true); setAddError(null) }} style={{ padding: '10px 20px', borderRadius: 8, background: '#1A1916', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>
+          <button onClick={() => { setShowAddModal(true); setAddError(null) }} style={{ padding: '10px 20px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>
             + Add your first lead
           </button>
         </div>
       )}
 
+      {!(loading && leads.length === 0) && (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, alignItems: 'start' }}>
         {COLUMNS.map(col => {
           const colLeads = grouped[col]
@@ -294,7 +308,7 @@ export default function LeadsScreen({ agentId }: Props) {
               key={col} 
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, col)}
-              style={{ background: '#F4F3EE', border: isUnlocked ? '1px dashed rgba(46,139,95,0.4)' : '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: 12, minHeight: 'calc(100vh - 180px)', transition: 'border 0.2s' }}
+              style={{ background: '#F4F3EE', border: isUnlocked ? '1px dashed rgba(79,70,229,0.4)' : '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: 12, minHeight: 'calc(100vh - 180px)', transition: 'border 0.2s' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, padding: '0 4px' }}>
                 <span style={{ fontSize: 11, fontWeight: 500, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{col}</span>
@@ -320,7 +334,7 @@ export default function LeadsScreen({ agentId }: Props) {
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: col === 'Closed' ? '#1A6B4A' : '#1A1916' }}>{lead.name || lead.phone}</div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: col === 'Closed' ? '#4338CA' : '#15161B' }}>{lead.name || lead.phone}</div>
                       {lead.ai_score > 0 && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, fontWeight: 500, background: ss.bg, color: ss.c }}>{lead.ai_score}/10</span>}
                     </div>
                     <div style={{ fontSize: 11, color: '#9E9B92', marginTop: 4 }}>{intent}</div>
@@ -337,12 +351,13 @@ export default function LeadsScreen({ agentId }: Props) {
           )
         })}
       </div>
+      )}
 
       {/* PIN Modal */}
       {showPinModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(3px)' }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: '24px 30px', width: 320, boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
-            <div style={{ fontSize: 16, fontWeight: 500, color: '#1A1916', marginBottom: 6 }}>Admin Override</div>
+            <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B', marginBottom: 6 }}>Admin Override</div>
             <div style={{ fontSize: 12, color: '#9E9B92', marginBottom: 20 }}>Enter master PIN to manually move leads. Default is 1234.</div>
             
             <input 
@@ -357,7 +372,7 @@ export default function LeadsScreen({ agentId }: Props) {
             
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowPinModal(false)} style={{ padding: '8px 16px', borderRadius: 8, background: '#F4F3EE', color: '#6B6860', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>Cancel</button>
-              <button onClick={handleUnlock} style={{ padding: '8px 16px', borderRadius: 8, background: '#1A1916', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>Unlock</button>
+              <button onClick={handleUnlock} style={{ padding: '8px 16px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>Unlock</button>
             </div>
           </div>
         </div>
@@ -368,7 +383,7 @@ export default function LeadsScreen({ agentId }: Props) {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(4px)' }}>
           <form onSubmit={handleSaveLead} style={{ background: '#fff', borderRadius: 16, width: 450, display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 16, fontWeight: 500, color: '#1A1916' }}>Add New Lead</div>
+              <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B' }}>Add New Lead</div>
               <button type="button" onClick={() => setShowAddModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, color: '#9E9B92' }}>✕</button>
             </div>
             
@@ -394,9 +409,9 @@ export default function LeadsScreen({ agentId }: Props) {
               </div>
             </div>
 
-            <div style={{ padding: '16px 24px', background: '#FAFAF7', borderTop: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'flex-end', gap: 10, borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+            <div style={{ padding: '16px 24px', background: '#FAFAFB', borderTop: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'flex-end', gap: 10, borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
               <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '8px 16px', borderRadius: 8, background: '#fff', color: '#6B6860', border: '1px solid rgba(26,25,22,0.18)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>Cancel</button>
-              <button type="submit" disabled={isSubmitting} style={{ padding: '8px 16px', borderRadius: 8, background: '#1A1916', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', opacity: isSubmitting ? 0.7 : 1 }}>{isSubmitting ? 'Saving...' : 'Add Lead'}</button>
+              <button type="submit" disabled={isSubmitting} style={{ padding: '8px 16px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', opacity: isSubmitting ? 0.7 : 1 }}>{isSubmitting ? 'Saving...' : 'Add Lead'}</button>
             </div>
           </form>
         </div>
@@ -407,7 +422,7 @@ export default function LeadsScreen({ agentId }: Props) {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(4px)' }}>
           <div style={{ background: '#fff', borderRadius: 16, width: 450, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 16, fontWeight: 500, color: '#1A1916' }}>Bulk Upload Leads (CSV)</div>
+              <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B' }}>Bulk Upload Leads (CSV)</div>
               {!isBulkUploading && <button type="button" onClick={() => setShowBulkModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, color: '#9E9B92' }}>✕</button>}
             </div>
             
@@ -418,20 +433,20 @@ export default function LeadsScreen({ agentId }: Props) {
                     Upload a CSV file to import your existing leads pipeline. Our AI will automatically begin engaging them if they send a message.
                   </div>
                   
-                  <button onClick={downloadTemplate} style={{ padding: '8px 16px', borderRadius: 8, background: '#F4F3EE', color: '#1A1916', border: '1px solid rgba(26,25,22,0.08)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', alignSelf: 'flex-start' }}>
+                  <button onClick={downloadTemplate} style={{ padding: '8px 16px', borderRadius: 8, background: '#F4F3EE', color: '#15161B', border: '1px solid rgba(26,25,22,0.08)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', alignSelf: 'flex-start' }}>
                     ⬇️ Download CSV Template
                   </button>
 
                   <div onClick={() => bulkFileInputRef.current?.click()} style={{ border: '1px dashed rgba(26,25,22,0.2)', borderRadius: 8, padding: '30px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s', background: '#fff', marginTop: 10 }}>
                     <input type="file" ref={bulkFileInputRef} onChange={handleBulkUpload} style={{ display: 'none' }} accept=".csv" />
                     <div style={{ fontSize: 24, marginBottom: 8 }}>📄</div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: '#1A1916' }}>Click or drag your CSV here</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B' }}>Click or drag your CSV here</div>
                   </div>
                 </>
               ) : (
                 <div style={{ textAlign: 'center', padding: '20px 0' }}>
                   <div style={{ fontSize: 24, marginBottom: 16 }}>🚀</div>
-                  <div style={{ fontSize: 15, fontWeight: 500, color: '#1A1916', marginBottom: 8 }}>Importing leads...</div>
+                  <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 8 }}>Importing leads...</div>
                   <div style={{ fontSize: 13, color: '#6B6860', marginBottom: 16 }}>{bulkProgress} of {bulkTotal} uploaded</div>
                   <div style={{ height: 6, background: '#F4F3EE', borderRadius: 10, overflow: 'hidden' }}>
                     <div style={{ height: '100%', background: '#1A5FA5', width: `${bulkTotal > 0 ? (bulkProgress / bulkTotal) * 100 : 0}%`, transition: 'width 0.2s' }} />

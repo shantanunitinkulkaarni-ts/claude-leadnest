@@ -8,7 +8,7 @@ const tempColors: Record<string, { bg: string; c: string; label: string }> = {
   hot: { bg: '#FDF0F0', c: '#8B1A1A', label: 'Hot' },
   warm: { bg: '#FEF9E7', c: '#7A5200', label: 'Warm' },
   cold: { bg: '#EEF4FC', c: '#0F3D6E', label: 'Cold' },
-  new: { bg: '#E8F5EE', c: '#0F4A2E', label: 'New' },
+  new: { bg: '#EEF0FE', c: '#0F4A2E', label: 'New' },
 }
 
 export default function InboxScreen({ agentId }: Props) {
@@ -28,14 +28,43 @@ export default function InboxScreen({ agentId }: Props) {
   const [properties, setProperties] = useState<any[]>([])
   const [activityLog, setActivityLog] = useState<any[]>([])
 
+  // Book Visit modal
+  const [showBookModal, setShowBookModal] = useState(false)
+  const [bookDate, setBookDate] = useState('')
+  const [bookTime, setBookTime] = useState('11:00')
+  const [bookPropertyId, setBookPropertyId] = useState('')
+  const [bookSubmitting, setBookSubmitting] = useState(false)
+  const [bookError, setBookError] = useState<string | null>(null)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const handleManualBookVisit = async () => {
+  const openBookModal = () => {
     if (!selected) return
+    // Default to tomorrow's date
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
-    tomorrow.setHours(11, 0, 0, 0)
-    
+    const yyyy = tomorrow.getFullYear()
+    const mm = String(tomorrow.getMonth() + 1).padStart(2, '0')
+    const dd = String(tomorrow.getDate()).padStart(2, '0')
+    setBookDate(`${yyyy}-${mm}-${dd}`)
+    setBookTime('11:00')
+    setBookPropertyId('')
+    setBookError(null)
+    setShowBookModal(true)
+  }
+
+  const handleBookVisit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selected) return
+    setBookSubmitting(true)
+    setBookError(null)
+    // Combine the chosen local date + time into an ISO timestamp
+    const scheduled = new Date(`${bookDate}T${bookTime}`)
+    if (isNaN(scheduled.getTime())) {
+      setBookError('Please select a valid date and time.')
+      setBookSubmitting(false)
+      return
+    }
     try {
       const res = await fetch('/api/appointments', {
         method: 'POST',
@@ -43,19 +72,22 @@ export default function InboxScreen({ agentId }: Props) {
         body: JSON.stringify({
           agent_id: agentId,
           lead_id: selected.id,
-          scheduled_at: tomorrow.toISOString(),
+          property_id: bookPropertyId || null,
+          scheduled_at: scheduled.toISOString(),
           status: 'upcoming'
         })
       })
+      const d = await res.json().catch(() => ({}))
       if (res.ok) {
-        alert('Visit successfully booked for tomorrow at 11:00 AM.')
+        setShowBookModal(false)
         fetchLeads()
       } else {
-        alert('Failed to book visit.')
+        setBookError(d.error || 'Failed to book visit.')
       }
-    } catch(err) {
-      console.error(err)
-      alert('Failed to book visit.')
+    } catch (err: any) {
+      setBookError(err.message || 'Failed to book visit.')
+    } finally {
+      setBookSubmitting(false)
     }
   }
 
@@ -264,7 +296,7 @@ export default function InboxScreen({ agentId }: Props) {
   const tc = selected ? (tempColors[selected.temperature] || tempColors.new) : tempColors.new
 
   // Calculate 24h window
-  let winState = { text: '24h window active', bg: '#E8F5EE', c: '#1A6B4A', b: 'rgba(46,139,95,0.2)' }
+  let winState = { text: '24h window active', bg: '#EEF0FE', c: '#4338CA', b: 'rgba(79,70,229,0.2)' }
   if (selected) {
     const lastInbound = [...messages].reverse().find(m => m.direction === 'inbound')
     const lastTimeStr = lastInbound ? lastInbound.created_at : selected.updated_at
@@ -285,7 +317,7 @@ export default function InboxScreen({ agentId }: Props) {
         if (hours < 2) {
           winState = { text: `⏱ ${timeStr}`, bg: '#FEF9E7', c: '#7A5200', b: 'rgba(183,119,13,0.2)' }
         } else {
-          winState = { text: `⏱ ${timeStr}`, bg: '#E8F5EE', c: '#1A6B4A', b: 'rgba(46,139,95,0.2)' }
+          winState = { text: `⏱ ${timeStr}`, bg: '#EEF0FE', c: '#4338CA', b: 'rgba(79,70,229,0.2)' }
         }
       }
     }
@@ -304,10 +336,10 @@ export default function InboxScreen({ agentId }: Props) {
         {/* Left list */}
         <div style={{ width: 300, minWidth: 300, borderRight: '1px solid rgba(26,25,22,0.08)', display: 'flex', flexDirection: 'column', background: '#fff' }}>
           <div style={{ padding: '14px 16px', borderBottom: '1px solid rgba(26,25,22,0.08)' }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: '#1A1916', marginBottom: 10 }}>Conversations</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B', marginBottom: 10 }}>Conversations</div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {['All', 'Hot', 'Warm', 'Cold', 'Unread'].map(f => (
-                <span key={f} onClick={() => setFilter(f.toLowerCase())} className="inbox-filter-btn" style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, cursor: 'pointer', border: '1px solid', borderColor: filter === f.toLowerCase() ? '#2E8B5F' : 'rgba(26,25,22,0.13)', color: filter === f.toLowerCase() ? '#1A6B4A' : '#6B6860', background: filter === f.toLowerCase() ? '#E8F5EE' : '#fff', fontWeight: filter === f.toLowerCase() ? 500 : 400, transition: 'all 0.15s' }}>{f}</span>
+                <span key={f} onClick={() => setFilter(f.toLowerCase())} className="inbox-filter-btn" style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, cursor: 'pointer', border: '1px solid', borderColor: filter === f.toLowerCase() ? '#4F46E5' : 'rgba(26,25,22,0.13)', color: filter === f.toLowerCase() ? '#4338CA' : '#6B6860', background: filter === f.toLowerCase() ? '#EEF0FE' : '#fff', fontWeight: filter === f.toLowerCase() ? 500 : 400, transition: 'all 0.15s' }}>{f}</span>
               ))}
             </div>
           </div>
@@ -331,7 +363,7 @@ export default function InboxScreen({ agentId }: Props) {
                 <div key={lead.id} onClick={() => setSelected(lead)} className="inbox-lead-item" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', borderBottom: '1px solid rgba(26,25,22,0.06)', borderLeft: `2px solid ${isSel ? '#1A5FA5' : 'transparent'}`, background: isSel ? '#EEF4FC' : 'transparent', transition: 'all 0.15s' }}>
                   <div style={{ width: 36, height: 36, minWidth: 36, borderRadius: '50%', background: t.bg, color: t.c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 500 }}>{getInitials(lead.name || lead.phone)}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: '#1A1916' }}>{lead.name || 'Unknown User'}</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B' }}>{lead.name || 'Unknown User'}</div>
                     <div style={{ fontSize: 11, color: '#9E9B92', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{lead.phone}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
@@ -345,7 +377,7 @@ export default function InboxScreen({ agentId }: Props) {
         </div>
 
         {/* Right detail */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#FAFAF7' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#FAFAFB' }}>
           {!selected ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9E9B92', fontSize: 14 }}>Select a conversation to start</div>
           ) : (
@@ -354,15 +386,15 @@ export default function InboxScreen({ agentId }: Props) {
               <div style={{ background: '#fff', borderBottom: '1px solid rgba(26,25,22,0.08)', padding: '14px 22px', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
                 <div style={{ width: 40, height: 40, borderRadius: '50%', background: tc.bg, color: tc.c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 500, flexShrink: 0 }}>{getInitials(selected.name || selected.phone)}</div>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 500, color: '#1A1916' }}>{selected.name || 'Unknown User'}</div>
+                  <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B' }}>{selected.name || 'Unknown User'}</div>
                   <div style={{ fontSize: 12, color: '#9E9B92', marginTop: 1 }}>{selected.phone}</div>
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 500, background: tc.bg, color: tc.c }}>⭐ {selected.ai_score || 0}/10</span>
                   <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, fontWeight: 500, background: winState.bg, color: winState.c, border: `1px solid ${winState.b}` }}>{winState.text}</span>
                   <button className="inbox-btn" onClick={() => { setIsSimulating(!isSimulating); }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: '1px solid', borderColor: isSimulating ? '#1A5FA5' : 'rgba(26,95,165,0.2)', background: isSimulating ? '#EEF4FC' : '#F4F8FD', color: isSimulating ? '#1A5FA5' : '#4A88C6', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>{isSimulating ? 'Stop simulating' : 'Simulate lead'}</button>
-                  <button className="inbox-btn" onClick={() => handleToggleManualMode(false)} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: '1px solid', borderColor: isManual ? '#2E8B5F' : 'rgba(192,57,43,0.2)', background: isManual ? '#E8F5EE' : '#FDF0F0', color: isManual ? '#1A6B4A' : '#C0392B', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>{isManual ? 'Resume bot' : 'Take over'}</button>
-                  <button className="inbox-btn-dark" onClick={handleManualBookVisit} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: 'none', background: '#1A1916', color: '#fff', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>Book visit</button>
+                  <button className="inbox-btn" onClick={() => handleToggleManualMode(false)} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: '1px solid', borderColor: isManual ? '#4F46E5' : 'rgba(192,57,43,0.2)', background: isManual ? '#EEF0FE' : '#FDF0F0', color: isManual ? '#4338CA' : '#C0392B', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>{isManual ? 'Resume bot' : 'Take over'}</button>
+                  <button className="inbox-btn-dark" onClick={openBookModal} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: 'none', background: '#15161B', color: '#fff', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>Book visit</button>
                 </div>
               </div>
 
@@ -397,8 +429,8 @@ export default function InboxScreen({ agentId }: Props) {
                       {messages.length === 0 && <div style={{ textAlign: 'center', color: '#9E9B92', fontSize: 13, marginTop: 20 }}>No messages yet.</div>}
                       {messages.map(msg => (
                         <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.direction === 'outbound' ? 'flex-end' : 'flex-start' }}>
-                          {msg.direction === 'outbound' && <div style={{ fontSize: 10, color: '#9E9B92', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>{msg.sent_by === 'bot' ? '🤖 LeadNest bot' : '👤 You'}</div>}
-                          <div style={{ padding: '9px 13px', fontSize: 13, lineHeight: 1.5, maxWidth: '72%', background: msg.direction === 'outbound' ? (msg.sent_by === 'bot' ? '#1A1916' : '#2E8B5F') : '#fff', color: msg.direction === 'outbound' ? '#fff' : '#1A1916', borderRadius: msg.direction === 'outbound' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', border: msg.direction === 'inbound' ? '1px solid rgba(26,25,22,0.08)' : 'none' }}>{msg.content}</div>
+                          {msg.direction === 'outbound' && <div style={{ fontSize: 10, color: '#9E9B92', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>{msg.sent_by === 'bot' ? '🤖 Convorian bot' : '👤 You'}</div>}
+                          <div style={{ padding: '9px 13px', fontSize: 13, lineHeight: 1.5, maxWidth: '72%', background: msg.direction === 'outbound' ? (msg.sent_by === 'bot' ? '#15161B' : '#4F46E5') : '#fff', color: msg.direction === 'outbound' ? '#fff' : '#15161B', borderRadius: msg.direction === 'outbound' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', border: msg.direction === 'inbound' ? '1px solid rgba(26,25,22,0.08)' : 'none' }}>{msg.content}</div>
                           <div style={{ fontSize: 10, color: '#C8C5BC', marginTop: 3 }}>{formatTime(msg.created_at)}</div>
                         </div>
                       ))}
@@ -416,7 +448,7 @@ export default function InboxScreen({ agentId }: Props) {
                         }}
                         disabled={!isManual && !isSimulating} 
                         placeholder={isSimulating ? 'Type a message from the lead...' : (isManual ? 'Type your message and press Enter...' : 'Take over or simulate to type...')} 
-                        style={{ flex: 1, height: 38, border: '1px solid rgba(26,25,22,0.18)', borderRadius: 20, padding: '0 14px', fontSize: 13, background: (isManual || isSimulating) ? '#fff' : '#F4F3EE', color: '#1A1916', outline: 'none', fontFamily: 'inherit', opacity: (isManual || isSimulating) ? 1 : 0.6, cursor: (isManual || isSimulating) ? 'text' : 'not-allowed' }} 
+                        style={{ flex: 1, height: 38, border: '1px solid rgba(26,25,22,0.18)', borderRadius: 20, padding: '0 14px', fontSize: 13, background: (isManual || isSimulating) ? '#fff' : '#F4F3EE', color: '#15161B', outline: 'none', fontFamily: 'inherit', opacity: (isManual || isSimulating) ? 1 : 0.6, cursor: (isManual || isSimulating) ? 'text' : 'not-allowed' }} 
                       />
                       <button 
                         onClick={() => {
@@ -425,7 +457,7 @@ export default function InboxScreen({ agentId }: Props) {
                         }} 
                         className={(isManual || isSimulating) ? "inbox-btn-dark" : ""} 
                         disabled={!isManual && !isSimulating} 
-                        style={{ width: 36, height: 36, borderRadius: '50%', background: (isManual || isSimulating) ? '#1A1916' : '#ECEAE0', color: (isManual || isSimulating) ? '#fff' : '#1A1916', border: 'none', cursor: (isManual || isSimulating) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0, transition: 'all 0.15s' }}>➤</button>
+                        style={{ width: 36, height: 36, borderRadius: '50%', background: (isManual || isSimulating) ? '#15161B' : '#ECEAE0', color: (isManual || isSimulating) ? '#fff' : '#15161B', border: 'none', cursor: (isManual || isSimulating) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0, transition: 'all 0.15s' }}>➤</button>
                     </div>
                   </div>
                 )}
@@ -442,7 +474,7 @@ export default function InboxScreen({ agentId }: Props) {
                     ].map((row, i) => (
                       <div key={i} style={{ display: 'flex', flexDirection: 'column', padding: '10px 0', borderBottom: '1px solid rgba(26,25,22,0.06)', gridColumn: 'span 1' }}>
                         <span style={{ fontSize: 11, color: '#9E9B92', marginBottom: 3 }}>{row.k}</span>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: '#1A1916' }}>{row.v}</span>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: '#15161B' }}>{row.v}</span>
                       </div>
                     ))}
                     <div style={{ display: 'flex', flexDirection: 'column', padding: '10px 0', gridColumn: 'span 2' }}>
@@ -469,7 +501,7 @@ export default function InboxScreen({ agentId }: Props) {
                       )
                       return matchedProps.map((p: any) => (
                         <div key={p.id} style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 10, padding: '12px 14px', marginBottom: 10 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: '#1A1916' }}>{p.title}</div>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B' }}>{p.title}</div>
                           <div style={{ fontSize: 11, color: '#9E9B92', marginTop: 2 }}>{p.location}, {p.city}</div>
                           <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
                             <span style={{ fontSize: 13, fontWeight: 500, color: '#1A5FA5' }}>₹{(p.price || p.rent_per_month || 0).toLocaleString('en-IN')}{p.type === 'rental' ? '/mo' : ''}</span>
@@ -487,9 +519,9 @@ export default function InboxScreen({ agentId }: Props) {
                       <div style={{ color: '#9E9B92', fontSize: 13, textAlign: 'center', paddingTop: 20 }}>No activity yet for this lead.</div>
                     ) : activityLog.map((a: any) => (
                       <div key={a.id} style={{ display: 'flex', gap: 12, paddingBottom: 14, marginBottom: 14, borderBottom: '1px solid rgba(26,25,22,0.06)' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#2E8B5F', marginTop: 5, flexShrink: 0 }} />
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4F46E5', marginTop: 5, flexShrink: 0 }} />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: '#1A1916' }}>{a.title}</div>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B' }}>{a.title}</div>
                           {a.description && <div style={{ fontSize: 11, color: '#6B6860', marginTop: 2 }}>{a.description}</div>}
                           <div style={{ fontSize: 10, color: '#C8C5BC', marginTop: 4 }}>{new Date(a.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
                         </div>
@@ -502,6 +534,56 @@ export default function InboxScreen({ agentId }: Props) {
           )}
         </div>
       </div>
+
+      {/* Book Visit Modal */}
+      {showBookModal && selected && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(4px)' }}>
+          <form onSubmit={handleBookVisit} style={{ background: '#fff', borderRadius: 16, width: 420, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B' }}>Book Site Visit</div>
+              <button type="button" onClick={() => setShowBookModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, color: '#9E9B92' }}>✕</button>
+            </div>
+
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ fontSize: 12, color: '#6B6860' }}>
+                Scheduling a visit for <strong>{selected.name || selected.phone}</strong>.
+              </div>
+
+              {bookError && (
+                <div style={{ background: '#FDF0F0', color: '#8B1A1A', padding: '10px 14px', borderRadius: 8, fontSize: 13 }}>
+                  ⚠️ {bookError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Date</label>
+                  <input required type="date" value={bookDate} onChange={e => setBookDate(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Time</label>
+                  <input required type="time" value={bookTime} onChange={e => setBookTime(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Property (optional)</label>
+                <select value={bookPropertyId} onChange={e => setBookPropertyId(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none', background: '#fff' }}>
+                  <option value="">No specific property</option>
+                  {properties.map(p => (
+                    <option key={p.id} value={p.id}>{p.title}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ padding: '16px 24px', background: '#FAFAFB', borderTop: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'flex-end', gap: 10, borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+              <button type="button" onClick={() => setShowBookModal(false)} style={{ padding: '8px 16px', borderRadius: 8, background: '#fff', color: '#6B6860', border: '1px solid rgba(26,25,22,0.18)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>Cancel</button>
+              <button type="submit" disabled={bookSubmitting} style={{ padding: '8px 16px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', opacity: bookSubmitting ? 0.7 : 1 }}>{bookSubmitting ? 'Booking...' : 'Book Visit'}</button>
+            </div>
+          </form>
+        </div>
+      )}
     </>
   )
 }

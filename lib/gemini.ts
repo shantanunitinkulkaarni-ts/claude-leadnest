@@ -10,7 +10,7 @@ function getGroqClient() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LeadNest Conversion Engine v1
+// Convorian Conversion Engine v1
 // 
 // This is not a simple chatbot. It is a sales engine built on proven real
 // estate sales psychology and conversion principles.
@@ -33,15 +33,20 @@ export type ConversationStage =
   | 'presentation'    // Show matched properties
   | 'objection'       // Handle concerns
   | 'commitment'      // Book site visit
+  | 'post_visit'      // Lead has completed a site visit — convert to deal
   | 'nurture'         // Long-term follow up
   | 'closed'          // Won or lost
 
 function detectStage(lead: any, messageCount: number): ConversationStage {
+  if (lead.status === 'closed_won' || lead.status === 'closed_lost') return 'closed'
+  // Highest priority after closed: if a visit has happened and feedback exists,
+  // the whole conversation must pivot to converting that visit — even on the
+  // very first inbound message (e.g. a walk-in logged by the agent).
+  if (lead.post_visit_result || lead.status === 'visit_done') return 'post_visit'
   if (messageCount <= 1) return 'greeting'
   if (!lead.intent || !lead.preferred_areas) return 'discovery'
   if (!lead.budget_min || !lead.timeline) return 'qualification'
   if (lead.status === 'visit_booked') return 'commitment'
-  if (lead.status === 'closed_won' || lead.status === 'closed_lost') return 'closed'
   if (lead.ai_score >= 7 && lead.status === 'qualified') return 'commitment'
   if (lead.ai_score >= 4) return 'presentation'
   return 'discovery'
@@ -122,6 +127,19 @@ Techniques:
 - After they agree: confirm day, time, property address
 - Express genuine excitement for them`,
 
+    post_visit: `
+STAGE: POST-VISIT CONVERSION (the most important stage — this is where deals are won)
+The lead has ALREADY visited a property. Visit outcome recorded by the agent: "${lead.post_visit_result || 'completed'}".
+AGENT'S FEEDBACK & NOTES (ground truth — use this to personalize and guide them): "${lead.notes || 'No specific notes provided.'}"
+
+Goal: Convert this visit into a closed deal. Do NOT greet them like a new lead and do NOT re-ask discovery questions you already know.
+- OPEN warmly by referring to the visit — e.g. "It was great having you see the property! What did you think of it?" Make it feel personal and continuous.
+- Treat the agent's notes above as the truth about what the client liked, disliked, or is hesitant about. Address those specifics directly.
+- If outcome was positive/interested: build momentum, handle any remaining hesitation, and move toward the next concrete step (token amount, paperwork, second visit, or finalizing).
+- If they want to follow up later: uncover the real blocker, keep them warm, and propose a specific next step or timeframe.
+- If not interested: be gracious, learn what didn't fit, and offer a better-matched alternative property.
+- Every message must move them one step closer to closing. This is our core promise: we convert visits into deals.`,
+
     nurture: `
 STAGE: NURTURE (Long-term engagement)
 Goal: Stay top of mind without being annoying. Provide genuine value.
@@ -146,7 +164,7 @@ If lost — be gracious, offer to help in future, ask for referrals.`
     concise: 'Short and direct. Maximum 2-3 sentences per message. No fluff.'
   }
 
-  return `You are the LeadNest Conversion Engine — a highly sophisticated AI sales assistant for ${agent.agency_name}, a real estate agency in India.
+  return `You are the Convorian Conversion Engine — a highly sophisticated AI sales assistant for ${agent.agency_name}, a real estate agency in India.
 
 You are NOT a generic chatbot. You are trained in real estate sales psychology and your ONLY goal is to convert leads into site visits and ultimately into transactions. Every message you send should move the lead one step closer to a decision.
 
@@ -166,6 +184,8 @@ LEAD PROFILE:
 - Current score: ${lead.ai_score || 0}/10
 - Message count: ${messageCount}
 - Temperature: ${lead.temperature || 'new'}
+- Post-visit outcome: ${lead.post_visit_result || 'No visit completed yet'}
+- Agent's private notes / visit feedback: ${lead.notes || 'None'}
 
 ${stageInstructions[stage]}
 

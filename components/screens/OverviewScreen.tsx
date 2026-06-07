@@ -35,7 +35,7 @@ export default function OverviewScreen({ agentId, onNavigate }: Props) {
     <div style={{ padding: '24px 28px' }}>
       {/* Metrics */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
-        <MetricCard label="Total leads" value={s.totalLeads ?? 0} change={s.totalLeads > 0 ? "Up to date" : "No leads yet"} color="#2E8B5F" />
+        <MetricCard label="Total leads" value={s.totalLeads ?? 0} change={s.totalLeads > 0 ? "Up to date" : "No leads yet"} color="#4F46E5" />
         <MetricCard label="Hot leads" value={s.hotLeads ?? 0} change={s.hotLeads > 0 ? "Requires attention" : "No hot leads"} color="#C0392B" />
         <MetricCard label="Site visits booked" value={s.visitsBooked ?? 0} change="This month" color="#1A5FA5" />
         <MetricCard label="Bot handled" value={`${s.botHandled ?? 0}%`} change="of all conversations" color="#B7770D" />
@@ -65,7 +65,7 @@ export default function OverviewScreen({ agentId, onNavigate }: Props) {
               <div key={i} onClick={() => onNavigate('inbox')} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < 3 ? '1px solid rgba(26,25,22,0.06)' : 'none', cursor: 'pointer' }}>
                 <div style={{ width: 30, height: 30, borderRadius: '50%', background: lead.bg, color: lead.c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 500, flexShrink: 0 }}>{lead.av}</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: '#1A1916' }}>{lead.name}</div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: '#15161B' }}>{lead.name}</div>
                   <div style={{ fontSize: 11, color: '#9E9B92' }}>{lead.prop}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -85,7 +85,7 @@ export default function OverviewScreen({ agentId, onNavigate }: Props) {
           <div style={{ marginTop: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 500, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Message usage</div>
             <UsageBar label="Messages" used={s.messagesUsed ?? 0} total={s.messagesLimit ?? 5000} color="#1A5FA5" />
-            <UsageBar label="WA balance" used={s.waBalance ?? 0} total={(s.waBalance ?? 0) > 500 ? Math.ceil((s.waBalance ?? 0) / 500) * 500 : 500} color="#2E8B5F" prefix="₹" />
+            <UsageBar label="WA balance" used={s.waBalance ?? 0} total={(s.waBalance ?? 0) > 500 ? Math.ceil((s.waBalance ?? 0) / 500) * 500 : 500} color="#4F46E5" prefix="₹" />
           </div>
         </div>
       </div>
@@ -98,7 +98,7 @@ function MetricCard({ label, value, change, color }: any) {
     <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '18px 20px', position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${color}, ${color}88)` }} />
       <div style={{ fontSize: 11, color: '#9E9B92', marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 500, color: '#1A1916', lineHeight: 1, marginBottom: 4 }}>{value}</div>
+      <div style={{ fontSize: 26, fontWeight: 500, color: '#15161B', lineHeight: 1, marginBottom: 4 }}>{value}</div>
       <div style={{ fontSize: 11, color: '#9E9B92' }}>{change}</div>
     </div>
   )

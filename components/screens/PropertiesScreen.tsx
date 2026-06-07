@@ -182,6 +182,10 @@ export default function PropertiesScreen({ agentId }: Props) {
       } else {
         setShowModal(false)
         fetchProperties()
+        if (!isEditing) {
+          // Notify the onboarding tutorial that a property was added
+          window.dispatchEvent(new CustomEvent('leadnest:tour-action', { detail: 'property-added' }))
+        }
       }
     } catch (err) {
       console.error(err)
@@ -296,24 +300,25 @@ export default function PropertiesScreen({ agentId }: Props) {
     <div style={{ padding: '24px 28px', height: '100%', overflowY: 'auto' }}>
       <style>{`
         .prop-card:hover { transform: translateY(-3px); box-shadow: 0 8px 16px rgba(0,0,0,0.06) !important; }
-        .file-drop:hover { border-color: #1A1916 !important; background: #fafaf7 !important; }
+        .file-drop:hover { border-color: #15161B !important; background: #FAFAFB !important; }
       `}</style>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 500, color: '#1A1916' }}>Property Portfolio</div>
+          <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B' }}>Property Portfolio</div>
           <div style={{ fontSize: 12, color: '#6B6860', marginTop: 4 }}>Manage listings. The AI bot uses these properties to recommend matches to leads.</div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button 
             onClick={() => setShowBulkModal(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#fff', color: '#1A1916', border: '1px solid rgba(26,25,22,0.18)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#fff', color: '#15161B', border: '1px solid rgba(26,25,22,0.18)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}
           >
             Bulk Upload CSV
           </button>
-          <button 
+          <button
+            data-tour="add-property"
             onClick={openNewModal}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#1A1916', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}
           >
             + Add detailed property
           </button>
@@ -333,11 +338,11 @@ export default function PropertiesScreen({ agentId }: Props) {
       {!loading && !fetchError && properties.length === 0 && (
         <div style={{ textAlign: 'center', padding: '80px 20px' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>🏠</div>
-          <div style={{ fontSize: 16, fontWeight: 500, color: '#1A1916', marginBottom: 8 }}>No properties yet</div>
+          <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B', marginBottom: 8 }}>No properties yet</div>
           <div style={{ fontSize: 13, color: '#9E9B92', marginBottom: 24, maxWidth: 320, margin: '0 auto 24px' }}>
             Add your first property listing. The AI bot will use these to recommend matches to leads during conversations.
           </div>
-          <button onClick={openNewModal} style={{ padding: '10px 20px', borderRadius: 8, background: '#1A1916', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>
+          <button onClick={openNewModal} style={{ padding: '10px 20px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>
             + Add your first property
           </button>
         </div>
@@ -358,13 +363,13 @@ export default function PropertiesScreen({ agentId }: Props) {
                 {!firstImage && <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: 40 }}>{isSale ? '🏢' : '🚪'}</div>}
                 <button 
                   onClick={(e) => toggleStatus(e, p)}
-                  style={{ position: 'relative', zIndex: 2, fontSize: 10, padding: '4px 10px', borderRadius: 20, fontWeight: 500, background: 'rgba(255,255,255,0.92)', color: isActive ? '#1A6B4A' : '#6B6860', border: `1px solid ${isActive ? 'rgba(46,139,95,0.25)' : 'rgba(26,25,22,0.18)'}`, cursor: 'pointer', fontFamily: 'inherit' }}
+                  style={{ position: 'relative', zIndex: 2, fontSize: 10, padding: '4px 10px', borderRadius: 20, fontWeight: 500, background: 'rgba(255,255,255,0.92)', color: isActive ? '#4338CA' : '#6B6860', border: `1px solid ${isActive ? 'rgba(79,70,229,0.25)' : 'rgba(26,25,22,0.18)'}`, cursor: 'pointer', fontFamily: 'inherit' }}
                 >
                   {p.status?.toUpperCase() || 'ACTIVE'}
                 </button>
               </div>
               <div style={{ padding: '16px 18px' }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: '#1A1916', marginBottom: 2 }}>{p.title}</div>
+                <div style={{ fontSize: 14, fontWeight: 500, color: '#15161B', marginBottom: 2 }}>{p.title}</div>
                 <div style={{ fontSize: 12, color: '#9E9B92' }}>{p.location}, {p.city}</div>
                 <div style={{ fontSize: 18, fontWeight: 500, color: '#1A5FA5', margin: '10px 0' }}>₹{p.price?.toLocaleString()}</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -383,7 +388,7 @@ export default function PropertiesScreen({ agentId }: Props) {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(4px)' }}>
           <div style={{ background: '#fff', borderRadius: 16, width: 450, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 16, fontWeight: 500, color: '#1A1916' }}>Bulk Upload Properties (CSV)</div>
+              <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B' }}>Bulk Upload Properties (CSV)</div>
               {!isBulkUploading && <button type="button" onClick={() => setShowBulkModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, color: '#9E9B92' }}>✕</button>}
             </div>
             
@@ -394,20 +399,20 @@ export default function PropertiesScreen({ agentId }: Props) {
                     Upload a CSV file to instantly import hundreds of properties. Please use the exact column headers provided in our template.
                   </div>
                   
-                  <button onClick={downloadTemplate} style={{ padding: '8px 16px', borderRadius: 8, background: '#F4F3EE', color: '#1A1916', border: '1px solid rgba(26,25,22,0.08)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', alignSelf: 'flex-start' }}>
+                  <button onClick={downloadTemplate} style={{ padding: '8px 16px', borderRadius: 8, background: '#F4F3EE', color: '#15161B', border: '1px solid rgba(26,25,22,0.08)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', alignSelf: 'flex-start' }}>
                     ⬇️ Download CSV Template
                   </button>
 
                   <div className="file-drop" onClick={() => bulkFileInputRef.current?.click()} style={{ border: '1px dashed rgba(26,25,22,0.2)', borderRadius: 8, padding: '30px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s', background: '#fff', marginTop: 10 }}>
                     <input type="file" ref={bulkFileInputRef} onChange={handleBulkUpload} style={{ display: 'none' }} accept=".csv" />
                     <div style={{ fontSize: 24, marginBottom: 8 }}>📄</div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: '#1A1916' }}>Click or drag your CSV here</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B' }}>Click or drag your CSV here</div>
                   </div>
                 </>
               ) : (
                 <div style={{ textAlign: 'center', padding: '20px 0' }}>
                   <div style={{ fontSize: 24, marginBottom: 16 }}>🚀</div>
-                  <div style={{ fontSize: 15, fontWeight: 500, color: '#1A1916', marginBottom: 8 }}>Importing properties...</div>
+                  <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 8 }}>Importing properties...</div>
                   <div style={{ fontSize: 13, color: '#6B6860', marginBottom: 16 }}>{bulkProgress} of {bulkTotal} uploaded</div>
                   <div style={{ height: 6, background: '#F4F3EE', borderRadius: 10, overflow: 'hidden' }}>
                     <div style={{ height: '100%', background: '#1A5FA5', width: `${(bulkProgress / bulkTotal) * 100}%`, transition: 'width 0.2s' }} />
@@ -424,7 +429,7 @@ export default function PropertiesScreen({ agentId }: Props) {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(4px)' }}>
           <form onSubmit={handleSave} style={{ background: '#fff', borderRadius: 16, width: 600, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 16, fontWeight: 500, color: '#1A1916' }}>{isEditing ? 'Edit Property' : 'Add Detailed Property'}</div>
+              <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B' }}>{isEditing ? 'Edit Property' : 'Add Detailed Property'}</div>
               <button type="button" onClick={() => setShowModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, color: '#9E9B92' }}>✕</button>
             </div>
             
@@ -493,7 +498,7 @@ export default function PropertiesScreen({ agentId }: Props) {
                 <div className="file-drop" onClick={() => fileInputRef.current?.click()} style={{ border: '1px dashed rgba(26,25,22,0.2)', borderRadius: 8, padding: '24px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s', background: '#fff' }}>
                   <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*,video/*,application/pdf" />
                   <div style={{ fontSize: 24, marginBottom: 8 }}>📸</div>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: '#1A1916' }}>Click or drag files here</div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B' }}>Click or drag files here</div>
                   <div style={{ fontSize: 11, color: '#9E9B92', marginTop: 4 }}>JPEG, PNG, MP4, PDF</div>
                 </div>
                 {(existingMedia.length > 0 || files.length > 0) && (
@@ -516,7 +521,7 @@ export default function PropertiesScreen({ agentId }: Props) {
 
             </div>
 
-            <div style={{ padding: '16px 24px', background: '#FAFAF7', borderTop: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: '16px 24px', background: '#FAFAFB', borderTop: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 {isEditing && (
                   <button type="button" onClick={() => setShowDeletePinModal(true)} style={{ padding: '8px 16px', borderRadius: 8, background: '#FFEBEE', color: '#C62828', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>
@@ -526,7 +531,7 @@ export default function PropertiesScreen({ agentId }: Props) {
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="button" onClick={() => setShowModal(false)} style={{ padding: '8px 16px', borderRadius: 8, background: '#fff', color: '#6B6860', border: '1px solid rgba(26,25,22,0.18)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>Cancel</button>
-                <button type="submit" disabled={isSubmitting || isUploadingMedia} style={{ padding: '8px 16px', borderRadius: 8, background: priceWarning && !hasConfirmedWarning ? '#C62828' : '#1A1916', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', opacity: (isSubmitting || isUploadingMedia) ? 0.7 : 1, transition: 'all 0.2s' }}>
+                <button type="submit" disabled={isSubmitting || isUploadingMedia} style={{ padding: '8px 16px', borderRadius: 8, background: priceWarning && !hasConfirmedWarning ? '#C62828' : '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', opacity: (isSubmitting || isUploadingMedia) ? 0.7 : 1, transition: 'all 0.2s' }}>
                   {isUploadingMedia ? 'Uploading media...' : isSubmitting ? 'Saving...' : (priceWarning && !hasConfirmedWarning) ? 'Confirm & Save anyway' : isEditing ? 'Update property' : 'Save property'}
                 </button>
               </div>
@@ -539,7 +544,7 @@ export default function PropertiesScreen({ agentId }: Props) {
       {showDeletePinModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(3px)' }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: '24px 30px', width: 320, boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
-            <div style={{ fontSize: 16, fontWeight: 500, color: '#1A1916', marginBottom: 6 }}>Delete Property?</div>
+            <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B', marginBottom: 6 }}>Delete Property?</div>
             <div style={{ fontSize: 12, color: '#9E9B92', marginBottom: 20 }}>This action cannot be undone. Enter master PIN (1234) to confirm deletion.</div>
             
             <input 

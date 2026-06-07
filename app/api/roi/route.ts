@@ -97,11 +97,26 @@ export async function GET(request: NextRequest) {
     return sum + dealVal * AVG_SALE_COMMISSION_PCT
   }, 0)
 
-  const periodCommission = periodLeads.filter(l => l.status === 'closed_won').reduce((sum, l) => {
-    if (l.intent === 'rent') return sum + AVG_RENTAL_COMMISSION
+  // Per-lead commission estimate, split by deal type (rent vs purchase)
+  const leadCommission = (l: any) => {
+    if (l.intent === 'rent') return AVG_RENTAL_COMMISSION
     const dealVal = l.budget_min ? (l.budget_min + (l.budget_max || l.budget_min)) / 2 : AVG_SALE_VALUE
-    return sum + dealVal * AVG_SALE_COMMISSION_PCT
-  }, 0)
+    return dealVal * AVG_SALE_COMMISSION_PCT
+  }
+
+  const periodClosed = periodLeads.filter(l => l.status === 'closed_won')
+  const periodCommission = periodClosed.reduce((sum, l) => sum + leadCommission(l), 0)
+
+  // Earned split by type (closed deals in the period)
+  const earnedRental = periodClosed.filter(l => l.intent === 'rent').reduce((s, l) => s + leadCommission(l), 0)
+  const earnedPurchase = periodClosed.filter(l => l.intent !== 'rent').reduce((s, l) => s + leadCommission(l), 0)
+
+  // Potential commission still in the pipeline (qualified → visit, not yet closed).
+  // We never want to show a demoralizing ₹0 — this is the "money on the table" figure.
+  const pipelineLeads = allLeads.filter(l => ['qualified', 'visit_booked', 'visit_done'].includes(l.status))
+  const potentialRental = pipelineLeads.filter(l => l.intent === 'rent').reduce((s, l) => s + leadCommission(l), 0)
+  const potentialPurchase = pipelineLeads.filter(l => l.intent !== 'rent').reduce((s, l) => s + leadCommission(l), 0)
+  const potentialTotal = potentialRental + potentialPurchase
 
   const planCost = agent?.plan === 'annual' ? 799 : 999
   const roiMultiple = planCost > 0 ? Math.round(periodCommission / planCost) : 0
@@ -174,7 +189,12 @@ export async function GET(request: NextRequest) {
       periodCommission: Math.round(periodCommission),
       totalCommission: Math.round(estCommission),
       planCost, roiMultiple, roiPct,
-      waSpend: Math.round(waSpend)
+      waSpend: Math.round(waSpend),
+      earnedRental: Math.round(earnedRental),
+      earnedPurchase: Math.round(earnedPurchase),
+      potentialRental: Math.round(potentialRental),
+      potentialPurchase: Math.round(potentialPurchase),
+      potentialTotal: Math.round(potentialTotal)
     },
     bot: {
       botHandledPct, totalMessages, botMessages

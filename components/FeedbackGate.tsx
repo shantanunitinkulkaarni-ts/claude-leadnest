@@ -127,7 +127,7 @@ export default function FeedbackGate({ agentId, children }: { agentId: string, c
           <div style={{ padding: '24px' }}>
             <div style={{ marginBottom: 20, padding: '16px', background: '#F4F3EE', borderRadius: 8, border: '1px solid rgba(26,25,22,0.08)' }}>
               <div style={{ fontSize: 12, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Pending Appointment</div>
-              <div style={{ fontSize: 16, fontWeight: 500, color: '#1A1916' }}>{currentAppt.leads?.name} — {currentAppt.properties?.title}</div>
+              <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B' }}>{currentAppt.leads?.name} — {currentAppt.properties?.title}</div>
               <div style={{ fontSize: 13, color: '#6B6860', marginTop: 4 }}>
                 Scheduled: {new Date(currentAppt.scheduled_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
               </div>
@@ -136,7 +136,7 @@ export default function FeedbackGate({ agentId, children }: { agentId: string, c
             {!showSkipConfirm ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#1A1916', marginBottom: 8 }}>How did the visit go?</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#15161B', marginBottom: 8 }}>How did the visit go?</label>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
                     {[
                       { id: 'interested', label: '✅ Interested' },
@@ -156,7 +156,7 @@ export default function FeedbackGate({ agentId, children }: { agentId: string, c
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#1A1916', marginBottom: 8 }}>Agent Notes (Optional)</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#15161B', marginBottom: 8 }}>Agent Notes (Optional)</label>
                   <textarea 
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
@@ -173,7 +173,7 @@ export default function FeedbackGate({ agentId, children }: { agentId: string, c
                   <button 
                     onClick={() => submitFeedback(selectedResult)}
                     disabled={!selectedResult || isSubmitting}
-                    style={{ padding: '10px 20px', borderRadius: 8, background: '#1A1916', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 500, fontFamily: 'inherit', opacity: (!selectedResult || isSubmitting) ? 0.5 : 1 }}
+                    style={{ padding: '10px 20px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 500, fontFamily: 'inherit', opacity: (!selectedResult || isSubmitting) ? 0.5 : 1 }}
                   >
                     {isSubmitting ? 'Saving...' : 'Submit Feedback'}
                   </button>

@@ -96,11 +96,11 @@ export default function AdminDashboard() {
   if (isSuperadmin === null) return <div style={{ padding: 40, fontFamily: "'DM Sans', sans-serif" }}>Verifying permissions...</div>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#FAFAF7', fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#FAFAFB', fontFamily: "'DM Sans', sans-serif" }}>
       <Topbar screen="overview" isSuperadmin={true} />
       <div style={{ padding: 40, maxWidth: 1200, margin: '0 auto', width: '100%' }}>
-        <h1 style={{ fontSize: 24, fontWeight: 500, marginBottom: 8, color: '#1A1916' }}>Platform Superadmin</h1>
-        <p style={{ color: '#6B6860', marginBottom: 32 }}>Manage all LeadNest agencies, billing, and global settings.</p>
+        <h1 style={{ fontSize: 24, fontWeight: 500, marginBottom: 8, color: '#15161B' }}>Platform Superadmin</h1>
+        <p style={{ color: '#6B6860', marginBottom: 32 }}>Manage all Convorian agencies, billing, and global settings.</p>
 
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid rgba(26,25,22,0.1)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -116,23 +116,23 @@ export default function AdminDashboard() {
             <tbody>
               {agencies.map(agency => (
                 <tr key={agency.id} style={{ borderBottom: '1px solid rgba(26,25,22,0.05)' }}>
-                  <td style={{ padding: '16px 20px', fontSize: 14, color: '#1A1916', fontWeight: 500 }}>{agency.agency_name || 'Unnamed Agency'}</td>
+                  <td style={{ padding: '16px 20px', fontSize: 14, color: '#15161B', fontWeight: 500 }}>{agency.agency_name || 'Unnamed Agency'}</td>
                   <td style={{ padding: '16px 20px', fontSize: 14, color: '#6B6860' }}>{agency.email || 'No email provided'}</td>
                   <td style={{ padding: '16px 20px' }}>
                     <button 
                       onClick={() => handleToggleSuspend(agency)}
-                      style={{ padding: '4px 10px', background: agency.bot_active ? '#E8F5EE' : '#FDF0F0', color: agency.bot_active ? '#1A6B4A' : '#C0392B', borderRadius: 20, fontSize: 12, fontWeight: 500, border: '1px solid ' + (agency.bot_active ? '#2E8B5F33' : '#C0392B33'), cursor: 'pointer' }}>
+                      style={{ padding: '4px 10px', background: agency.bot_active ? '#EEF0FE' : '#FDF0F0', color: agency.bot_active ? '#4338CA' : '#C0392B', borderRadius: 20, fontSize: 12, fontWeight: 500, border: '1px solid ' + (agency.bot_active ? '#4F46E533' : '#C0392B33'), cursor: 'pointer' }}>
                       {agency.bot_active ? 'Active' : 'Suspended'}
                     </button>
                   </td>
-                  <td style={{ padding: '16px 20px', fontSize: 14, color: '#1A1916' }}>
+                  <td style={{ padding: '16px 20px', fontSize: 14, color: '#15161B' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       ₹{agency.wa_balance || 0}
                       <button onClick={() => setShowBalModal(agency.id)} style={{ padding: '2px 6px', fontSize: 11, background: '#F4F3EE', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Edit</button>
                     </div>
                   </td>
                   <td style={{ padding: '16px 20px' }}>
-                    <button onClick={() => handleImpersonate(agency.id)} style={{ fontSize: 12, padding: '6px 12px', background: '#FAFAF7', border: '1px solid rgba(26,25,22,0.18)', borderRadius: 6, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+                    <button onClick={() => handleImpersonate(agency.id)} style={{ fontSize: 12, padding: '6px 12px', background: '#FAFAFB', border: '1px solid rgba(26,25,22,0.18)', borderRadius: 6, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
                       Impersonate
                     </button>
                   </td>
@@ -153,7 +153,7 @@ export default function AdminDashboard() {
       {showBalModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
           <div style={{ background: '#fff', padding: 24, borderRadius: 12, width: 320, boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
-            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 16, color: '#1A1916' }}>Set New Balance</div>
+            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 16, color: '#15161B' }}>Set New Balance</div>
             <input 
               type="number" 
               value={newBal} 
@@ -165,7 +165,7 @@ export default function AdminDashboard() {
             />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => { setShowBalModal(null); setNewBal(''); }} style={{ padding: '8px 16px', borderRadius: 8, background: '#F4F3EE', border: 'none', cursor: 'pointer', fontWeight: 500 }}>Cancel</button>
-              <button onClick={() => handleUpdateBalance(showBalModal)} style={{ padding: '8px 16px', borderRadius: 8, background: '#1A1916', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 500 }}>Save</button>
+              <button onClick={() => handleUpdateBalance(showBalModal)} style={{ padding: '8px 16px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 500 }}>Save</button>
             </div>
           </div>
         </div>

@@ -42,8 +42,8 @@ export default function AnalyticsScreen({ agentId }: { agentId: string }) {
     { 
       title: 'Pipeline Funnel', 
       bars: [
-        { l: 'Total Leads', v: data.totalLeads, max: maxPipeline, c: '#1A1916' }, 
-        { l: 'Visits Booked', v: data.visitsBooked, max: maxPipeline, c: '#2E8B5F' },
+        { l: 'Total Leads', v: data.totalLeads, max: maxPipeline, c: '#15161B' }, 
+        { l: 'Visits Booked', v: data.visitsBooked, max: maxPipeline, c: '#4F46E5' },
         { l: 'Closed Won', v: data.closedWon, max: maxPipeline, c: '#1A5FA5' }
       ] 
     },
@@ -51,13 +51,13 @@ export default function AnalyticsScreen({ agentId }: { agentId: string }) {
 
   return (
     <div style={{ padding: '24px 28px' }}>
-      <div style={{ fontSize: 15, fontWeight: 500, color: '#1A1916', marginBottom: 16 }}>Analytics</div>
+      <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>Analytics</div>
       
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }}>
         {topMetrics.map((m, i) => (
           <div key={i} style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '18px 20px' }}>
             <div style={{ fontSize: 11, color: '#9E9B92', marginBottom: 6 }}>{m.label}</div>
-            <div style={{ fontSize: 26, fontWeight: 500, color: '#1A1916', lineHeight: 1, marginBottom: 4 }}>{m.val}</div>
+            <div style={{ fontSize: 26, fontWeight: 500, color: '#15161B', lineHeight: 1, marginBottom: 4 }}>{m.val}</div>
             <div style={{ fontSize: 11, color: '#9E9B92' }}>{m.sub}</div>
           </div>
         ))}

@@ -214,16 +214,16 @@ export async function POST(request: NextRequest) {
           .eq('lead_id', lead.id)
           .eq('title', 'Site visit rescheduled by AI')
 
-        if (rescheduleCount !== null && rescheduleCount >= 2) {
+        if (rescheduleCount !== null && rescheduleCount >= 3) {
           console.log('APPT-DEBUG: Troll detected (>=3 reschedules). Handing over to human.')
           reply = "I notice we've had to reschedule a few times. To ensure we find a time that works perfectly without any back-and-forth, I'll have a human agent reach out to coordinate with you directly."
           leadUpdates.bot_paused = true
           leadUpdates.status = 'contacted'
-          
+
           await supabaseAdmin.from('activity_log').insert({
             agent_id: agent.id, lead_id: lead.id, type: 'bot_paused',
             title: 'Bot Paused (Troll Detection)',
-            description: 'Lead rescheduled 3 times. Handed over to human.'
+            description: 'Lead rescheduled 3 or more times. Handed over to human.'
           })
           
           // Skip updating the appointment time in DB

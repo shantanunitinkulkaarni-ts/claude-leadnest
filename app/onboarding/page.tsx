@@ -114,7 +114,7 @@ export default function OnboardingPage() {
     ['Your business details', 'Tell us about your agency'],
     ['Bot preferences', 'How should your assistant behave?'],
     ['Connect WhatsApp', 'Link your business number to go live'],
-    ["You're live!", 'LeadNest is now active on your WhatsApp']
+    ["You're live!", 'Convorian is now active on your WhatsApp']
   ]
   const progVals = [20, 40, 60, 80, 100]
 
@@ -254,7 +254,7 @@ export default function OnboardingPage() {
               <div className="logo-dot">
                 <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
               </div>
-              <span className="logo-name">LeadNest</span>
+              <span className="logo-name">Convorian</span>
             </div>
           </div>
 
@@ -311,7 +311,7 @@ export default function OnboardingPage() {
             <div className="form-card" style={{ padding: '40px 32px' }}>
               {isAuthenticated ? (
                 <div style={{ textAlign: 'center' }}>
-                  <div className="form-card-icon" style={{ background: '#E8F5EE', margin: '0 auto 16px' }}>✅</div>
+                  <div className="form-card-icon" style={{ background: '#EEF0FE', margin: '0 auto 16px' }}>✅</div>
                   <div className="form-card-title" style={{ fontSize: 24, marginBottom: 8 }}>Account Connected</div>
                   <div className="form-card-desc" style={{ marginBottom: 32 }}>You are signed in as <strong style={{ color: 'var(--ink)' }}>{email}</strong>.</div>
                   <button className="btn-next" style={{ width: '100%' }} onClick={() => setCurrentStep(1)}>
@@ -322,7 +322,7 @@ export default function OnboardingPage() {
                 <>
                   <div style={{ textAlign: 'center', marginBottom: 32 }}>
                     <div className="form-card-icon" style={{ background: '#EEF2FF', margin: '0 auto 16px' }}>🚀</div>
-                    <div className="form-card-title" style={{ fontSize: 24 }}>Welcome to LeadNest</div>
+                    <div className="form-card-title" style={{ fontSize: 24 }}>Welcome to Convorian</div>
                     <div className="form-card-desc">Create your account to set up your WhatsApp AI assistant.</div>
                   </div>
               
@@ -335,7 +335,7 @@ export default function OnboardingPage() {
               {authMethod === 'google' && (
                 <button 
                   className="btn-next" 
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, background: '#fff', color: '#1A1916', border: '1px solid rgba(26,25,22,0.2)', height: 48, cursor: 'pointer' }} 
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, background: '#fff', color: '#15161B', border: '1px solid rgba(26,25,22,0.2)', height: 48, cursor: 'pointer' }} 
                   disabled={isSubmitting} 
                   onClick={handleGoogleAuth}
                 >
@@ -420,7 +420,7 @@ export default function OnboardingPage() {
           {currentStep === 1 && (
             <div className="form-card">
               <div className="form-card-header">
-                <div className="form-card-icon" style={{ background: '#E8F5EE' }}>🏢</div>
+                <div className="form-card-icon" style={{ background: '#EEF0FE' }}>🏢</div>
                 <div>
                   <div className="form-card-title">Your business</div>
                   <div className="form-card-desc">This helps the bot introduce itself correctly to your leads</div>
@@ -556,7 +556,7 @@ export default function OnboardingPage() {
                 <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
               </div>
               <div className="complete-title">You're all set, {firstName}!</div>
-              <div className="complete-sub">Your LeadNest bot is live on WhatsApp. Every new lead will be handled automatically from this moment.</div>
+              <div className="complete-sub">Your Convorian bot is live on WhatsApp. Every new lead will be handled automatically from this moment.</div>
               <button className="btn-launch" onClick={() => router.push('/dashboard')}>
                 Open my dashboard
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>

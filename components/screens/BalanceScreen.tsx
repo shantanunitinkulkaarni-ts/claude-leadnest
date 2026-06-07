@@ -60,14 +60,14 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 580 }}>
-      <div style={{ fontSize: 15, fontWeight: 500, color: '#1A1916', marginBottom: 16 }}>WhatsApp balance</div>
+      <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>WhatsApp balance</div>
       <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: 24, marginBottom: 14 }}>
         <div style={{ fontSize: 12, color: '#9E9B92' }}>Available balance</div>
-        <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 42, color: '#1A1916', lineHeight: 1, margin: '4px 0' }}>
+        <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 42, color: '#15161B', lineHeight: 1, margin: '4px 0' }}>
           ₹{balance !== null ? balance : '...'}
         </div>
         <div style={{ fontSize: 12, color: '#9E9B92' }}>Used for outbound template messages · Meta charges deducted automatically</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 18 }}>
+        <div data-tour="wa-topup" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 18 }}>
           {['+ ₹100', '+ ₹500', '+ ₹1000'].map(a => (
             <button 
               key={a} 
@@ -110,7 +110,7 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
           <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderBottom: i < txns.length - 1 ? '1px solid rgba(26,25,22,0.06)' : 'none', fontSize: 12 }}>
             <span style={{ color: '#3D3B34' }}>{t.desc}</span>
             <span style={{ color: '#C8C5BC', fontSize: 11, margin: '0 12px' }}>{t.date}</span>
-            <span style={{ fontWeight: 500, color: t.credit ? '#1A6B4A' : '#C0392B' }}>{t.amount}</span>
+            <span style={{ fontWeight: 500, color: t.credit ? '#4338CA' : '#C0392B' }}>{t.amount}</span>
           </div>
         )) : (
           <div style={{ fontSize: 12, color: '#9E9B92', textAlign: 'center', padding: '20px 0' }}>No recent transactions.</div>
@@ -122,7 +122,7 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
           <div style={{ background: '#fff', borderRadius: 12, width: 360, overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
             <div style={{ background: '#02042B', padding: '24px 20px', color: '#fff', textAlign: 'center' }}>
               <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 4 }}>Razorpay Test Environment</div>
-              <div style={{ opacity: 0.8, fontSize: 13 }}>LeadNest Pvt Ltd</div>
+              <div style={{ opacity: 0.8, fontSize: 13 }}>Convorian Pvt Ltd</div>
               <div style={{ fontSize: 32, fontWeight: 500, marginTop: 16 }}>₹{pendingAmount}</div>
             </div>
             <div style={{ padding: 24 }}>

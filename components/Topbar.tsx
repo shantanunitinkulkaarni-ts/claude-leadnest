@@ -69,11 +69,11 @@ export default function Topbar({ screen, agentId, isSuperadmin = false, onNaviga
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       flexShrink: 0
     }}>
-      <div style={{ fontSize: 15, fontWeight: 500, color: '#1A1916' }}>{titles[screen]}</div>
+      <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B' }}>{titles[screen]}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#F4F3EE', border: '1px solid rgba(26,25,22,0.13)', borderRadius: 8, padding: '0 12px', height: 34, width: 200 }}>
           <span style={{ fontSize: 13, color: '#9E9B92' }}>🔍</span>
-          <input type="text" placeholder="Search leads..." style={{ border: 'none', background: 'transparent', fontSize: 12, color: '#1A1916', width: '100%', outline: 'none', fontFamily: 'inherit' }} />
+          <input type="text" placeholder="Search leads..." style={{ border: 'none', background: 'transparent', fontSize: 12, color: '#15161B', width: '100%', outline: 'none', fontFamily: 'inherit' }} />
         </div>
         
         <div style={{ width: 1, height: 20, background: 'rgba(26,25,22,0.18)', margin: '0 4px' }} />
@@ -101,7 +101,7 @@ export default function Topbar({ screen, agentId, isSuperadmin = false, onNaviga
               borderRadius: 12, border: '1px solid rgba(26,25,22,0.08)',
               boxShadow: '0 4px 24px rgba(0,0,0,0.06)', zIndex: 100, padding: 16
             }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#1A1916', marginBottom: 12 }}>Notifications</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#15161B', marginBottom: 12 }}>Notifications</div>
               <div style={{ fontSize: 13, color: '#737373', textAlign: 'center', padding: '20px 0' }}>
                 No new notifications
               </div>
@@ -116,7 +116,7 @@ export default function Topbar({ screen, agentId, isSuperadmin = false, onNaviga
             onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
             onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
             style={{ 
-              width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#2E8B5F,#1A6B4A)', 
+              width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#4F46E5,#4338CA)', 
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, 
               fontWeight: 500, color: '#fff', cursor: 'pointer', transition: 'opacity 0.2s' 
             }}>
@@ -131,26 +131,61 @@ export default function Topbar({ screen, agentId, isSuperadmin = false, onNaviga
               boxShadow: '0 4px 24px rgba(0,0,0,0.06)', zIndex: 100, padding: 8
             }}>
               <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(26,25,22,0.08)', marginBottom: 4 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#1A1916' }}>{userName}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B' }}>{userName}</div>
                 <div style={{ fontSize: 11, color: '#737373' }}>{role}</div>
               </div>
-              <button 
+              <button
                 onClick={() => { setShowProfile(false); onNavigate?.('settings'); }}
                 onMouseEnter={(e) => e.currentTarget.style.background = '#F4F3EE'}
                 onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                style={{ 
-                  width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, color: '#1A1916',
+                style={{
+                  width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, color: '#15161B',
                   background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'background 0.2s',
                   display: 'flex', alignItems: 'center', gap: 8
                 }}>
                 ⚙️ Settings
               </button>
-              <button 
+              <button
+                onClick={() => { setShowProfile(false); onNavigate?.('balance'); }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#F4F3EE'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                style={{
+                  width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, color: '#15161B',
+                  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'background 0.2s',
+                  display: 'flex', alignItems: 'center', gap: 8
+                }}>
+                💳 WhatsApp Balance
+              </button>
+              <button
+                onClick={() => { setShowProfile(false); window.dispatchEvent(new Event('leadnest:restart-tutorial')); }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#F4F3EE'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                style={{
+                  width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, color: '#15161B',
+                  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'background 0.2s',
+                  display: 'flex', alignItems: 'center', gap: 8
+                }}>
+                🎓 Restart Tutorial
+              </button>
+              <a
+                href="mailto:support@convorian.in"
+                onClick={() => setShowProfile(false)}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#F4F3EE')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                style={{
+                  width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, color: '#15161B',
+                  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'background 0.2s',
+                  display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', boxSizing: 'border-box'
+                }}>
+                ❓ Help &amp; Support
+              </a>
+              <div style={{ height: 1, background: 'rgba(26,25,22,0.08)', margin: '4px 0' }} />
+              <button
                 onClick={async () => { await getSupabase().auth.signOut(); router.push('/login'); }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#FDECEA'; e.currentTarget.style.color = '#C0392B'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#1A1916'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#15161B'; }}
                 style={{ 
-                  width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, color: '#1A1916',
+                  width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, color: '#15161B',
                   background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'all 0.2s',
                   display: 'flex', alignItems: 'center', gap: 8
                 }}>

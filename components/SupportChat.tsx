@@ -6,7 +6,7 @@ export default function SupportChat() {
   const [isOpen, setIsOpen] = useState(false)
   const [msg, setMsg] = useState('')
   const [messages, setMessages] = useState<{from: 'user' | 'support', text: string}[]>([
-    { from: 'support', text: 'Hi! I am the LeadNest support bot. How can I help you today?' }
+    { from: 'support', text: 'Hi! I am the Convorian support bot. How can I help you today?' }
   ])
 
   const handleSend = (e: React.FormEvent) => {
@@ -28,8 +28,8 @@ export default function SupportChat() {
           display: 'flex', flexDirection: 'column', zIndex: 9999, overflow: 'hidden',
           border: '1px solid rgba(0,0,0,0.05)'
         }}>
-          <div style={{ padding: '16px 20px', background: '#1A1916', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontWeight: 500 }}>LeadNest Support</div>
+          <div style={{ padding: '16px 20px', background: '#15161B', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontWeight: 500 }}>Convorian Support</div>
             <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>✕</button>
           </div>
           <div style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -37,7 +37,7 @@ export default function SupportChat() {
               <div key={i} style={{
                 alignSelf: m.from === 'user' ? 'flex-end' : 'flex-start',
                 background: m.from === 'user' ? '#1A5FA5' : '#F2F1EB',
-                color: m.from === 'user' ? '#fff' : '#1A1916',
+                color: m.from === 'user' ? '#fff' : '#15161B',
                 padding: '10px 14px', borderRadius: 12, fontSize: 14,
                 maxWidth: '85%'
               }}>
@@ -60,7 +60,7 @@ export default function SupportChat() {
         onClick={() => setIsOpen(!isOpen)}
         style={{
           position: 'fixed', bottom: 24, right: 24, width: 48, height: 48,
-          borderRadius: '50%', background: '#1A1916', color: '#fff',
+          borderRadius: '50%', background: '#15161B', color: '#fff',
           border: 'none', cursor: 'pointer', zIndex: 9999,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)'

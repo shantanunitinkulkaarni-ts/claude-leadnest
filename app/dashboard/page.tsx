@@ -24,7 +24,6 @@ export default function DashboardPage() {
   const [agent, setAgent] = useState<any>(null)
   const [agentId, setAgentId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [showTutorial, setShowTutorial] = useState(true)
 
   const refreshAgent = useCallback(async (id: string) => {
     try {
@@ -79,8 +78,8 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#FAFAF7', fontFamily: "'DM Sans', sans-serif", flexDirection: 'column', gap: 16 }}>
-        <div style={{ width: 36, height: 36, border: '3px solid #E8E5DF', borderTopColor: '#2E8B5F', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#FAFAFB', fontFamily: "'DM Sans', sans-serif", flexDirection: 'column', gap: 16 }}>
+        <div style={{ width: 36, height: 36, border: '3px solid #E8E5DF', borderTopColor: '#4F46E5', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
         <div style={{ fontSize: 13, color: '#9E9B92' }}>Loading your dashboard...</div>
         <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
@@ -88,16 +87,16 @@ export default function DashboardPage() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", background: '#FAFAF7' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", background: '#FAFAFB' }}>
       <Sidebar activeScreen={screen} onNavigate={setScreen} agent={agent} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar screen={screen} agentId={agentId ?? undefined} />
+        <Topbar screen={screen} agentId={agentId ?? undefined} onNavigate={setScreen} />
         <div style={{ flex: 1, overflow: 'auto' }}>
           {renderScreen()}
         </div>
       </div>
       <SupportChat />
-      {showTutorial && <TutorialWalkthrough onComplete={() => setShowTutorial(false)} />}
+      <TutorialWalkthrough onNavigate={setScreen} />
     </div>
   )
 }

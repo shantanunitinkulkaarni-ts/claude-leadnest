@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { pickFields, requireAgentAccess } from '@/lib/apiAuth'
 
-const USER_ALLOWED_FIELDS = ['agency_name', 'city', 'state', 'areas', 'bot_tone', 'office_open', 'office_close', 'languages', 'bot_active', 'wa_balance', 'out_of_office_message']
+const USER_ALLOWED_FIELDS = ['name', 'agency_name', 'city', 'state', 'areas', 'bot_tone', 'office_open', 'office_close', 'languages', 'bot_active', 'wa_balance', 'out_of_office_message']
 const SUPERADMIN_ALLOWED_FIELDS = [...USER_ALLOWED_FIELDS, 'wa_balance', 'plan', 'plan_status', 'messages_limit']
 
 export async function GET(request: NextRequest) {

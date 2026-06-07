@@ -1,70 +1,289 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { Screen } from '@/app/dashboard/page'
 
-export default function TutorialWalkthrough({ onComplete }: { onComplete: () => void }) {
+type Rect = { top: number; left: number; width: number; height: number }
+
+interface Step {
+  title: string
+  text: string
+  target?: string          // CSS selector to spotlight; omit for a centered card
+  navigate?: Screen        // screen to switch to before showing this step
+  doneEvent?: string       // if set, Next stays locked until this tour-action fires
+  actionHint?: string      // shown while waiting for the user to perform the action
+}
+
+const STEPS: Step[] = [
+  {
+    title: 'Welcome to Convorian 👋',
+    text: "Let's take a quick hands-on tour. You'll actually add your first lead and property as we go — by the end you'll know how to run the whole app."
+  },
+  {
+    title: 'Your AI Sales Bot',
+    text: 'This is your profile and bot switch. When active, the bot qualifies leads, answers on WhatsApp, and books site visits 24/7. Pausing it needs your PIN (default 1234).',
+    target: '[data-tour="agent-card"]'
+  },
+  {
+    title: 'Step 1 — Add your first Lead',
+    text: 'Click "+ Add Lead", enter a name and WhatsApp number, and save. (Leads also arrive automatically when someone messages you.) Try it now — this step unlocks once your lead is added.',
+    navigate: 'leads',
+    target: '[data-tour="add-lead"]',
+    doneEvent: 'lead-added',
+    actionHint: '👉 Add a lead using the highlighted button to continue.'
+  },
+  {
+    title: 'Step 2 — Add your first Property',
+    text: 'Click "+ Add detailed property" and fill in price, location, BHK and features. Your AI uses these to recommend matches to leads. Add one to continue.',
+    navigate: 'properties',
+    target: '[data-tour="add-property"]',
+    doneEvent: 'property-added',
+    actionHint: '👉 Add a property using the highlighted button to continue.'
+  },
+  {
+    title: 'Step 3 — The Inbox',
+    text: 'Every conversation lives here. The bot replies on its own, but you can "Take over" to chat manually, "Simulate lead" to test it, or "Book visit" to schedule a site visit.',
+    navigate: 'inbox',
+    target: '[data-tour="nav-inbox"]'
+  },
+  {
+    title: 'Step 4 — Appointments',
+    text: 'Booked site visits show here. After a visit, log the feedback — the AI uses your notes to follow up and push the lead toward a purchase. This is how Convorian closes deals.',
+    navigate: 'appointments',
+    target: '[data-tour="nav-appointments"]'
+  },
+  {
+    title: 'Track your ROI',
+    text: 'See pipeline value, conversion rates, and estimated commission — split across rentals and purchases — so you always know what Convorian earns you.',
+    navigate: 'analytics',
+    target: '[data-tour="nav-analytics"]'
+  },
+  {
+    title: 'WhatsApp Balance',
+    text: 'Your bot uses WhatsApp balance to send messages. Top it up here whenever you need — quick amounts or a custom value.',
+    navigate: 'balance',
+    target: '[data-tour="wa-topup"]'
+  },
+  {
+    title: "You're all set! 🎉",
+    text: "That's the whole flow: add leads → list properties → let the bot convert them → log visit feedback to close. Replay this tour anytime from the profile menu (top-right)."
+  }
+]
+
+const PAD = 8
+
+export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: Screen) => void }) {
+  const [visible, setVisible] = useState(false)
   const [step, setStep] = useState(0)
-  const [mounted, setMounted] = useState(false)
+  const [rect, setRect] = useState<Rect | null>(null)
+  const [completed, setCompleted] = useState(false)
 
-  useEffect(() => {
-    setMounted(true)
-    const hasSeen = localStorage.getItem('leadnest_tutorial_seen')
-    if (hasSeen) {
-      onComplete()
-    }
-  }, [onComplete])
-
-  const steps = [
-    { title: "Welcome to LeadNest", text: "This is your command center. Let us show you around so you can start converting leads on autopilot." },
-    { title: "Your AI Sales Bot", text: "Here you can see your bot's activity. The AI automatically qualifies leads and schedules site visits for you." },
-    { title: "Add your Properties", text: "Head over to the Properties tab to add your listings. The AI will read them and recommend the best matches to your leads." },
-    { title: "Manage WhatsApp Balance", text: "Your bot needs WhatsApp balance to send messages. You can top it up anytime in the Settings or Balance tab." },
-    { title: "You're all set!", text: "Add a test lead and see the magic happen in the Inbox tab." }
-  ]
-
-  if (!mounted) return null
-  if (step >= steps.length) {
+  const finish = useCallback(() => {
     localStorage.setItem('leadnest_tutorial_seen', 'true')
-    onComplete()
-    return null
+    setVisible(false)
+    setStep(0)
+    setRect(null)
+    setCompleted(false)
+  }, [])
+
+  // Initial mount — show only if never seen
+  useEffect(() => {
+    if (!localStorage.getItem('leadnest_tutorial_seen')) {
+      setStep(0)
+      setVisible(true)
+    }
+  }, [])
+
+  // Allow re-launching from anywhere (profile menu, settings, etc.)
+  useEffect(() => {
+    const handler = () => { setStep(0); setCompleted(false); setVisible(true) }
+    window.addEventListener('leadnest:restart-tutorial', handler)
+    return () => window.removeEventListener('leadnest:restart-tutorial', handler)
+  }, [])
+
+  // Reset completion whenever the step changes
+  useEffect(() => { setCompleted(false) }, [step])
+
+  // Listen for the user completing the current step's required action
+  useEffect(() => {
+    if (!visible) return
+    const need = STEPS[step]?.doneEvent
+    if (!need) return
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail === need) setCompleted(true)
+    }
+    window.addEventListener('leadnest:tour-action', handler as EventListener)
+    return () => window.removeEventListener('leadnest:tour-action', handler as EventListener)
+  }, [visible, step])
+
+  // Switch screen if this step asks for it
+  useEffect(() => {
+    if (!visible) return
+    const s = STEPS[step]
+    if (s?.navigate && onNavigate) onNavigate(s.navigate)
+  }, [visible, step, onNavigate])
+
+  // Measure the target element (and keep it in sync on resize/scroll)
+  useEffect(() => {
+    if (!visible) return
+    const s = STEPS[step]
+    if (!s?.target) { setRect(null); return }
+
+    let found = false
+    const measure = () => {
+      const el = document.querySelector(s.target!) as HTMLElement | null
+      if (!el) { if (!found) setRect(null); return }
+      const r = el.getBoundingClientRect()
+      if (r.width === 0 && r.height === 0) return
+      found = true
+      setRect({ top: r.top, left: r.left, width: r.width, height: r.height })
+    }
+
+    measure()
+    // The target may live in a screen we just navigated to — retry while it mounts
+    const timers = [80, 180, 320, 550].map(ms => setTimeout(measure, ms))
+    window.addEventListener('resize', measure)
+    window.addEventListener('scroll', measure, true)
+    return () => {
+      timers.forEach(clearTimeout)
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('scroll', measure, true)
+    }
+  }, [visible, step])
+
+  if (!visible) return null
+
+  const current = STEPS[step]
+  const isLast = step === STEPS.length - 1
+  const hasTarget = !!current.target && !!rect
+  const isAction = !!current.doneEvent
+  const nextLocked = isAction && !completed
+
+  // Action steps sit BELOW the app's own modals (z-index 100+) so the user can
+  // actually fill in the form that opens. Informational steps sit on top.
+  const zBase = isAction ? 90 : 9000
+
+  const cardCommon: React.CSSProperties = {
+    position: 'fixed', maxWidth: 360, width: '100%',
+    background: '#fff', borderRadius: 16, padding: '24px 28px',
+    boxShadow: '0 24px 48px rgba(0,0,0,0.25)', zIndex: zBase + 3
   }
 
-  return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      background: 'rgba(0,0,0,0.6)', zIndex: 99998,
-      display: 'flex', alignItems: 'center', justifyContent: 'center'
-    }}>
-      <div style={{
-        background: '#fff', padding: '32px 40px', borderRadius: 24,
-        maxWidth: 420, width: '100%', textAlign: 'center',
-        boxShadow: '0 24px 48px rgba(0,0,0,0.2)', position: 'relative', zIndex: 99999
-      }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#1A5FA5', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Step {step + 1} of {steps.length}
+  const advance = () => { if (!nextLocked) (isLast ? finish() : setStep(step + 1)) }
+  const goBack = step > 0 ? () => setStep(step - 1) : undefined
+
+  if (hasTarget && rect) {
+    const spotlightTop = rect.top - PAD
+    const spotlightLeft = rect.left - PAD
+    const spotlightW = rect.width + PAD * 2
+    const spotlightH = rect.height + PAD * 2
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
+
+    let cardStyle = cardCommon
+    let arrow: React.ReactNode = null
+    const placeRight = rect.left < vw / 2
+    if (placeRight) {
+      cardStyle = { ...cardCommon, top: Math.max(16, spotlightTop), left: spotlightLeft + spotlightW + 18, maxWidth: 320 }
+      arrow = (
+        <div style={{
+          position: 'fixed', top: rect.top + rect.height / 2 - 8,
+          left: spotlightLeft + spotlightW + 4, zIndex: zBase + 2,
+          width: 0, height: 0, borderTop: '8px solid transparent', borderBottom: '8px solid transparent',
+          borderRight: '12px solid #fff', filter: 'drop-shadow(-2px 0 2px rgba(0,0,0,0.08))'
+        }} />
+      )
+    } else {
+      const cardW = 320
+      const clampedLeft = Math.min(Math.max(16, spotlightLeft), vw - cardW - 16)
+      cardStyle = { ...cardCommon, top: spotlightTop + spotlightH + 18, left: clampedLeft, maxWidth: cardW }
+      arrow = (
+        <div style={{
+          position: 'fixed', top: spotlightTop + spotlightH + 6,
+          left: rect.left + rect.width / 2 - 8, zIndex: zBase + 2,
+          width: 0, height: 0, borderLeft: '8px solid transparent', borderRight: '8px solid transparent',
+          borderBottom: '12px solid #fff', filter: 'drop-shadow(0 -2px 2px rgba(0,0,0,0.08))'
+        }} />
+      )
+    }
+
+    return (
+      <>
+        <div style={{
+          position: 'fixed', top: spotlightTop, left: spotlightLeft,
+          width: spotlightW, height: spotlightH, borderRadius: 10,
+          boxShadow: `0 0 0 9999px rgba(0,0,0,${isAction ? 0.5 : 0.62})`,
+          border: '2px solid #4F46E5', zIndex: zBase,
+          pointerEvents: 'none', transition: 'all 0.25s ease'
+        }} />
+        {arrow}
+        <div style={cardStyle}>
+          <TourCard step={step} current={current} isLast={isLast} nextLocked={nextLocked} completed={completed} onSkip={finish} onNext={advance} onBack={goBack} />
         </div>
-        <h2 style={{ fontSize: 24, fontWeight: 600, color: '#1A1916', marginBottom: 16 }}>{steps[step].title}</h2>
-        <p style={{ fontSize: 15, color: '#6B6860', lineHeight: 1.6, marginBottom: 32 }}>
-          {steps[step].text}
-        </p>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button 
-            onClick={() => {
-              localStorage.setItem('leadnest_tutorial_seen', 'true')
-              onComplete()
-            }}
-            style={{ background: 'none', border: 'none', color: '#9E9B92', fontSize: 14, cursor: 'pointer', fontWeight: 500 }}
-          >
-            Skip
-          </button>
-          <button 
-            onClick={() => setStep(step + 1)}
-            style={{ background: '#1A1916', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: 8, fontSize: 15, fontWeight: 500, cursor: 'pointer' }}
-          >
-            {step === steps.length - 1 ? 'Get Started' : 'Next'}
+      </>
+    )
+  }
+
+  // Centered card (welcome / final / fallback when target not found)
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: zBase, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ ...cardCommon, position: 'relative', textAlign: 'center', maxWidth: 420 }}>
+        <TourCard step={step} current={current} isLast={isLast} centered nextLocked={nextLocked} completed={completed} onSkip={finish} onNext={advance} onBack={goBack} />
+      </div>
+    </div>
+  )
+}
+
+function TourCard({ step, current, isLast, centered, nextLocked, completed, onSkip, onNext, onBack }: {
+  step: number; current: Step; isLast: boolean; centered?: boolean
+  nextLocked: boolean; completed: boolean
+  onSkip: () => void; onNext: () => void; onBack?: () => void
+}) {
+  return (
+    <>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#1A5FA5', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        Step {step + 1} of {STEPS.length}
+      </div>
+      <h2 style={{ fontSize: centered ? 24 : 19, fontWeight: 600, color: '#15161B', marginBottom: 12 }}>{current.title}</h2>
+      <p style={{ fontSize: centered ? 15 : 14, color: '#6B6860', lineHeight: 1.6, marginBottom: 16 }}>{current.text}</p>
+
+      {/* Action status banner for hand-holding steps */}
+      {current.doneEvent && (
+        completed ? (
+          <div style={{ background: '#EEF0FE', color: '#4338CA', padding: '10px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, marginBottom: 16 }}>
+            ✓ Done! Click Next to continue.
+          </div>
+        ) : (
+          <div style={{ background: '#FEF9E7', color: '#7A5200', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
+            {current.actionHint || 'Complete this step to continue.'}
+          </div>
+        )
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <button onClick={onSkip} style={{ background: 'none', border: 'none', color: '#9E9B92', fontSize: 13, cursor: 'pointer', fontWeight: 500, fontFamily: 'inherit' }}>
+          Skip tour
+        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {onBack && (
+            <button onClick={onBack} style={{ background: '#F4F3EE', color: '#6B6860', border: 'none', padding: '10px 16px', borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Back
+            </button>
+          )}
+          <button
+            onClick={onNext}
+            disabled={nextLocked}
+            title={nextLocked ? 'Complete this step first' : undefined}
+            style={{
+              background: nextLocked ? '#D9D6CE' : '#15161B',
+              color: nextLocked ? '#9E9B92' : '#fff',
+              border: 'none', padding: '10px 22px', borderRadius: 8, fontSize: 14, fontWeight: 500,
+              cursor: nextLocked ? 'not-allowed' : 'pointer', fontFamily: 'inherit'
+            }}>
+            {isLast ? 'Get Started' : 'Next'}
           </button>
         </div>
       </div>
-    </div>
+    </>
   )
 }

@@ -2,15 +2,15 @@
 import { useState, useEffect } from 'react'
 
 const G = {
-  bg: '#FAFAF7',
+  bg: '#FAFAFB',
   card: '#FFFFFF',
   border: '#E8E5DF',
-  text: '#1A1916',
+  text: '#15161B',
   muted: '#6B6860',
-  green: '#2E8B5F',
-  greenLight: '#EBF5EE',
-  gold: '#B8955A',
-  goldLight: '#FBF5EA',
+  green: '#4F46E5',
+  greenLight: '#EEF0FE',
+  gold: '#7C3AED',
+  goldLight: '#F3EFFE',
   blue: '#2563EB',
   blueLight: '#EFF6FF',
   red: '#DC2626',
@@ -119,6 +119,13 @@ export function ROIScreen({ agentId }: { agentId: string }) {
 
   const { summary, conversion, roi, bot, leakage, charts, activity, agent } = data
 
+  // Never show a demoralizing ₹0. If nothing has closed yet, surface the
+  // "money on the table" — the estimated commission sitting in the pipeline.
+  const earned = roi.periodCommission || 0
+  const isPotential = earned <= 0
+  const heroAmount = isPotential ? (roi.potentialTotal || 0) : earned
+  const hasAnything = heroAmount > 0
+
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1100, margin: '0 auto' }}>
 
@@ -138,17 +145,27 @@ export function ROIScreen({ agentId }: { agentId: string }) {
       </div>
 
       {/* ROI Hero Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #1A1916 0%, #2E3B2E 100%)', borderRadius: 16, padding: '28px 32px', marginBottom: 24, position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', width: 300, height: 300, background: 'radial-gradient(circle, rgba(46,139,95,0.2) 0%, transparent 70%)', top: -80, right: -50 }} />
+      <div style={{ background: 'linear-gradient(135deg, #15161B 0%, #2A2550 100%)', borderRadius: 16, padding: '28px 32px', marginBottom: 24, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', width: 300, height: 300, background: 'radial-gradient(circle, rgba(79,70,229,0.2) 0%, transparent 70%)', top: -80, right: -50 }} />
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Estimated Commission Generated — Last {period} Days</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
+            {isPotential ? 'Potential Commission In Your Pipeline' : `Estimated Commission Generated — Last ${period} Days`}
+          </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 48, fontWeight: 700, color: '#fff', letterSpacing: '-0.03em' }}>{fmt(roi.periodCommission)}</div>
+            <div style={{ fontSize: 48, fontWeight: 700, color: '#fff', letterSpacing: '-0.03em' }}>
+              {hasAnything ? fmt(heroAmount) : 'Add leads to unlock'}
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textDecoration: 'line-through' }}>vs ₹0 without LeadNest</div>
-              <div style={{ fontSize: 13, color: '#4DB88A', fontWeight: 500 }}>
-                {roi.roiMultiple > 0 ? `${roi.roiMultiple}x return` : 'ROI builds with leads'} on ₹{agent?.planCost}/month
-              </div>
+              {isPotential ? (
+                <div style={{ fontSize: 13, color: '#818CF8', fontWeight: 500 }}>
+                  {hasAnything ? 'Waiting to be earned from active leads' : 'Your earning potential appears here'}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: '#818CF8', fontWeight: 500 }}>
+                  {roi.roiMultiple > 0 ? `${roi.roiMultiple}x return` : 'Strong start'} on ₹{agent?.planCost}/month
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>* Estimated figure — actual commission varies by deal.</div>
             </div>
           </div>
           <div style={{ marginTop: 16, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
@@ -166,7 +183,7 @@ export function ROIScreen({ agentId }: { agentId: string }) {
             </div>
             <div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>Total Commission (All Time)</div>
-              <div style={{ fontSize: 20, fontWeight: 600, color: '#B8955A' }}>{fmt(roi.totalCommission)}</div>
+              <div style={{ fontSize: 20, fontWeight: 600, color: '#7C3AED' }}>{fmt(roi.totalCommission)}</div>
             </div>
           </div>
         </div>
@@ -179,6 +196,39 @@ export function ROIScreen({ agentId }: { agentId: string }) {
         <Metric label="Bot Messages" value={bot.totalMessages.toLocaleString()} sub={`${bot.botHandledPct}% automated`} icon="🤖" color={G.blue} />
         <Metric label="Lead Leakage" value={`${leakage.leakagePct}%`} sub={`${leakage.leakageCount} leads at risk`} icon="⚠️" color={leakage.leakagePct > 40 ? G.red : G.amber} />
       </div>
+
+      {/* Income by deal type — rental vs purchase have very different economics */}
+      <Card style={{ padding: 24, marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: G.text }}>Income by Deal Type</div>
+          <div style={{ fontSize: 10, color: G.muted }}>* Estimated — actual commission varies by deal</div>
+        </div>
+        <div style={{ fontSize: 12, color: G.muted, marginBottom: 18 }}>Rentals and purchases earn very differently — here&apos;s both.</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          {/* Purchase */}
+          <div style={{ background: G.goldLight, borderRadius: 10, padding: '16px 18px', border: `1px solid ${G.border}` }}>
+            <div style={{ fontSize: 12, color: G.gold, fontWeight: 600, marginBottom: 10 }}>🏠 Purchase Deals</div>
+            <div style={{ fontSize: 11, color: G.muted }}>{roi.earnedPurchase > 0 ? 'Earned this period' : 'Potential in pipeline'}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: G.text, letterSpacing: '-0.02em' }}>
+              {roi.earnedPurchase > 0 ? fmt(roi.earnedPurchase) : (roi.potentialPurchase > 0 ? fmt(roi.potentialPurchase) : '—')}
+            </div>
+            {roi.earnedPurchase > 0 && roi.potentialPurchase > 0 && (
+              <div style={{ fontSize: 11, color: G.gold, marginTop: 4 }}>+ {fmt(roi.potentialPurchase)} more in pipeline</div>
+            )}
+          </div>
+          {/* Rental */}
+          <div style={{ background: G.blueLight, borderRadius: 10, padding: '16px 18px', border: `1px solid ${G.border}` }}>
+            <div style={{ fontSize: 12, color: G.blue, fontWeight: 600, marginBottom: 10 }}>🔑 Rental Deals</div>
+            <div style={{ fontSize: 11, color: G.muted }}>{roi.earnedRental > 0 ? 'Earned this period' : 'Potential in pipeline'}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: G.text, letterSpacing: '-0.02em' }}>
+              {roi.earnedRental > 0 ? fmt(roi.earnedRental) : (roi.potentialRental > 0 ? fmt(roi.potentialRental) : '—')}
+            </div>
+            {roi.earnedRental > 0 && roi.potentialRental > 0 && (
+              <div style={{ fontSize: 11, color: G.blue, marginTop: 4 }}>+ {fmt(roi.potentialRental)} more in pipeline</div>
+            )}
+          </div>
+        </div>
+      </Card>
 
       {/* Charts row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16, marginBottom: 24 }}>
@@ -299,11 +349,11 @@ export function ROIScreen({ agentId }: { agentId: string }) {
       </div>
 
       {/* Bottom: Plan vs ROI */}
-      <Card style={{ padding: 24, background: 'linear-gradient(135deg, #F0FDF4, #FAFAF7)' }}>
+      <Card style={{ padding: 24, background: 'linear-gradient(135deg, #EEF0FE, #FAFAFB)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 600, color: G.text }}>Your Investment vs Return</div>
-            <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>LeadNest {agent?.plan} plan</div>
+            <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>Convorian {agent?.plan} plan</div>
           </div>
           <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
             <div style={{ textAlign: 'center' }}>
@@ -312,13 +362,14 @@ export function ROIScreen({ agentId }: { agentId: string }) {
             </div>
             <div style={{ fontSize: 28, color: G.muted, alignSelf: 'center' }}>→</div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 11, color: G.muted }}>You Earned</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: G.green }}>{fmt(roi.periodCommission)}</div>
+              <div style={{ fontSize: 11, color: G.muted }}>{isPotential ? 'Potential to Earn' : 'You Earned'}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: G.green }}>{hasAnything ? fmt(heroAmount) : '—'}</div>
+              <div style={{ fontSize: 9, color: G.muted, marginTop: 2 }}>* estimate</div>
             </div>
             <div style={{ fontSize: 28, color: G.muted, alignSelf: 'center' }}>=</div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 11, color: G.muted }}>Your ROI</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: G.green }}>{roi.roiMultiple > 0 ? `${roi.roiMultiple}x` : '—'}</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: G.green }}>{roi.roiMultiple > 0 ? `${roi.roiMultiple}x` : (isPotential && hasAnything ? `${Math.round(heroAmount / (agent?.planCost || 999))}x potential` : 'Building')}</div>
             </div>
           </div>
         </div>

@@ -16,14 +16,14 @@ type Database = {
   }
 }
 
-type LeadNestSupabaseClient = SupabaseClient<Database>
+type ConvorianSupabaseClient = SupabaseClient<Database>
 
 // Lazy initialisation — only creates client when first called
 // This prevents build-time errors when env vars are not available
-let _supabaseAdmin: LeadNestSupabaseClient | null = null
-let _supabase: LeadNestSupabaseClient | null = null
+let _supabaseAdmin: ConvorianSupabaseClient | null = null
+let _supabase: ConvorianSupabaseClient | null = null
 
-export function getSupabaseAdmin(): LeadNestSupabaseClient {
+export function getSupabaseAdmin(): ConvorianSupabaseClient {
   if (!_supabaseAdmin) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -35,7 +35,7 @@ export function getSupabaseAdmin(): LeadNestSupabaseClient {
   return _supabaseAdmin!
 }
 
-export function getSupabase(): LeadNestSupabaseClient {
+export function getSupabase(): ConvorianSupabaseClient {
   if (!_supabase) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hinqahjhtgsmljrrozql.supabase.co'
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhpbnFhaGpodGdzbWxqcnJvenFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NDgxMzAsImV4cCI6MjA5NTIyNDEzMH0.0LJNkJwdj5A12XaB8wFXCVI4uyfy19N6sjS5dKTg6JE'
@@ -49,13 +49,13 @@ export function getSupabase(): LeadNestSupabaseClient {
 }
 
 // Keep backwards compat — these are now getters not instances
-export const supabaseAdmin = new Proxy({} as LeadNestSupabaseClient, {
+export const supabaseAdmin = new Proxy({} as ConvorianSupabaseClient, {
   get(_target, prop) {
     return (getSupabaseAdmin() as any)[prop]
   }
 })
 
-export const supabase = new Proxy({} as LeadNestSupabaseClient, {
+export const supabase = new Proxy({} as ConvorianSupabaseClient, {
   get(_target, prop) {
     return (getSupabase() as any)[prop]
   }

@@ -108,7 +108,7 @@ export default function LoginPage() {
             <div className="logo-dot">
               <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </div>
-            <span className="logo-name" style={{ marginLeft: 8 }}>LeadNest</span>
+            <span className="logo-name" style={{ marginLeft: 8 }}>Convorian</span>
           </div>
           <h1 className="onboard-headline" style={{ color: 'var(--ink)', marginTop: 24, fontSize: 32 }}>Welcome back</h1>
           <p className="onboard-sub" style={{ color: 'var(--ink-3)' }}>Sign in to manage your automated lead engine</p>
@@ -116,7 +116,7 @@ export default function LoginPage() {
 
         <div className="form-card" style={{ padding: '40px 32px' }}>
           {error && <div style={{ background: '#FDF0F0', color: '#C0392B', padding: '12px 16px', borderRadius: 8, fontSize: 13, marginBottom: 24 }}>{error}</div>}
-          {msg && <div style={{ background: '#E8F5EE', color: '#1A6B4A', padding: '12px 16px', borderRadius: 8, fontSize: 13, marginBottom: 24 }}>{msg}</div>}
+          {msg && <div style={{ background: '#EEF0FE', color: '#4338CA', padding: '12px 16px', borderRadius: 8, fontSize: 13, marginBottom: 24 }}>{msg}</div>}
 
           {/* Tabs */}
           <div style={{ display: 'flex', gap: 10, marginBottom: 24, borderBottom: '1px solid rgba(26,25,22,0.1)' }}>
@@ -128,7 +128,7 @@ export default function LoginPage() {
           {authMethod === 'google' && (
             <button 
               className="btn-next" 
-              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, background: '#fff', color: '#1A1916', border: '1px solid rgba(26,25,22,0.2)', height: 48, cursor: 'pointer' }} 
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, background: '#fff', color: '#15161B', border: '1px solid rgba(26,25,22,0.2)', height: 48, cursor: 'pointer' }} 
               disabled={isLoading} 
               onClick={handleGoogleLogin}
             >
@@ -183,7 +183,7 @@ export default function LoginPage() {
           )}
 
           <div style={{ textAlign: 'center', marginTop: 30, fontSize: 13, color: 'var(--ink-4)' }}>
-            Don't have an account? <span style={{ color: 'var(--green)', cursor: 'pointer', fontWeight: 500 }} onClick={() => router.push('/onboarding')}>Set up your LeadNest</span>
+            Don't have an account? <span style={{ color: 'var(--green)', cursor: 'pointer', fontWeight: 500 }} onClick={() => router.push('/onboarding')}>Set up your Convorian</span>
           </div>
         </div>
       </div>

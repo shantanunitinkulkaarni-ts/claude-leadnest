@@ -90,5 +90,32 @@ export async function PATCH(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // When post-visit feedback is logged, push it onto the LEAD so the AI bot can
+  // open its next message by referencing the visit and nurture toward a close.
+  // This feedback context is Convorian's core conversion edge.
+  const apptLeadId = (data as any)?.lead_id
+  if (safeUpdates.post_visit_result && apptLeadId) {
+    const { data: leadRow } = await supabaseAdmin
+      .from('leads')
+      .select('notes')
+      .eq('id', apptLeadId)
+      .maybeSingle()
+
+    const feedbackNote = safeUpdates.notes
+      ? `[Post-visit feedback — ${safeUpdates.post_visit_result}] ${safeUpdates.notes}`
+      : `[Post-visit feedback — ${safeUpdates.post_visit_result}]`
+    const mergedNotes = [leadRow?.notes, feedbackNote].filter(Boolean).join('\n')
+
+    await supabaseAdmin
+      .from('leads')
+      .update({
+        post_visit_result: safeUpdates.post_visit_result,
+        notes: mergedNotes,
+        bot_paused: false // ensure the bot can re-engage for the post-visit close
+      })
+      .eq('id', apptLeadId)
+  }
+
   return NextResponse.json({ data })
 }

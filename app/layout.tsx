@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'LeadNest — AI WhatsApp Lead Nurturing',
+  title: 'Convorian — AI WhatsApp Lead Nurturing',
   description: 'Automate your real estate leads with AI',
 }
 
