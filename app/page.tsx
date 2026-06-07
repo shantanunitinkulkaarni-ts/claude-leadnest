@@ -15,12 +15,15 @@ const G = {
   gold: '#7C3AED',
   blue: '#2563EB',
   red: '#DC2626',
+  grad: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)',
+  glow: '0 12px 32px rgba(79,70,229,0.35)',
+  glass: 'rgba(255,255,255,0.7)',
 }
 
 function Nav() {
   const [menu, setMenu] = useState(false)
   return (
-    <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: '#FAFAFB', borderBottom: `1px solid ${G.border}`, backdropFilter: 'blur(12px)', backgroundClip: 'padding-box' }}>
+    <nav style={{ position: 'sticky', top: 0, zIndex: 50, background: 'rgba(250,250,251,0.72)', borderBottom: `1px solid rgba(232,229,223,0.7)`, backdropFilter: 'blur(14px) saturate(140%)', WebkitBackdropFilter: 'blur(14px) saturate(140%)' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '14px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 28, height: 28, borderRadius: 8, background: `linear-gradient(135deg, ${G.green}, #4338CA)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#fff' }}>🏠</div>
@@ -36,7 +39,7 @@ function Nav() {
             <a href="/login" style={{ fontSize: 13, color: G.dark, textDecoration: 'none', fontWeight: 600 }}>
               Log in
             </a>
-            <a href="/onboarding" style={{ padding: '8px 16px', borderRadius: 8, background: G.green, color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}>
+            <a href="/onboarding" style={{ padding: '8px 18px', borderRadius: 10, background: G.grad, color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', cursor: 'pointer', boxShadow: '0 6px 16px rgba(79,70,229,0.30)' }}>
               Get Started
             </a>
           </div>
@@ -48,17 +51,18 @@ function Nav() {
 
 function Hero() {
   return (
-    <section style={{ background: '#FAFAFB', position: 'relative', overflow: 'hidden', paddingTop: 60, paddingBottom: 80 }}>
-      <div style={{ position: 'absolute', width: 400, height: 400, background: `radial-gradient(circle, ${G.greenLight} 0%, transparent 70%)`, top: -100, left: -100, pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', width: 300, height: 300, background: 'radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 70%)', bottom: -50, right: -50, pointerEvents: 'none' }} />
+    <section style={{ background: 'linear-gradient(180deg, #F4F3FF 0%, #FAFAFB 60%)', position: 'relative', overflow: 'hidden', paddingTop: 60, paddingBottom: 80 }}>
+      <div style={{ position: 'absolute', width: 520, height: 520, background: 'radial-gradient(circle, rgba(79,70,229,0.18) 0%, transparent 70%)', top: -140, left: -120, pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', width: 420, height: 420, background: 'radial-gradient(circle, rgba(124,58,237,0.16) 0%, transparent 70%)', bottom: -120, right: -80, pointerEvents: 'none' }} />
 
       <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 32px', position: 'relative', zIndex: 1, textAlign: 'center' }}>
         <div style={{ display: 'inline-block', padding: '6px 14px', borderRadius: 20, background: G.greenLight, marginBottom: 20 }}>
           <span style={{ fontSize: 11, color: G.green, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>✨ AI for Real Estate</span>
         </div>
 
-        <h1 style={{ fontSize: 56, fontWeight: 700, lineHeight: 1.15, color: G.dark, letterSpacing: '-0.02em', marginBottom: 20 }}>
-          Turn Every Lead Into a Sale
+        <h1 style={{ fontSize: 56, fontWeight: 700, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 20 }}>
+          <span style={{ color: G.dark }}>Turn Every Lead Into a </span>
+          <span style={{ background: G.grad, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>Sale</span>
         </h1>
 
         <p style={{ fontSize: 18, color: G.muted, lineHeight: 1.6, maxWidth: 700, margin: '0 auto 32px', fontWeight: 400 }}>
@@ -66,7 +70,7 @@ function Hero() {
         </p>
 
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 32 }}>
-          <a href="/onboarding" style={{ padding: '14px 32px', borderRadius: 12, background: G.green, color: '#fff', fontSize: 14, fontWeight: 600, textDecoration: 'none', cursor: 'pointer', border: 'none' }}>
+          <a href="/onboarding" style={{ padding: '14px 32px', borderRadius: 12, background: G.grad, color: '#fff', fontSize: 14, fontWeight: 600, textDecoration: 'none', cursor: 'pointer', border: 'none', boxShadow: G.glow }}>
             Start Free Trial
           </a>
           <a href="#how" style={{ padding: '14px 32px', borderRadius: 12, background: '#fff', border: `1px solid ${G.border}`, color: G.dark, fontSize: 14, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}>
@@ -95,7 +99,7 @@ function Hero() {
 
 function LiveDemo() {
   return (
-    <section style={{ paddingTop: 72, paddingBottom: 72, background: '#fff', borderTop: `1px solid ${G.border}` }} id="demo">
+    <section style={{ paddingTop: 72, paddingBottom: 72, background: 'linear-gradient(160deg, #FAFAFB 0%, #F1EFFE 100%)', borderTop: `1px solid ${G.border}`, position: 'relative', overflow: 'hidden' }} id="demo">
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 32px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 56, alignItems: 'center' }}>
         <div>
           <div style={{ display: 'inline-block', padding: '6px 14px', borderRadius: 20, background: G.greenLight, marginBottom: 18 }}>
@@ -328,8 +332,9 @@ function Pricing() {
 function CTA() {
   const router = useRouter()
   return (
-    <section style={{ paddingTop: 80, paddingBottom: 80, background: '#15161B', position: 'relative', overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', width: 400, height: 400, background: `radial-gradient(circle, rgba(79,70,229,0.15) 0%, transparent 70%)`, top: -100, right: -100 }} />
+    <section style={{ paddingTop: 80, paddingBottom: 80, background: 'linear-gradient(135deg, #15161B 0%, #2A2550 100%)', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', width: 460, height: 460, background: `radial-gradient(circle, rgba(124,58,237,0.28) 0%, transparent 70%)`, top: -120, right: -120 }} />
+      <div style={{ position: 'absolute', width: 360, height: 360, background: `radial-gradient(circle, rgba(79,70,229,0.22) 0%, transparent 70%)`, bottom: -120, left: -80 }} />
 
       <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 32px', position: 'relative', zIndex: 1, textAlign: 'center' }}>
         <h2 style={{ fontSize: 42, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', marginBottom: 20, lineHeight: 1.2 }}>
@@ -340,7 +345,7 @@ function CTA() {
         </p>
 
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button onClick={() => router.push('/onboarding')} style={{ padding: '14px 32px', borderRadius: 12, background: G.green, color: '#fff', fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer' }}>
+          <button onClick={() => router.push('/onboarding')} style={{ padding: '14px 32px', borderRadius: 12, background: G.grad, color: '#fff', fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer', boxShadow: G.glow }}>
             Start Free Trial (No Card)
           </button>
           <a href="https://wa.me/919876543210?text=Hi%20Convorian!%20I%20want%20to%20schedule%20a%20demo" target="_blank" style={{ padding: '14px 32px', borderRadius: 12, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', fontSize: 14, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}>
@@ -360,9 +365,32 @@ function CTA() {
 
 function Footer() {
   return (
-    <footer style={{ padding: '32px', borderTop: `1px solid ${G.border}`, background: '#fff', textAlign: 'center' }}>
-      <div style={{ fontSize: 12, color: G.muted }}>
-        © 2026 Convorian. Built by real estate agents, for real estate agents. | <a href="#" style={{ color: G.green, textDecoration: 'none' }}>Terms</a> | <a href="#" style={{ color: G.green, textDecoration: 'none' }}>Privacy</a>
+    <footer style={{ padding: '40px 32px', borderTop: `1px solid ${G.border}`, background: '#fff' }}>
+      <div style={{ maxWidth: 1000, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 24 }}>
+        <div style={{ maxWidth: 360 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{ width: 26, height: 26, borderRadius: 8, background: G.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#fff' }}>🏠</div>
+            <span style={{ fontSize: 15, fontWeight: 700, color: G.dark }}>Convorian</span>
+          </div>
+          <p style={{ fontSize: 13, color: G.muted, lineHeight: 1.6, margin: 0 }}>
+            AI-powered WhatsApp automation that helps real estate agents in India answer, qualify, and convert leads 24/7.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: G.dark, marginBottom: 10 }}>Legal</div>
+            <a href="/privacy-policy" style={{ display: 'block', fontSize: 13, color: G.muted, textDecoration: 'none', marginBottom: 8 }}>Privacy Policy</a>
+            <a href="/terms-of-service" style={{ display: 'block', fontSize: 13, color: G.muted, textDecoration: 'none' }}>Terms of Service</a>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: G.dark, marginBottom: 10 }}>Contact</div>
+            <a href="mailto:hello@convorian.in" style={{ display: 'block', fontSize: 13, color: G.muted, textDecoration: 'none', marginBottom: 8 }}>hello@convorian.in</a>
+            <span style={{ display: 'block', fontSize: 13, color: G.muted }}>Pune, Maharashtra, India</span>
+          </div>
+        </div>
+      </div>
+      <div style={{ maxWidth: 1000, margin: '28px auto 0', paddingTop: 20, borderTop: `1px solid ${G.border}`, fontSize: 12, color: G.muted, textAlign: 'center' }}>
+        © {new Date().getFullYear()} Convorian. All rights reserved. · convorian.in
       </div>
     </footer>
   )
