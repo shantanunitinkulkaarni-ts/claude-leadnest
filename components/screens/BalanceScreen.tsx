@@ -10,8 +10,7 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
   const [balance, setBalance] = useState<number | null>(null)
   const [isToppingUp, setIsToppingUp] = useState(false)
   const [customAmount, setCustomAmount] = useState('')
-  const [showRazorpay, setShowRazorpay] = useState(false)
-  const [pendingAmount, setPendingAmount] = useState(0)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/agent?id=' + agentId)
@@ -23,34 +22,75 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
       })
   }, [agentId])
 
-  const handleTopup = (amountStr: string | number) => {
+  // Lazy-load the Razorpay Checkout script once
+  const loadRazorpay = (): Promise<boolean> => new Promise(resolve => {
+    if (typeof window === 'undefined') return resolve(false)
+    if ((window as any).Razorpay) return resolve(true)
+    const s = document.createElement('script')
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    s.onload = () => resolve(true)
+    s.onerror = () => resolve(false)
+    document.body.appendChild(s)
+  })
+
+  const handleTopup = async (amountStr: string | number) => {
     const amount = typeof amountStr === 'string' ? parseInt(amountStr.replace(/[^0-9]/g, ''), 10) : amountStr
     if (isNaN(amount) || amount <= 0) return
-
-    setPendingAmount(amount)
-    setShowRazorpay(true)
-  }
-
-  const completePayment = async () => {
+    setError(null)
     setIsToppingUp(true)
-    setShowRazorpay(false)
     try {
-      const current = balance || 0
-      const amount = pendingAmount
-      const res = await fetch('/api/agent?id=' + agentId, {
-        method: 'PATCH',
+      // 1. Create order server-side
+      const orderRes = await fetch('/api/payments/create-order', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wa_balance: current + amount })
+        body: JSON.stringify({ agent_id: agentId, amount })
       })
-      const d = await res.json()
-      if (d.data) {
-        setBalance(d.data.wa_balance)
-        alert(`Test mode: Successfully topped up ₹${amount}. New balance: ₹${d.data.wa_balance}`)
-        onTopUp?.() // Refresh Sidebar balance
+      const orderData = await orderRes.json()
+      if (!orderRes.ok) throw new Error(orderData.error || 'Could not start payment')
+
+      // 2. Load Razorpay Checkout
+      const ok = await loadRazorpay()
+      if (!ok) throw new Error('Could not load payment gateway. Check your connection.')
+
+      // 3. Open Checkout
+      const options = {
+        key: orderData.keyId,
+        order_id: orderData.order.id,
+        amount: orderData.order.amount,
+        currency: 'INR',
+        name: 'Convorian',
+        description: 'WhatsApp balance top-up',
+        theme: { color: '#4F46E5' },
+        handler: async (resp: any) => {
+          // 4. Verify signature server-side, then credit balance
+          try {
+            const vRes = await fetch('/api/payments/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                agent_id: agentId,
+                razorpay_order_id: resp.razorpay_order_id,
+                razorpay_payment_id: resp.razorpay_payment_id,
+                razorpay_signature: resp.razorpay_signature
+              })
+            })
+            const vData = await vRes.json()
+            if (!vRes.ok) throw new Error(vData.error || 'Verification failed')
+            setBalance(vData.wa_balance)
+            onTopUp?.()
+          } catch (e: any) {
+            setError(e.message || 'Payment verification failed. If money was deducted, it will reflect shortly.')
+          } finally {
+            setIsToppingUp(false)
+          }
+        },
+        modal: { ondismiss: () => setIsToppingUp(false) }
       }
-    } catch(err) {
-      console.error(err)
-    } finally {
+      const rzp = new (window as any).Razorpay(options)
+      rzp.on('payment.failed', (r: any) => { setError(r?.error?.description || 'Payment failed'); setIsToppingUp(false) })
+      rzp.open()
+    } catch (e: any) {
+      setError(e.message || 'Something went wrong')
       setIsToppingUp(false)
     }
   }
@@ -67,6 +107,9 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
           ₹{balance !== null ? balance : '...'}
         </div>
         <div style={{ fontSize: 12, color: '#9E9B92' }}>Used for outbound template messages · Meta charges deducted automatically</div>
+        {error && (
+          <div style={{ background: '#FDF0F0', color: '#8B1A1A', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginTop: 14 }}>⚠️ {error}</div>
+        )}
         <div data-tour="wa-topup" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 18 }}>
           {['+ ₹100', '+ ₹500', '+ ₹1000'].map(a => (
             <button 
@@ -117,31 +160,6 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
         )}
       </div>
 
-      {showRazorpay && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: 12, width: 360, overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
-            <div style={{ background: '#02042B', padding: '24px 20px', color: '#fff', textAlign: 'center' }}>
-              <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 4 }}>Razorpay Test Environment</div>
-              <div style={{ opacity: 0.8, fontSize: 13 }}>Convorian Pvt Ltd</div>
-              <div style={{ fontSize: 32, fontWeight: 500, marginTop: 16 }}>₹{pendingAmount}</div>
-            </div>
-            <div style={{ padding: 24 }}>
-              <button 
-                onClick={completePayment}
-                style={{ width: '100%', padding: '14px 0', background: '#3399CC', color: '#fff', border: 'none', borderRadius: 6, fontSize: 15, fontWeight: 500, cursor: 'pointer', marginBottom: 12 }}
-              >
-                Success (Simulate Payment)
-              </button>
-              <button 
-                onClick={() => setShowRazorpay(false)}
-                style={{ width: '100%', padding: '14px 0', background: '#fff', color: '#666', border: '1px solid #ccc', borderRadius: 6, fontSize: 15, fontWeight: 500, cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
