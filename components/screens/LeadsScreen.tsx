@@ -39,6 +39,7 @@ export default function LeadsScreen({ agentId }: Props) {
   const [leadName, setLeadName] = useState('')
   const [leadPhone, setLeadPhone] = useState('')
   const [leadSource, setLeadSource] = useState('Manual')
+  const [leadConsent, setLeadConsent] = useState(false)
   
   // Bulk State
   const [bulkProgress, setBulkProgress] = useState(0)
@@ -131,7 +132,11 @@ export default function LeadsScreen({ agentId }: Props) {
       phone: leadPhone,
       source: leadSource,
       status: 'new',
-      temperature: 'new'
+      temperature: 'new',
+      // Agent confirms the lead consented to WhatsApp contact (Meta compliance)
+      opted_in: true,
+      opt_in_source: 'manual_agent_confirmed',
+      opt_in_at: new Date().toISOString()
     }
     try {
       const res = await fetch('/api/leads', {
@@ -144,6 +149,7 @@ export default function LeadsScreen({ agentId }: Props) {
       setShowAddModal(false)
       setLeadName('')
       setLeadPhone('')
+      setLeadConsent(false)
       fetchLeads()
       // Notify the onboarding tutorial that a lead was successfully added
       window.dispatchEvent(new CustomEvent('leadnest:tour-action', { detail: 'lead-added' }))
@@ -407,6 +413,10 @@ export default function LeadsScreen({ agentId }: Props) {
                   <option>Manual</option><option>Website</option><option>Facebook Ads</option><option>Referral</option>
                 </select>
               </div>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: '#6B6860', lineHeight: 1.4, cursor: 'pointer' }}>
+                <input type="checkbox" required checked={leadConsent} onChange={e => setLeadConsent(e.target.checked)} style={{ marginTop: 2, flexShrink: 0 }} />
+                <span>This lead has <strong>consented</strong> to receive WhatsApp messages from my business. (Required by WhatsApp policy.)</span>
+              </label>
             </div>
 
             <div style={{ padding: '16px 24px', background: '#FAFAFB', borderTop: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'flex-end', gap: 10, borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>

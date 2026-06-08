@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { pickFields, requireAgentAccess, requireLeadAccess } from '@/lib/apiAuth'
 
-const CREATE_FIELDS = ['agent_id', 'name', 'phone', 'email', 'source', 'status', 'temperature', 'intent', 'preferred_areas', 'budget_min', 'budget_max', 'timeline', 'notes']
+const CREATE_FIELDS = ['agent_id', 'name', 'phone', 'email', 'source', 'status', 'temperature', 'intent', 'preferred_areas', 'budget_min', 'budget_max', 'timeline', 'notes', 'opted_in', 'opt_in_at', 'opt_in_source']
 const UPDATE_FIELDS = ['name', 'phone', 'email', 'status', 'temperature', 'intent', 'preferred_areas', 'budget_min', 'budget_max', 'timeline', 'notes', 'bot_paused', 'post_visit_result']
 
 export async function GET(request: NextRequest) {

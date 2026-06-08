@@ -94,7 +94,9 @@ export async function POST(request: NextRequest) {
     if (!lead) {
       const { data: newLead } = await supabaseAdmin.from('leads').insert({
         agent_id: agent.id, phone: fromPhone, last_message_at: now,
-        window_expires_at: windowExpiry, status: 'new', temperature: 'new'
+        window_expires_at: windowExpiry, status: 'new', temperature: 'new',
+        // Lead messaged the business first → implied opt-in consent (Meta-compliant)
+        opted_in: true, opt_in_at: now, opt_in_source: 'whatsapp_inbound'
       }).select().single()
       lead = newLead
       await supabaseAdmin.from('activity_log').insert({
