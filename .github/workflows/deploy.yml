@@ -1,9 +1,9 @@
 name: Deploy Convorian to AWS App Runner
 
 on:
-  push:
-    branches:
-      - main
+  # Disabled auto-deploy: hosting is on Vercel for now. AWS App Runner deploy
+  # can still be triggered manually from the Actions tab when needed.
+  workflow_dispatch:
 
 jobs:
   deploy:
