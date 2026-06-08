@@ -147,6 +147,9 @@ export default function LoginPage() {
                 <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>Password</label>
                 <input required type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} placeholder="••••••••" />
               </div>
+              <div style={{ textAlign: 'right', marginTop: -6 }}>
+                <span onClick={() => router.push('/forgot-password')} style={{ fontSize: 12, color: 'var(--green)', cursor: 'pointer', fontWeight: 500 }}>Forgot password?</span>
+              </div>
               <button type="submit" className="btn-next" style={{ width: '100%', marginTop: 8 }} disabled={isLoading}>
                 {isLoading ? 'Signing in...' : 'Sign in with Email'}
               </button>
