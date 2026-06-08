@@ -1,56 +1,62 @@
 # Convorian Project Handoff
 
-*Last Updated: June 8, 2026 (late night)*
+*Last Updated: June 8, 2026 (evening)*
 
-> **Brand:** LeadNest → **Convorian**. Domain **convorian.in** (GoDaddy). Single source of truth for the launch plan = `files/CONVORIAN_LAUNCH_BLUEPRINT.md`. Read memory files at `C:\Users\rahul\.claude\projects\C--LN\memory\` first.
+> **Brand:** Convorian (was LeadNest). **Live at https://convorian.in** (Vercel). Domain on GoDaddy. Single source of truth for launch plan = `files/CONVORIAN_LAUNCH_BLUEPRINT.md`. Read memory at `C:\Users\rahul\.claude\projects\C--LN\memory\` first.
 
 ---
 
-## 🟢 Current State (what works)
+## 🟢 LIVE NOW
 
-- **App** runs locally on **port 3003** (`npm run dev`). Fully built: Overview, Inbox, Leads (Kanban), Properties, Appointments, ROI, Balance, Settings, Admin.
-- **AI engine:** Groq (Llama 3.3 70B), free tier. File `lib/gemini.ts` (name kept). Has a `post_visit` stage that nurtures toward close using agent feedback.
-- **Auth:** Supabase email/password. (Google OAuth broken — ignore.) The 403 "permission denied for table" bug was fixed via Postgres GRANTs.
-- **Brand + theme:** fully rebranded to Convorian; indigo/violet theme (`#4F46E5`/`#7C3AED`) applied everywhere; glassmorphism landing page.
-- **Landing page (Meta-ready):** polished, live AI chat demo (`components/LiveChatDemo.tsx`), `/privacy-policy` + `/terms-of-service` pages (render `files/*.md`), footer contact support@convorian.in. Waitlist disabled (redirects to /onboarding).
-- **Razorpay:** real Checkout + server-side signature verification built (`app/api/payments/create-order`, `/verify`; `BalanceScreen.tsx`). TEST keys in `.env`. **Tested & working** (note: UPI QR shows "invalid" in test mode — that's expected; use `success@razorpay` UPI or test card).
-- **Git:** all committed & pushed to `main`. Remote uses a workflow-scoped token.
-- **AWS:** CLI configured (user `convorian-deploy`, acct 261955339877, us-east-1). ECR repo `convorian` created, image built & pushed, `AppRunnerECRAccessRole` created, 3 GitHub Actions secrets set, `deploy.yml` fixed to use `convorian`.
+- **Site:** https://convorian.in — Convorian, indigo theme, glassmorphism. Pages: home, /login, /onboarding, /privacy-policy, /terms-of-service. SSL working.
+- **Hosting:** **Vercel** (project `claude-leadnest`, team `team_fzgmEXAaGXYbDzbWWLQAumJl`, project id `prj_XeAX3KOfjGzNYS1lofHyRUpYhF08`). NOTE: Vercel git auto-deploy is broken (disconnected since May) → **deploy via CLI**: `vercel deploy --prod --yes --token <TOKEN>` from repo (env VERCEL_ORG_ID + VERCEL_PROJECT_ID set). All 17+ env vars set in Vercel (production).
+- **DNS:** convorian.in → A `@` 76.76.21.21, CNAME `www` cname.vercel-dns.com (GoDaddy). Email MX untouched.
+- **AI:** Groq (Llama 3.3 70B). **WhatsApp provider = meta** (env `WHATSAPP_PROVIDER=meta`).
+- **Payments:** Razorpay **LIVE keys** in Vercel Production (set by founder directly; not in chat/repo). Local `.env` keeps TEST keys. Real Checkout + signature verification built (`app/api/payments/*`, BalanceScreen).
+- **WhatsApp bot:** WORKING end-to-end on Meta Cloud API **test number**. Founder messages test number → webhook → Groq → bot replies on real WhatsApp. ✅
 
-## 🔴 Blocked on 24-hour timers (should clear ~June 8–9)
+## ✅ Meta status (in progress)
+- **Business verification: DONE** (Convorian, via Udyam/MSME — individual/sole-prop, no GST/Pvt Ltd).
+- **Meta App created** (Business type), connected to verified Convorian business. Platform = Website (convorian.in).
+- **WhatsApp test number wired:** Phone Number ID `1151131814750562`, WABA ID `2471962009909005`. Set on demo agent in DB (`wa_phone_number_id`, `wa_access_token`, `wa_verified=true`).
+- **Webhook:** `https://convorian.in/api/webhook`, verify token `leadnest_webhook_verify_2026`, subscribed to `messages`.
+- **App Review submitted/in-progress** for `whatsapp_business_messaging` + `whatsapp_business_management`:
+  - Video 1 (bot send/receive) ✅ recorded
+  - Video 2 (template create via API, returned PENDING) ✅ recorded
+  - Test calls: messaging registered (1/1); management pending (≤24h to show)
+  - Data-handling answers, testing instructions, platform = Website all filled.
+- **Tech Provider verification:** submitted, ~5 day review (needed for clients to self-connect their own numbers via embedded signup; deadline shown 8/7/2026).
 
-1. **AWS account activation** (new-account banner). App Runner returns `SubscriptionRequiredException` until active. Once active → re-run the deploy workflow (or `gh workflow run`) → App Runner service comes up → get live URL.
-2. **Meta business account cooldown** (user deleted one of two business profiles → 24h lock). After it clears → create FB Business Manager, submit **business verification using Udyam/MSME cert** (no Pvt Ltd/GST needed), set business name = Udyam name.
+## 🔑 Demo / test account (also given to Razorpay reviewers)
+- https://convorian.in/login · `demo@convorian.in` / `ConvorianDemo@2026`
+- This agent holds the WhatsApp test-number config + sample leads/properties.
 
-## ⏳ Pending — TOMORROW's plan (priority order)
+## ⏳ PENDING / NEXT
+1. **PERMANENT WhatsApp token** — temp token expires ~24h → bot stops. Create System User token (Business Settings → System Users → generate token with whatsapp_business_messaging + whatsapp_business_management) → update demo agent `wa_access_token` via Supabase SQL.
+2. **App Review result** — wait for management test call to register (≤24h) → submit if not already → Meta reviews few days.
+3. **Tech Provider review** (~5 days).
+4. **Razorpay** — confirm live activation approved; do one real ₹100 top-up test; add webhook + subscription billing later.
+5. **Per-client WhatsApp onboarding** (embedded signup) — after Tech Provider approved.
+6. **Logo** — founder creating via Gemini (prompt given); needed for app icon (1024x1024) + website.
+7. **Permanent token + then** restore frequent cron (currently daily for Vercel Hobby), or move cron to external scheduler / Vercel Pro.
+8. Launch hardening backlog (password reset, email notifications, error tracking, consent tracking, mobile responsive, support RAG).
 
-1. **Deploy** to AWS App Runner once account active → confirm live URL works.
-2. **DNS:** point `convorian.in` at App Runner via **GoDaddy** (keep DNS at GoDaddy so email stays intact; add CNAME for site, apex via forwarding). Do NOT move to Cloudflare (would break GoDaddy email).
-3. **Meta:** create Business Manager → submit verification (Udyam + live convorian.in + privacy URL) → then wire `lib/whatsapp.ts` to **Meta Cloud API direct** (decided: NOT a BSP like MSG91). Per-client number onboarding will be hands-on.
-4. **Razorpay:** switch to live keys when ready; add **webhook** (order.paid) for reliability; build **subscription billing** for ₹999/₹799 plans.
-5. **SEO foundation:** sitemap.xml, robots.txt, JSON-LD (Organization/SoftwareApplication/FAQ), Search Console + GA4, 2-3 city landing pages (Pune/Mumbai/Bangalore), first 2 blog posts.
-6. **Bot engine:** fine-tune the conversation engine AND **give the AI a good product name** (currently generic "Convorian Conversion Engine").
-7. **Launch-readiness backlog:** password reset + email verification, real email notifications (Resend key in `.env`), error tracking (Sentry), data export, mobile responsiveness, support-chat RAG, WhatsApp consent tracking, pagination on leads list.
+## 👤 Founder action items
+- Recharge/sort a clean **WhatsApp number** for production (current personal SIM was flaky; test number used for now).
+- Set up **support@convorian.in** mailbox fully (GoDaddy).
+- **Security cleanup:** rotate/delete the AWS key, GitHub tokens, and Vercel token that appeared in chat once stable.
+- Pre-sell warm network (target 10 clients / ₹10k in July).
 
-## 👤 User action items (Shantanu)
-
-- Set up **support@convorian.in** mailbox in GoDaddy Email (+ aliases privacy@/legal@ → support@).
-- **Free the WhatsApp number** from consumer WhatsApp (it's on a separate phone) before Meta onboarding.
-- **Security cleanup after deploy confirmed:** delete/rotate the `convorian-deploy` AWS key and the old GitHub PAT (both appeared in chat).
-- Start **pre-selling the warm network now** (target: 10 clients / ₹10k in July; gate is Meta timing, not sales).
-
-## 📌 Key decisions / facts
-
-- Entity: **individual / sole proprietor** (no GST until ~₹20L). Razorpay onboarded as individual.
-- Pricing: **₹999/mo, ₹799/mo annual** — intro for first 20–30 clients, raise after.
-- WhatsApp: **Meta Cloud API direct** (MSG91/BSP rejected — still needs Meta verification + adds markup).
-- Stack: Next.js 14 · Supabase · Groq · AWS App Runner · Razorpay · Resend.
-- **Launch readiness ≈ 65%.** Product is the done part; remaining 35% is plumbing + Meta approval (the long pole). Realistic: soft-launch ~2–4 days post-Meta; 30 paying clients ~6–10 weeks of founder-led sales.
+## 📌 Key facts / decisions
+- Entity: individual/sole-proprietor (no GST). Pricing ₹999/mo, ₹799/yr (intro, first 20-30 clients).
+- WhatsApp: **Meta Cloud API direct** as a **Tech Provider** (clients connect own numbers; not a reseller/BSP). We're in the Wati/Interakt category but niche (real estate) + AI-led.
+- Stack: Next.js 14 · Supabase · Groq · **Vercel** · Razorpay · Resend · Meta WhatsApp Cloud API.
+- AWS App Runner was set up but **abandoned for Vercel** (AWS account stuck in 24h activation; Vercel simpler). AWS deploy workflow is manual-only now.
 
 ## ⚠️ Gotchas
-
-- `.env` changes need a **dev server restart** (Next loads env at startup).
-- "permission denied for table X" = missing Postgres **GRANT**, not RLS (see memory `project_leadnest_grants.md`).
-- `lib/gemini.ts` is Groq now, not Gemini (filename kept).
-- App modals use z-index 100–200; tutorial action-steps sit below them intentionally.
-- Pushing workflow files needs a token with `workflow` scope.
+- `.env` changes need redeploy. Vercel env changes need redeploy (CLI).
+- "permission denied for table" = missing Postgres GRANT, not RLS.
+- `lib/gemini.ts` = Groq now (filename kept). `lib/whatsapp.ts` already supports Meta + Twilio.
+- Vercel Hobby plan: cron max once/day (set to `0 9 * * *`); deployment protection was on (`all_except_custom_domains`) — disabled.
+- Pushing workflow files needs a `workflow`-scope GitHub token.
+- Don't SELECT `wa_access_token` in queries (safety classifier blocks secret reads).
