@@ -34,11 +34,15 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run tests
-        # Public env vars let the dev server boot. Secrets are optional:
-        # the bot live-call test auto-skips when GROQ_API_KEY is absent.
+        # The app's middleware builds a Supabase client on every request and
+        # throws if the URL/key are empty — so the dev server needs *some*
+        # values to boot. We fall back to harmless dummy values when repo
+        # secrets aren't set: the smoke tests only render pages and the API
+        # tests exercise validation guards that return before any real DB call.
+        # The bot live-call test auto-skips when GROQ_API_KEY is absent.
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-anon-key' }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: npm test
 
