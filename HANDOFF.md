@@ -46,7 +46,7 @@
 - [x] **Branded email** — `lib/email.ts` built + deployed. Resend domain verified ✅. Nurture sequence live.
 - [ ] **Supabase Custom SMTP** (founder): Supabase → Auth → SMTP Settings → enable → Host: `smtp.resend.com`, Port: `465`, User: `resend`, Password: Resend API key, From: `noreply@convorian.in`. Makes auth/reset emails say "Convorian" not "Supabase".
 - [ ] **Uptime monitor** — UptimeRobot was down; use **betteruptime.com** instead (free, nicer). Add HTTPS monitor for `https://convorian.in`, 5-min interval.
-- [ ] **Sentry MCP** — connected in app Connectors UI but needs a **new chat session** to activate. In new session: will auto-load. Say "check my Sentry errors" to read + fix live errors.
+- [x] **Sentry MCP** — ACTIVE. OAuth done, tools live. Org `covorian` (EU region `de.sentry.io`). Checked: only 1 sample test error, no real production errors. Say "check my Sentry errors" anytime.
 - [ ] Support chat (RAG), SEO foundation
 
 **Founder tasks:**
@@ -74,11 +74,14 @@
 - [ ] Supabase: enable Point-in-Time Recovery / confirm daily backups
 
 **Phase C — Testing & Process:**
-- [ ] **E2E tests (Playwright)** for the 3 critical flows: signup/login, payment top-up, bot reply
-- [ ] Basic unit tests for billing signature verification + auth helpers
-- [ ] CI on PRs: lint + typecheck + tests (GitHub Actions) before merge
+- [x] **E2E tests (Playwright)** for the 3 critical flows — `tests/` dir. Smoke tests (landing/login/onboarding/legal render), payment-verify + signup validation guards, demo-bot graceful-degradation + live-reply (auto-skips without GROQ_API_KEY). Run `npm test`. 12 pass locally.
+- [x] **CI on PRs** — `.github/workflows/ci.yml`: lint + typecheck + Playwright tests on every PR and push to main. Uploads Playwright report artifact. (Optional repo secrets: NEXT_PUBLIC_SUPABASE_*, GROQ_API_KEY — bot live-test skips if absent.)
+- [x] **`npm run typecheck`** script added (`tsc --noEmit`).
+- [ ] Deeper unit tests for billing signature HMAC + auth helpers (validation guards covered; happy-path signature still manual/staging)
 - [ ] Branching + PR review discipline (stop committing straight to main once stable)
 - [ ] CHANGELOG + keep this doc updated
+
+> **Founder setup tasks (10 min total)** now itemized in `SETUP_TASKS.md`: Supabase Custom SMTP + Better Uptime monitor + backup check.
 
 **Phase D — Scale/Maturity (later, when revenue justifies):**
 - [ ] Rate limiting on all API routes; security headers (CSP etc.)
