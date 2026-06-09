@@ -16,6 +16,7 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
   const [planStatus, setPlanStatus] = useState<string | null>(null)
   const [planExpiresAt, setPlanExpiresAt] = useState<string | null>(null)
   const [nextChargeAt, setNextChargeAt] = useState<string | null>(null)
+  const [hasSubscription, setHasSubscription] = useState(false)
   const [subBusy, setSubBusy] = useState(false)
   const [subError, setSubError] = useState<string | null>(null)
   const [subMsg, setSubMsg] = useState<string | null>(null)
@@ -29,6 +30,7 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
           setPlanStatus(d.data.plan_status || null)
           setPlanExpiresAt(d.data.plan_expires_at || null)
           setNextChargeAt(d.data.subscription_charge_at || null)
+          setHasSubscription(!!d.data.razorpay_subscription_id)
         }
       })
   }
@@ -173,9 +175,12 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
   // Replaced mock transactions with empty state until billing history API is added
   const txns: any[] = []
 
-  const isActive = planStatus === 'active'
-  const isCancelled = planStatus === 'cancelled'
+  // "Subscribed" requires a real Razorpay subscription on file — NOT just the
+  // free/trial default of plan_status='active' that every new account starts with.
+  const isActive = planStatus === 'active' && hasSubscription
+  const isCancelled = planStatus === 'cancelled' && hasSubscription
   const isHalted = planStatus === 'halted'
+  const isPending = planStatus === 'pending' && hasSubscription
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 580 }}>
@@ -192,7 +197,7 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
             background: isActive ? '#E7F6EC' : isHalted ? '#FDF0F0' : '#F4F3EE',
             color: isActive ? '#1B7A43' : isHalted ? '#C0392B' : '#6B6860'
           }}>
-            {isActive ? 'Active' : isCancelled ? 'Cancelling' : isHalted ? 'Payment failed' : planStatus === 'pending' ? 'Pending' : 'Not active'}
+            {isActive ? 'Active' : isCancelled ? 'Cancelling' : isHalted ? 'Payment failed' : isPending ? 'Pending' : 'Not active'}
           </span>
         </div>
 
