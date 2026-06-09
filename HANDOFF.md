@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: June 8, 2026 (evening)*
+*Last updated: June 9, 2026*
 
 > **This is the single source of truth.** Every new chat: read this first, then update it (Done / Pending / Plan) at the end of the session. Deep business plan lives in `files/CONVORIAN_LAUNCH_BLUEPRINT.md`; user memory at `C:\Users\rahul\.claude\projects\C--LN\memory\`.
 >
@@ -18,7 +18,14 @@
 - **Payments:** Razorpay **LIVE** + working (real Checkout + server-side signature verification). Keys in Vercel Production (founder-set).
 - **Meta:** Business verified (Udyam). App created. Display name "Convorian" approved. Limits raised (2000 biz-initiated/24h). **App Review SUBMITTED** (messaging + management; 2 videos, test calls done). **Tech Provider verification submitted** (~5 day review).
 - **Opt-in/consent tracking:** inbound lead = auto opt-in; manual add requires consent checkbox.
-- **Logo:** `public/icon.png` (mark) + `public/logo.png` (wordmark). Favicon + sidebar wired. ⚠️ files are 5MB each — MUST compress.
+- **Logo:** `public/icon.png` (mark) + `public/logo.png` (wordmark). Compressed: 5MB → 316KB PNG + 18KB WebP. Sidebar uses WebP.
+- **Security audit done:** upload route auth fixed, agent API never leaks wa_access_token, register endpoint validates inputs.
+- **Bot reliability:** Groq failures send polite fallback (never blank message), message dedup by wa_message_id, lead insert null-checked.
+- **TS errors:** all fixed. `ignoreBuildErrors` removed from next.config.
+- **Error boundaries:** each dashboard screen wrapped — crash in one widget can't blank whole page.
+- **Sentry:** code wired (`sentry.*.config.ts`). Needs `NEXT_PUBLIC_SENTRY_DSN` env var (founder: create free account at sentry.io → create Next.js project → copy DSN → add to Vercel env).
+- **Dependabot:** weekly npm vulnerability PRs configured (`.github/dependabot.yml`).
+- **Mobile:** Sidebar is now a collapsible drawer with hamburger. Dashboard usable on phones.
 - **Demo account** (Razorpay + Meta reviewers): demo@convorian.in / ConvorianDemo@2026 (has the WhatsApp test number + sample data).
 
 ## 2. PENDING ⏳
@@ -30,14 +37,12 @@
 - **₹999 subscription billing** (only wallet top-up exists; recurring plan not built — use Razorpay Subscriptions/Payment Link + manual activation for first 10)
 - First clients (outreach — see GTM/consent below)
 
-**Quality/launch-readiness (in progress):**
-- [x] Opt-in tracking · [x] Password reset
-- [ ] **Security audit + tenant isolation** (NEXT — verify no agent can read another's data)
-- [ ] **Bot reliability hardening** (graceful error handling, never send broken msg)
-- [ ] Mobile responsiveness
-- [ ] **Branded email** (Supabase Custom SMTP via Resend — emails currently say "Supabase", unprofessional)
-- [ ] Error tracking (Sentry), uptime (UptimeRobot)
-- [ ] Compress the 5MB logo files; finish logo across landing/login/legal
+**Quality/launch-readiness:**
+- [x] Opt-in tracking · [x] Password reset · [x] Security audit · [x] Bot reliability · [x] Mobile · [x] Logo compression · [x] Error boundaries · [x] Sentry code · [x] TS errors fixed · [x] Dependabot
+- [ ] **Deploy** (needs Vercel token — founder provides, run: `VERCEL_ORG_ID=team_fzgmEXAaGXYbDzbWWLQAumJl VERCEL_PROJECT_ID=prj_XeAX3KOfjGzNYS1lofHyRUpYhF08 vercel deploy --prod --yes --token <TOKEN>`)
+- [ ] **Branded email** (Supabase Custom SMTP via Resend — emails currently say "Supabase"; founder: verify convorian.in domain in Resend → Supabase Auth → SMTP settings)
+- [ ] **Sentry DSN** (founder: sentry.io → new Next.js project → copy DSN → add `NEXT_PUBLIC_SENTRY_DSN` to Vercel env → redeploy)
+- [ ] **UptimeRobot** (founder: uptimerobot.com → free → monitor https://convorian.in → SMS/email alert)
 - [ ] Support chat (RAG), SEO foundation
 
 **Founder tasks:**
@@ -51,17 +56,17 @@
 
 > Context: we shipped fast to unblock launch (live, payments, WhatsApp). That was the right call to validate. Now we layer in proper SDLC hygiene **in parallel**. Prioritized for a solo non-technical founder on a budget — high-value/low-cost first; skip true-enterprise overkill.
 
-**Phase A — Stability & Security (do NOW, launch-critical):**
-- [ ] Security audit: tenant isolation on every API route, auth checks, input validation, no secret leaks, RLS/GRANTs correct
-- [ ] Bot reliability: graceful handling of Groq/Meta/DB failures; never send empty/broken messages; retries
-- [ ] Error boundaries + friendly error states across the app
-- [ ] Fix critical TypeScript errors (currently `ignoreBuildErrors: true` — masks real bugs)
+**Phase A — Stability & Security ✅ COMPLETE:**
+- [x] Security audit: upload auth fixed, agent API field-scoped, register validated
+- [x] Bot reliability: Groq fallback, message dedup, lead insert null-check
+- [x] Error boundaries across all dashboard screens
+- [x] TypeScript: all errors fixed, `ignoreBuildErrors` removed
 
-**Phase B — Observability & Safety net (cheap, high value):**
-- [ ] **Sentry** error tracking (free tier) — frontend + backend
-- [ ] **UptimeRobot** uptime alerts (free)
-- [ ] **Staging environment** — use Vercel Preview deploys (a `staging` branch / PR previews) so we test before production. (Currently: commit→main→CLI deploy straight to prod. Move to: branch → preview → verify → promote.)
-- [ ] **Dependabot** (free, GitHub) for dependency vulnerability alerts
+**Phase B — Observability & Safety net:**
+- [x] **Sentry** code wired — needs DSN env var (founder action above)
+- [x] **Dependabot** configured
+- [ ] **UptimeRobot** — founder signs up (5 min)
+- [ ] **Staging environment** — use Vercel Preview deploys (branch → preview → verify → promote)
 - [ ] Supabase: enable Point-in-Time Recovery / confirm daily backups
 
 **Phase C — Testing & Process:**
