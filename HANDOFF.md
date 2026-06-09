@@ -23,7 +23,8 @@
 - **Bot reliability:** Groq failures send polite fallback (never blank message), message dedup by wa_message_id, lead insert null-checked.
 - **TS errors:** all fixed. `ignoreBuildErrors` removed from next.config.
 - **Error boundaries:** each dashboard screen wrapped — crash in one widget can't blank whole page.
-- **Sentry:** code wired (`sentry.*.config.ts`). Needs `NEXT_PUBLIC_SENTRY_DSN` env var (founder: create free account at sentry.io → create Next.js project → copy DSN → add to Vercel env).
+- **Sentry: LIVE.** Code wired + DSN set in Vercel production + deployed. Error tracking active (test/sample error confirmed received). Org `covorian`, EU region.
+- **Email (Resend):** `lib/email.ts` helper built (REST API, no SDK; fails silently so never breaks signup). Welcome email wired into register flow. From-address fixed to `Convorian <noreply@convorian.in>`. ⚠️ Won't deliver until founder verifies convorian.in domain in Resend.
 - **Dependabot:** weekly npm vulnerability PRs configured (`.github/dependabot.yml`).
 - **Mobile:** Sidebar is now a collapsible drawer with hamburger. Dashboard usable on phones.
 - **Demo account** (Razorpay + Meta reviewers): demo@convorian.in / ConvorianDemo@2026 (has the WhatsApp test number + sample data).
@@ -33,16 +34,16 @@
 **Gates to first paying client:**
 - App Review approval (then can message REAL leads — currently only 5 test recipients)
 - Tech Provider approval (for clients to self-connect numbers; concierge onboarding works before this)
-- A real WhatsApp number + a **card** on the WhatsApp account (founder getting Jupiter card)
+- A real WhatsApp number (founder) — **card DONE (Jupiter added to Meta account ✅)** so proactive/template messaging is unblocked once App Review lands
 - **₹999 subscription billing** (only wallet top-up exists; recurring plan not built — use Razorpay Subscriptions/Payment Link + manual activation for first 10)
 - First clients (outreach — see GTM/consent below)
 
 **Quality/launch-readiness:**
 - [x] Opt-in tracking · [x] Password reset · [x] Security audit · [x] Bot reliability · [x] Mobile · [x] Logo compression · [x] Error boundaries · [x] Sentry code · [x] TS errors fixed · [x] Dependabot
-- [ ] **Deploy** (needs Vercel token — founder provides, run: `VERCEL_ORG_ID=team_fzgmEXAaGXYbDzbWWLQAumJl VERCEL_PROJECT_ID=prj_XeAX3KOfjGzNYS1lofHyRUpYhF08 vercel deploy --prod --yes --token <TOKEN>`)
-- [ ] **Branded email** (Supabase Custom SMTP via Resend — emails currently say "Supabase"; founder: verify convorian.in domain in Resend → Supabase Auth → SMTP settings)
-- [ ] **Sentry DSN** (founder: sentry.io → new Next.js project → copy DSN → add `NEXT_PUBLIC_SENTRY_DSN` to Vercel env → redeploy)
-- [ ] **UptimeRobot** (founder: uptimerobot.com → free → monitor https://convorian.in → SMS/email alert)
+- [x] **Deployed** to production (convorian.in). Repo now `vercel link`-ed to project, so future deploys just need `vercel deploy --prod --yes` (logged in as shantanunitinkulkaarni-ts).
+- [x] **Sentry DSN** live in Vercel + deployed.
+- [ ] **Branded email** — code side DONE (`lib/email.ts`). FOUNDER must: (1) Resend → Domains → add `convorian.in` → add the DNS records it shows → Verify. (2) For Supabase auth emails: Supabase → Auth → SMTP settings → enable Custom SMTP with Resend creds. Until (1), no emails deliver.
+- [ ] **UptimeRobot** (founder: uptimerobot.com → free → HTTPS monitor https://convorian.in, 5-min interval → email/SMS alert)
 - [ ] Support chat (RAG), SEO foundation
 
 **Founder tasks:**

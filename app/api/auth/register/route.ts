@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { sendWelcomeEmail } from '@/lib/email'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -57,6 +58,9 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Fire-and-forget welcome email (never blocks signup; no-op until Resend domain verified)
+  sendWelcomeEmail(email, name).catch(() => {})
 
   return NextResponse.json({ data, message: 'Account created successfully' })
 }
