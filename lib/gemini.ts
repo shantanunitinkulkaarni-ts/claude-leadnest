@@ -239,8 +239,8 @@ export async function generateBotReply(
     supabaseAdmin.from('messages').select('direction, content, sent_by').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(10)
   ])
 
-  const agent = agentRes.data
-  const lead = leadRes.data
+  const agent = agentRes.data as any
+  const lead = leadRes.data as any
   const properties = propertiesRes.data || []
   const recentMessages = (messagesRes.data || []).reverse()
 
@@ -313,6 +313,8 @@ export async function generateBotReply(
 
   // Clean up reply — remove any trailing JSON artifacts
   reply = reply.replace(/\{[^}]*\}$/, '').trim()
+
+  if (!reply) throw new Error('Groq returned reply with no text content')
 
   return { reply, metadata }
 }

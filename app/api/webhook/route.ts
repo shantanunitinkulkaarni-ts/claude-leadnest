@@ -92,12 +92,16 @@ export async function POST(request: NextRequest) {
     let lead: any = leads?.[0] || null
 
     if (!lead) {
-      const { data: newLead } = await supabaseAdmin.from('leads').insert({
+      const { data: newLead, error: leadInsertError } = await supabaseAdmin.from('leads').insert({
         agent_id: agent.id, phone: fromPhone, last_message_at: now,
         window_expires_at: windowExpiry, status: 'new', temperature: 'new',
         // Lead messaged the business first → implied opt-in consent (Meta-compliant)
         opted_in: true, opt_in_at: now, opt_in_source: 'whatsapp_inbound'
       }).select().single()
+      if (leadInsertError || !newLead) {
+        console.error('Webhook: Failed to create lead', leadInsertError)
+        return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'lead_create_failed' })
+      }
       lead = newLead
       await supabaseAdmin.from('activity_log').insert({
         agent_id: agent.id, lead_id: lead.id, type: 'lead_created',
@@ -105,6 +109,14 @@ export async function POST(request: NextRequest) {
       })
     } else {
       await supabaseAdmin.from('leads').update({ last_message_at: now, window_expires_at: windowExpiry }).eq('id', lead.id)
+    }
+
+    // Dedup: skip if we already processed this message
+    if (waMessageId) {
+      const { data: existing } = await supabaseAdmin.from('messages').select('id').eq('wa_message_id', waMessageId).limit(1)
+      if (existing && existing.length > 0) {
+        return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'duplicate' })
+      }
     }
 
     await supabaseAdmin.from('messages').insert({
@@ -118,7 +130,16 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`Webhook Debug: Calling Gemini for lead ${lead.phone} with message: "${messageText}"`)
-    let { reply, metadata } = await generateBotReply(agent.id, lead.id, messageText)
+    let reply: string, metadata: any
+    try {
+      const result = await generateBotReply(agent.id, lead.id, messageText)
+      reply = result.reply
+      metadata = result.metadata
+    } catch (groqErr: any) {
+      console.error('Webhook: Groq/AI error, using fallback reply', groqErr.message)
+      reply = `Thank you for reaching out! Our team will get back to you shortly. 🙏`
+      metadata = {}
+    }
     console.log(`Webhook Debug: Gemini replied with: "${reply}" and metadata:`, metadata)
 
     const leadUpdates: any = { updated_at: now }
@@ -167,7 +188,7 @@ export async function POST(request: NextRequest) {
                  console.log('APPT-DEBUG: Chrono found a date but no explicit time, ignoring to avoid aggressive booking.')
              } else {
                  const year = comp.get('year') || nowIST.getUTCFullYear();
-                 const month = comp.get('month') ? comp.get('month') - 1 : nowIST.getUTCMonth();
+                 const month = comp.get('month') ? (comp.get('month') as number) - 1 : nowIST.getUTCMonth();
                  const day = comp.get('day') || nowIST.getUTCDate();
                  const hours = comp.get('hour') || 0;
                  const minutes = comp.get('minute') || 0;

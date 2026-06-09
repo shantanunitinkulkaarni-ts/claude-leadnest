@@ -85,12 +85,12 @@ export default function LeadsScreen({ agentId }: Props) {
       return
     }
     setDraggedId(leadId)
-    e.dataTransfer.setData('text/plain', leadId)
-    e.currentTarget.style.opacity = '0.5'
+    e.dataTransfer.setData('text/plain', leadId);
+    (e.currentTarget as HTMLElement).style.opacity = '0.5'
   }
 
   const handleDragEnd = (e: React.DragEvent) => {
-    e.currentTarget.style.opacity = '1'
+    (e.currentTarget as HTMLElement).style.opacity = '1'
     setDraggedId(null)
   }
 

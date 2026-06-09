@@ -49,15 +49,15 @@ export async function POST(request: NextRequest) {
 
     const safeRows = rows.map((row: any) => pickFields(row, CREATE_FIELDS))
     
-    let query = supabaseAdmin
+    let query: any = supabaseAdmin
       .from('leads')
       .insert(isArray ? safeRows : safeRows[0])
       .select()
-      
+
     if (!isArray) {
       query = query.single()
     }
-    
+
     const { data, error } = await query
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

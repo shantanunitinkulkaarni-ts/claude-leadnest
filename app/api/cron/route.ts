@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       .not('status', 'in', '("closed_won","closed_lost")')
       .or(`window_keepalive_sent_at.is.null,window_keepalive_sent_at.lt.${twoHoursAgo}`)
 
-    for (const lead of keepaliveLeads || []) {
+    for (const lead of (keepaliveLeads || []) as any[]) {
       try {
         if (lead.agents?.bot_active && lead.agents?.wa_phone_number_id) {
           await sendWindowKeepalive(lead.agents, lead)
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       .gte('scheduled_at', tomorrowStart.toISOString())
       .lte('scheduled_at', tomorrowEnd.toISOString())
 
-    for (const appt of appointments || []) {
+    for (const appt of (appointments || []) as any[]) {
       try {
         if (appt.agents?.wa_phone_number_id && appt.leads?.phone) {
           await sendAppointmentReminder(appt.agents, appt.leads, appt, appt.properties)
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
       .lt('scheduled_at', now) // in the past
       .gte('scheduled_at', today.toISOString())
 
-    for (const visit of doneVisits || []) {
+    for (const visit of (doneVisits || []) as any[]) {
       try {
         if (visit.agents?.wa_phone_number_id && visit.agents?.wa_access_token) {
           const { sendWhatsAppMessage } = await import('@/lib/whatsapp')

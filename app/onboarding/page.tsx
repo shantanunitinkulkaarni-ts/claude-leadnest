@@ -195,7 +195,7 @@ export default function OnboardingPage() {
       const finalPhone = phone || userMeta.phone || ''
 
       // Insert into agents (Workspace)
-      const { data: agentData, error: agentError } = await supabase.from('agents').insert({
+      const { data: agentDataRaw, error: agentError } = await supabase.from('agents').insert({
         email: finalEmail,
         name: finalName,
         phone: finalPhone,
@@ -215,6 +215,7 @@ export default function OnboardingPage() {
       }).select().single()
 
       if (agentError) throw agentError
+      const agentData = agentDataRaw as any
 
       // Insert into team_members (User)
       const { error: teamError } = await supabase.from('team_members').insert({

@@ -21,7 +21,8 @@ export async function GET() {
 
   try {
     // 1. Verify Agent
-    const { data: agent } = await supabaseAdmin.from('agents').select('*').eq('id', testAgentId).single()
+    const { data: agentRaw } = await supabaseAdmin.from('agents').select('*').eq('id', testAgentId).single()
+    const agent = agentRaw as any
     assert(agent !== null, 'Test Agent exists in the database')
     assert(agent?.bot_active === true, 'Test Agent bot is active')
 
@@ -47,14 +48,16 @@ export async function GET() {
     await new Promise(r => setTimeout(r, 2000))
 
     // 3. Verify Database State
-    const { data: leads } = await supabaseAdmin.from('leads').select('*').eq('phone', testPhone)
+    const { data: leadsRaw } = await supabaseAdmin.from('leads').select('*').eq('phone', testPhone)
+    const leads = leadsRaw as any[]
     assert(leads && leads.length === 1, 'Lead was successfully created')
     const lead = leads?.[0]
-    
+
     if (lead) {
-      const { data: messages } = await supabaseAdmin.from('messages').select('*').eq('lead_id', lead.id)
+      const { data: messagesRaw } = await supabaseAdmin.from('messages').select('*').eq('lead_id', lead.id)
+      const messages = messagesRaw as any[]
       assert(messages && messages.length >= 2, 'Inbound and outbound messages logged')
-      const outbound = messages?.find(m => m.direction === 'outbound')
+      const outbound = messages?.find((m: any) => m.direction === 'outbound')
       assert(!!outbound, 'Bot generated outbound reply')
       
       // cleanup lead

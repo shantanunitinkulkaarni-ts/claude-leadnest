@@ -76,7 +76,7 @@ export default function Sidebar({ activeScreen, onNavigate, agent }: Props) {
         {/* Logo */}
         <div style={{ padding: '22px 20px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <img src="/icon.png" alt="Convorian" style={{ width: 26, height: 26, borderRadius: 8, objectFit: 'cover' }} />
+            <img src="/icon.webp" alt="Convorian" style={{ width: 26, height: 26, borderRadius: 8, objectFit: 'cover' }} />
             <span style={{ fontSize: 15, fontWeight: 500, color: '#fff', letterSpacing: '-0.01em' }}>Convorian</span>
           </div>
         </div>
