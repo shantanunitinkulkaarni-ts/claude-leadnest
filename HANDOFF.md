@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: June 9, 2026*
+*Last updated: June 9, 2026 (evening)*
 
 > **This is the single source of truth.** Every new chat: read this first, then update it (Done / Pending / Plan) at the end of the session. Deep business plan lives in `files/CONVORIAN_LAUNCH_BLUEPRINT.md`; user memory at `C:\Users\rahul\.claude\projects\C--LN\memory\`.
 >
@@ -24,7 +24,8 @@
 - **TS errors:** all fixed. `ignoreBuildErrors` removed from next.config.
 - **Error boundaries:** each dashboard screen wrapped — crash in one widget can't blank whole page.
 - **Sentry: LIVE.** Code wired + DSN set in Vercel production + deployed. Error tracking active (test/sample error confirmed received). Org `covorian`, EU region.
-- **Email (Resend):** `lib/email.ts` helper built (REST API, no SDK; fails silently so never breaks signup). Welcome email wired into register flow. From-address fixed to `Convorian <noreply@convorian.in>`. ⚠️ Won't deliver until founder verifies convorian.in domain in Resend.
+- **Email (Resend):** `lib/email.ts` — full branded email system (indigo/violet theme, gradient header, CTA buttons, responsive). Welcome email on signup. **convorian.in domain verified in Resend (GoDaddy auto-added DNS records ✅).** Emails now deliver. Supabase Custom SMTP still needs founder action (see Pending).
+- **Nurture email sequence:** 6-step lifecycle flow in `lib/nurture.ts` — Day 1 (add first lead), Day 3 (tips), Day 7 (value recap with real counts), Day 14 (upgrade nudge ₹999), Day 21 (follow-up gap), Day 30 (final upgrade). Runs daily via cron. Tracks progress in `agents.nurture_emails_sent`. DB migration applied to production.
 - **Dependabot:** weekly npm vulnerability PRs configured (`.github/dependabot.yml`).
 - **Mobile:** Sidebar is now a collapsible drawer with hamburger. Dashboard usable on phones.
 - **Demo account** (Razorpay + Meta reviewers): demo@convorian.in / ConvorianDemo@2026 (has the WhatsApp test number + sample data).
@@ -42,14 +43,16 @@
 - [x] Opt-in tracking · [x] Password reset · [x] Security audit · [x] Bot reliability · [x] Mobile · [x] Logo compression · [x] Error boundaries · [x] Sentry code · [x] TS errors fixed · [x] Dependabot
 - [x] **Deployed** to production (convorian.in). Repo now `vercel link`-ed to project, so future deploys just need `vercel deploy --prod --yes` (logged in as shantanunitinkulkaarni-ts).
 - [x] **Sentry DSN** live in Vercel + deployed.
-- [ ] **Branded email** — code side DONE (`lib/email.ts`). FOUNDER must: (1) Resend → Domains → add `convorian.in` → add the DNS records it shows → Verify. (2) For Supabase auth emails: Supabase → Auth → SMTP settings → enable Custom SMTP with Resend creds. Until (1), no emails deliver.
-- [ ] **UptimeRobot** (founder: uptimerobot.com → free → HTTPS monitor https://convorian.in, 5-min interval → email/SMS alert)
+- [x] **Branded email** — `lib/email.ts` built + deployed. Resend domain verified ✅. Nurture sequence live.
+- [ ] **Supabase Custom SMTP** (founder): Supabase → Auth → SMTP Settings → enable → Host: `smtp.resend.com`, Port: `465`, User: `resend`, Password: Resend API key, From: `noreply@convorian.in`. Makes auth/reset emails say "Convorian" not "Supabase".
+- [ ] **Uptime monitor** — UptimeRobot was down; use **betteruptime.com** instead (free, nicer). Add HTTPS monitor for `https://convorian.in`, 5-min interval.
+- [ ] **Sentry MCP** — connected in app Connectors UI but needs a **new chat session** to activate. In new session: will auto-load. Say "check my Sentry errors" to read + fix live errors.
 - [ ] Support chat (RAG), SEO foundation
 
 **Founder tasks:**
 - Supabase → Auth → URL config: Site URL `https://convorian.in`; Redirect URLs add `/reset-password`, `/**`, `localhost:3003/**`
-- Resend: verify convorian.in domain → then Supabase Custom SMTP (branded emails)
-- Card (Jupiter) + clean WhatsApp number
+- Resend domain ✅ verified. Still to do: Supabase Custom SMTP (see above).
+- Jupiter card ✅ added to Meta account. Clean WhatsApp number still needed.
 - Security cleanup: rotate AWS key, GitHub tokens, Vercel token shown in chat (low priority)
 - Outreach to warm network (target 10 clients / ₹10k July; ₹999 monthly, skip annual for now)
 
@@ -104,7 +107,7 @@ Vision (founder): an engine that **learns from conversations and customizes per 
 
 ## 6. KEY FACTS / GOTCHAS
 
-- **Deploy:** Vercel git auto-deploy is BROKEN (disconnected since May). Deploy via CLI: `vercel deploy --prod --yes --token <TOKEN>` from repo with `VERCEL_ORG_ID=team_fzgmEXAaGXYbDzbWWLQAumJl`, `VERCEL_PROJECT_ID=prj_XeAX3KOfjGzNYS1lofHyRUpYhF08`. (Or fix the GitHub↔Vercel connection.)
+- **Deploy:** Vercel git auto-deploy is BROKEN (disconnected since May). Repo is `vercel link`-ed and CLI is logged in as `shantanunitinkulkaarni-ts`. Just run `vercel deploy --prod --yes` from `C:\LN\claude-leadnest` — no token needed while logged in. Token-based fallback: `vercel deploy --prod --yes --token <TOKEN>` with `VERCEL_ORG_ID=team_fzgmEXAaGXYbDzbWWLQAumJl`, `VERCEL_PROJECT_ID=prj_XeAX3KOfjGzNYS1lofHyRUpYhF08`.
 - Vercel env changes need a redeploy to take effect.
 - WhatsApp creds (phone_number_id, access_token) live **per-agent in the DB** (`agents` table), NOT env. `WHATSAPP_PROVIDER=meta` env (defaults to meta if missing).
 - Don't SELECT `wa_access_token` in queries — safety classifier blocks secret reads.
