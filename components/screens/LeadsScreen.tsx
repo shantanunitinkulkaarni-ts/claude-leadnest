@@ -85,12 +85,12 @@ export default function LeadsScreen({ agentId }: Props) {
       return
     }
     setDraggedId(leadId)
-    e.dataTransfer.setData('text/plain', leadId)
-    e.currentTarget.style.opacity = '0.5'
+    e.dataTransfer.setData('text/plain', leadId);
+    (e.currentTarget as HTMLElement).style.opacity = '0.5'
   }
 
   const handleDragEnd = (e: React.DragEvent) => {
-    e.currentTarget.style.opacity = '1'
+    (e.currentTarget as HTMLElement).style.opacity = '1'
     setDraggedId(null)
   }
 
@@ -241,7 +241,7 @@ export default function LeadsScreen({ agentId }: Props) {
   }
 
   return (
-    <div style={{ padding: '24px 28px', height: '100%', overflowY: 'auto', position: 'relative' }}>
+    <div className="mobile-scroll" style={{ padding: '16px', height: '100%', overflowY: 'auto', position: 'relative' }}>
       <style>{`
         .draggable-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.05) !important; }
         .locked-card:hover { filter: brightness(0.97); }

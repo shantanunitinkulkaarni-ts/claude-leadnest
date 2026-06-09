@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { getSupabase } from '@/lib/supabase'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import Sidebar from '@/components/Sidebar'
 import Topbar from '@/components/Topbar'
 import InboxScreen from '@/components/screens/InboxScreen'
@@ -24,6 +25,7 @@ export default function DashboardPage() {
   const [agent, setAgent] = useState<any>(null)
   const [agentId, setAgentId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const refreshAgent = useCallback(async (id: string) => {
     try {
@@ -88,11 +90,33 @@ export default function DashboardPage() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", background: '#FAFAFB' }}>
-      <Sidebar activeScreen={screen} onNavigate={setScreen} agent={agent} />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar screen={screen} agentId={agentId ?? undefined} onNavigate={setScreen} />
+      <style>{`
+        @media (max-width: 767px) {
+          .hide-mobile { display: none !important; }
+          .mobile-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+          .mobile-stack { flex-direction: column !important; }
+          .mobile-full { width: 100% !important; min-width: unset !important; }
+        }
+        @keyframes spin { to { transform: rotate(360deg) } }
+      `}</style>
+      <Sidebar
+        activeScreen={screen}
+        onNavigate={setScreen}
+        agent={agent}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+        <Topbar
+          screen={screen}
+          agentId={agentId ?? undefined}
+          onNavigate={setScreen}
+          onMenuClick={() => setSidebarOpen(true)}
+        />
         <div style={{ flex: 1, overflow: 'auto' }}>
-          {renderScreen()}
+          <ErrorBoundary name={screen} key={screen}>
+            {renderScreen()}
+          </ErrorBoundary>
         </div>
       </div>
       <SupportChat />

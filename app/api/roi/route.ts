@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     supabaseAdmin.from('leads').select('created_at').eq('agent_id', agentId).gte('created_at', since),
   ])
 
-  const agent = agentRes.data
+  const agent = agentRes.data as any
   const allLeads: any[] = allLeadsRes.data || []
   const periodLeads: any[] = periodLeadsRes.data || []
   const prevLeads: any[] = prevLeadsRes.data || []

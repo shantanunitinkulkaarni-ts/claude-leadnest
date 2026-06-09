@@ -12,15 +12,90 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
   const [customAmount, setCustomAmount] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Subscription state
+  const [planStatus, setPlanStatus] = useState<string | null>(null)
+  const [planExpiresAt, setPlanExpiresAt] = useState<string | null>(null)
+  const [nextChargeAt, setNextChargeAt] = useState<string | null>(null)
+  const [subBusy, setSubBusy] = useState(false)
+  const [subError, setSubError] = useState<string | null>(null)
+  const [subMsg, setSubMsg] = useState<string | null>(null)
+
+  const loadAgent = () => {
     fetch('/api/agent?id=' + agentId)
       .then(r => r.json())
       .then(d => {
         if (d.data) {
           setBalance(d.data.wa_balance || 0)
+          setPlanStatus(d.data.plan_status || null)
+          setPlanExpiresAt(d.data.plan_expires_at || null)
+          setNextChargeAt(d.data.subscription_charge_at || null)
         }
       })
-  }, [agentId])
+  }
+
+  useEffect(() => { loadAgent() }, [agentId])
+
+  const fmtDate = (iso: string | null) => {
+    if (!iso) return '—'
+    try { return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) } catch { return '—' }
+  }
+
+  const handleSubscribe = async () => {
+    setSubError(null); setSubMsg(null); setSubBusy(true)
+    try {
+      const res = await fetch('/api/subscription/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agentId })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not start subscription')
+
+      const ok = await loadRazorpay()
+      if (!ok) throw new Error('Could not load payment gateway. Check your connection.')
+
+      const options = {
+        key: data.keyId,
+        subscription_id: data.subscription_id,
+        name: 'Convorian',
+        description: '₹999/month — Convorian AI assistant',
+        theme: { color: '#4F46E5' },
+        handler: async () => {
+          // Activation is confirmed by webhook; refresh shortly after.
+          setSubMsg('Subscription set up! Activating… this updates within a minute.')
+          setTimeout(loadAgent, 4000)
+          setSubBusy(false)
+        },
+        modal: { ondismiss: () => setSubBusy(false) }
+      }
+      const rzp = new (window as any).Razorpay(options)
+      rzp.on('payment.failed', (r: any) => { setSubError(r?.error?.description || 'Payment failed'); setSubBusy(false) })
+      rzp.open()
+    } catch (e: any) {
+      setSubError(e.message || 'Something went wrong')
+      setSubBusy(false)
+    }
+  }
+
+  const handleCancel = async () => {
+    if (!confirm('Cancel your subscription? You keep access until the end of the current billing period.')) return
+    setSubError(null); setSubMsg(null); setSubBusy(true)
+    try {
+      const res = await fetch('/api/subscription/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agentId })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not cancel')
+      setSubMsg(data.message || 'Subscription cancelled.')
+      loadAgent()
+    } catch (e: any) {
+      setSubError(e.message || 'Something went wrong')
+    } finally {
+      setSubBusy(false)
+    }
+  }
 
   // Lazy-load the Razorpay Checkout script once
   const loadRazorpay = (): Promise<boolean> => new Promise(resolve => {
@@ -98,8 +173,64 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
   // Replaced mock transactions with empty state until billing history API is added
   const txns: any[] = []
 
+  const isActive = planStatus === 'active'
+  const isCancelled = planStatus === 'cancelled'
+  const isHalted = planStatus === 'halted'
+
   return (
     <div style={{ padding: '24px 28px', maxWidth: 580 }}>
+      {/* ── Subscription / Plan ─────────────────────────── */}
+      <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>Your plan</div>
+      <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: 24, marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <div>
+            <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 30, color: '#15161B', lineHeight: 1 }}>₹999<span style={{ fontSize: 15, color: '#9E9B92' }}>/month</span></div>
+            <div style={{ fontSize: 12, color: '#9E9B92', marginTop: 4 }}>Convorian AI WhatsApp assistant</div>
+          </div>
+          <span style={{
+            fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.04em',
+            background: isActive ? '#E7F6EC' : isHalted ? '#FDF0F0' : '#F4F3EE',
+            color: isActive ? '#1B7A43' : isHalted ? '#C0392B' : '#6B6860'
+          }}>
+            {isActive ? 'Active' : isCancelled ? 'Cancelling' : isHalted ? 'Payment failed' : planStatus === 'pending' ? 'Pending' : 'Not active'}
+          </span>
+        </div>
+
+        {(isActive || isCancelled) && (
+          <div style={{ fontSize: 13, color: '#3D3B34', marginTop: 16, lineHeight: 1.7 }}>
+            {isCancelled
+              ? <>Your plan ends on <strong>{fmtDate(planExpiresAt)}</strong>. You keep full access until then.</>
+              : <>Next auto-payment: <strong>{fmtDate(nextChargeAt || planExpiresAt)}</strong> · paid through <strong>{fmtDate(planExpiresAt)}</strong></>}
+          </div>
+        )}
+
+        {isHalted && (
+          <div style={{ fontSize: 13, color: '#8B1A1A', marginTop: 14, background: '#FDF0F0', padding: '10px 14px', borderRadius: 8 }}>
+            ⚠️ Your last payment couldn’t be collected and the bot is paused. Re-activate below to resume.
+          </div>
+        )}
+
+        {subError && <div style={{ background: '#FDF0F0', color: '#8B1A1A', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginTop: 14 }}>⚠️ {subError}</div>}
+        {subMsg && <div style={{ background: '#EEF0FE', color: '#4338CA', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginTop: 14 }}>{subMsg}</div>}
+
+        <div style={{ marginTop: 18 }}>
+          {isActive ? (
+            <button onClick={handleCancel} disabled={subBusy}
+              style={{ padding: '10px 18px', borderRadius: 9, border: '1px solid rgba(192,57,43,0.3)', background: '#fff', color: '#C0392B', cursor: subBusy ? 'default' : 'pointer', fontSize: 13, fontWeight: 500, opacity: subBusy ? 0.6 : 1 }}>
+              {subBusy ? 'Please wait…' : 'Cancel subscription'}
+            </button>
+          ) : (
+            <button onClick={handleSubscribe} disabled={subBusy}
+              style={{ padding: '12px 22px', borderRadius: 9, border: 'none', background: '#4F46E5', color: '#fff', cursor: subBusy ? 'default' : 'pointer', fontSize: 14, fontWeight: 600, opacity: subBusy ? 0.6 : 1 }}>
+              {subBusy ? 'Please wait…' : isHalted ? 'Re-activate plan — ₹999/mo' : 'Activate plan — ₹999/mo'}
+            </button>
+          )}
+          {!isActive && !subBusy && (
+            <div style={{ fontSize: 11, color: '#9E9B92', marginTop: 10 }}>Auto-renews monthly via UPI Autopay. Cancel anytime.</div>
+          )}
+        </div>
+      </div>
+
       <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>WhatsApp balance</div>
       <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: 24, marginBottom: 14 }}>
         <div style={{ fontSize: 12, color: '#9E9B92' }}>Available balance</div>

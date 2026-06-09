@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { pickFields, requireAgentAccess } from '@/lib/apiAuth'
 
-const USER_ALLOWED_FIELDS = ['name', 'agency_name', 'city', 'state', 'areas', 'bot_tone', 'office_open', 'office_close', 'languages', 'bot_active', 'wa_balance', 'out_of_office_message']
-const SUPERADMIN_ALLOWED_FIELDS = [...USER_ALLOWED_FIELDS, 'wa_balance', 'plan', 'plan_status', 'messages_limit']
+const USER_ALLOWED_FIELDS = ['id', 'name', 'email', 'agency_name', 'phone', 'city', 'state', 'areas', 'property_types', 'bot_tone', 'office_open', 'office_close', 'languages', 'bot_active', 'wa_balance', 'out_of_office_message', 'wa_phone_number_id', 'wa_display_name', 'messages_used', 'messages_limit', 'plan', 'plan_status', 'plan_expires_at', 'subscription_charge_at', 'created_at']
+const SUPERADMIN_ALLOWED_FIELDS = [...USER_ALLOWED_FIELDS, 'wa_business_id']
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -16,7 +16,9 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabaseAdmin.from('agents').select('*').eq('id', agentId).single()
     if (error) throw error
-    return NextResponse.json({ data })
+    const allowedFields = access.isSuperadmin ? SUPERADMIN_ALLOWED_FIELDS : USER_ALLOWED_FIELDS
+    const safeData = Object.fromEntries(allowedFields.filter(f => f in data).map(f => [f, (data as any)[f]]))
+    return NextResponse.json({ data: safeData })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
