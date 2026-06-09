@@ -15,7 +15,7 @@ const titles: Record<Screen, string> = {
   settings: 'Settings'
 }
 
-export default function Topbar({ screen, agentId, isSuperadmin = false, onNavigate }: { screen: Screen, agentId?: string, isSuperadmin?: boolean, onNavigate?: (s: Screen) => void }) {
+export default function Topbar({ screen, agentId, isSuperadmin = false, onNavigate, onMenuClick }: { screen: Screen, agentId?: string, isSuperadmin?: boolean, onNavigate?: (s: Screen) => void, onMenuClick?: () => void }) {
   const router = useRouter()
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
@@ -65,13 +65,24 @@ export default function Topbar({ screen, agentId, isSuperadmin = false, onNaviga
   return (
     <div style={{
       background: '#fff', borderBottom: '1px solid rgba(26,25,22,0.08)',
-      height: 54, padding: '0 28px',
+      height: 54, padding: '0 16px',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       flexShrink: 0
     }}>
-      <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B' }}>{titles[screen]}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {onMenuClick && (
+          <button
+            onClick={onMenuClick}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', fontSize: 18, color: '#15161B', display: 'flex', alignItems: 'center' }}
+            aria-label="Open menu"
+          >
+            ☰
+          </button>
+        )}
+        <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B' }}>{titles[screen]}</div>
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#F4F3EE', border: '1px solid rgba(26,25,22,0.13)', borderRadius: 8, padding: '0 12px', height: 34, width: 200 }}>
+        <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#F4F3EE', border: '1px solid rgba(26,25,22,0.13)', borderRadius: 8, padding: '0 12px', height: 34, width: 200 }}>
           <span style={{ fontSize: 13, color: '#9E9B92' }}>🔍</span>
           <input type="text" placeholder="Search leads..." style={{ border: 'none', background: 'transparent', fontSize: 12, color: '#15161B', width: '100%', outline: 'none', fontFamily: 'inherit' }} />
         </div>

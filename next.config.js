@@ -1,21 +1,17 @@
+const { withSentryConfig } = require('@sentry/nextjs')
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  typescript: {
-    ignoreBuildErrors: true
-  },
-  eslint: {
-    ignoreDuringBuilds: true
-  },
   experimental: {
     serverActions: {
       allowedOrigins: [
         'localhost:3000',
         'localhost:3003',
-        'leadnest.in',
-        'www.leadnest.in',
+        'convorian.in',
+        'www.convorian.in',
         '*.awsapprunner.com',
-        '*.run.app'
+        '*.vercel.app'
       ]
     }
   },
@@ -24,4 +20,12 @@ const nextConfig = {
   }
 }
 
-module.exports = nextConfig
+module.exports = withSentryConfig(nextConfig, {
+  silent: true,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  widenClientFileUpload: true,
+  hideSourceMaps: true,
+  disableLogger: true,
+})

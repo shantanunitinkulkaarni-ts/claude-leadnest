@@ -241,7 +241,7 @@ export default function LeadsScreen({ agentId }: Props) {
   }
 
   return (
-    <div style={{ padding: '24px 28px', height: '100%', overflowY: 'auto', position: 'relative' }}>
+    <div className="mobile-scroll" style={{ padding: '16px', height: '100%', overflowY: 'auto', position: 'relative' }}>
       <style>{`
         .draggable-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.05) !important; }
         .locked-card:hover { filter: brightness(0.97); }
