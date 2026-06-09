@@ -1,0 +1,64 @@
+name: Database Backup
+
+# Free daily backup of the Supabase Postgres database, stored off-site as a
+# GitHub Actions artifact (90-day retention). This is our safety net while on
+# the Supabase free plan (which has no automatic backups). Upgrade to Supabase
+# Pro for point-in-time recovery once revenue allows; until then, this runs.
+#
+# SETUP (one-time, founder):
+#   GitHub repo → Settings → Secrets and variables → Actions → New repository secret
+#   Name:  SUPABASE_DB_URL
+#   Value: Supabase Dashboard → Project Settings → Database → Connection string →
+#          "Session pooler" (or Direct connection) URI, including the password.
+#          e.g. postgresql://postgres.<ref>:<password>@<host>:5432/postgres
+#   (Use Session/Direct — NOT the Transaction pooler; pg_dump needs a session.)
+#
+# RESTORE (if ever needed):
+#   1. Download the latest artifact from the Actions tab → this workflow's run.
+#   2. pg_restore --no-owner --no-privileges --clean --if-exists \
+#        -d "<target-connection-string>" backup_YYYY-MM-DD_HHMM.dump
+
+on:
+  schedule:
+    - cron: '30 20 * * *'   # 20:30 UTC daily = 02:00 IST
+  workflow_dispatch:          # lets you run it on demand from the Actions tab
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL 17 client
+        # Install the newest client from the official PostgreSQL apt repo.
+        # A newer pg_dump can safely dump older/newer Supabase servers.
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Verify secret is set
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret is not set. See setup notes at the top of this workflow."
+            exit 1
+          fi
+
+      - name: Dump database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          ts=$(date +%Y-%m-%d_%H%M)
+          echo "Backing up to backup_${ts}.dump"
+          # -Fc = compressed custom format (restore with pg_restore).
+          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" \
+            --no-owner --no-privileges -Fc -f "backup_${ts}.dump"
+          ls -lh backup_*.dump
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: backup_*.dump
+          retention-days: 90

@@ -5,7 +5,7 @@
 ## Completion notes (June 9)
 - ✅ **Uptime monitor** — Better Uptime live on https://convorian.in, alerts → support@convorian.in
 - ✅ **Branded emails** — Supabase Custom SMTP via Resend confirmed: password-reset emails now send from Convorian (noreply@convorian.in). Verified by live test.
-- ⚠️ **Backups** — Supabase free plan has NO automatic daily backups. DECISION: acceptable pre-revenue; upgrade to Supabase Pro (~$25/mo, enables daily + PITR) the moment the first paying customer signs, OR build a free daily pg_dump job if staying on free longer.
+- ✅ **Backups** — Supabase free plan has NO automatic backups, so we built a FREE daily off-site backup: `.github/workflows/db-backup.yml` runs nightly (02:00 IST), dumps the whole DB, stores it as a GitHub artifact (90-day retention). **One founder step to activate:** add a GitHub repo secret `SUPABASE_DB_URL` (Supabase → Project Settings → Database → Connection string → Session pooler URI with password). Then run it once from the Actions tab to confirm. Upgrade to Supabase Pro for point-in-time recovery whenever revenue allows.
 
 ---
 
