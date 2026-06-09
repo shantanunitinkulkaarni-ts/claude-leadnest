@@ -25,6 +25,33 @@ test.describe('Payment verification guards (/api/payments/verify)', () => {
   })
 })
 
+test.describe('Subscription guards (/api/subscription/*)', () => {
+  test('create rejects missing agent_id', async ({ request }) => {
+    const res = await request.post('/api/subscription/create', { data: {} })
+    expect(res.status()).toBe(400)
+    const body = await res.json()
+    expect(body.error).toContain('agent_id required')
+  })
+
+  test('cancel rejects missing agent_id', async ({ request }) => {
+    const res = await request.post('/api/subscription/cancel', { data: {} })
+    expect(res.status()).toBe(400)
+    const body = await res.json()
+    expect(body.error).toContain('agent_id required')
+  })
+})
+
+test.describe('Razorpay webhook guards (/api/razorpay-webhook)', () => {
+  test('rejects payload with no/invalid signature', async ({ request }) => {
+    const res = await request.post('/api/razorpay-webhook', {
+      data: { event: 'subscription.charged' },
+    })
+    expect(res.status()).toBe(400)
+    const body = await res.json()
+    expect(body.error).toContain('Invalid signature')
+  })
+})
+
 test.describe('Signup validation guards (/api/auth/register)', () => {
   test('rejects invalid email', async ({ request }) => {
     const res = await request.post('/api/auth/register', {

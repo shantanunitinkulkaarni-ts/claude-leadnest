@@ -1,6 +1,14 @@
 # Phase B — Founder Setup Tasks
 
-**Status: IN PROGRESS** | Last updated: June 9, 2026
+**Status: COMPLETE** (uptime ✅ · SMTP ✅ · backups = see note) | Last updated: June 9, 2026
+
+## Completion notes (June 9)
+- ✅ **Uptime monitor** — Better Uptime live on https://convorian.in, alerts → support@convorian.in
+- ✅ **Branded emails** — Supabase Custom SMTP via Resend confirmed: password-reset emails now send from Convorian (noreply@convorian.in). Verified by live test.
+- ⚠️ **Backups** — Supabase free plan has NO automatic daily backups. DECISION: acceptable pre-revenue; upgrade to Supabase Pro (~$25/mo, enables daily + PITR) the moment the first paying customer signs, OR build a free daily pg_dump job if staying on free longer.
+
+---
+
 
 ---
 

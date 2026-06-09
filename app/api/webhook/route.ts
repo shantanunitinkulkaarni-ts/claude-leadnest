@@ -78,6 +78,20 @@ export async function POST(request: NextRequest) {
       console.log('Webhook Debug: Message limit reached')
       return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'limit_reached' })
     }
+    // Subscription gate — pause the bot only when the plan has genuinely lapsed:
+    //   • 'halted'   = Razorpay exhausted retries on a failed auto-charge
+    //   • 'cancelled'/'pending' AND past the paid-through date (plan_expires_at)
+    // We intentionally do NOT pause 'active' agents even if plan_expires_at is in
+    // the past — that protects the demo/comp accounts and any legacy/trial agent.
+    {
+      const planStatus = agent.plan_status || 'active'
+      const paidThrough = agent.plan_expires_at ? new Date(agent.plan_expires_at) : null
+      const expired = paidThrough ? paidThrough.getTime() < Date.now() : false
+      if (planStatus === 'halted' || ((planStatus === 'cancelled' || planStatus === 'pending') && expired)) {
+        console.log('Webhook Debug: Subscription inactive', { planStatus, expired })
+        return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'subscription_inactive' })
+      }
+    }
 
     const now = new Date().toISOString()
     const windowExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()

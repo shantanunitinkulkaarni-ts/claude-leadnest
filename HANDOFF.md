@@ -36,7 +36,7 @@
 - App Review approval (then can message REAL leads — currently only 5 test recipients)
 - Tech Provider approval (for clients to self-connect numbers; concierge onboarding works before this)
 - A real WhatsApp number (founder) — **card DONE (Jupiter added to Meta account ✅)** so proactive/template messaging is unblocked once App Review lands
-- **₹999 subscription billing** (only wallet top-up exists; recurring plan not built — use Razorpay Subscriptions/Payment Link + manual activation for first 10)
+- **₹999 subscription billing** — ✅ BUILT (Razorpay Subscriptions, UPI Autopay auto-debit). Code: `lib/razorpay.ts`, `app/api/subscription/{create,cancel}`, `app/api/razorpay-webhook`, bot enforcement in `app/api/webhook`, UI in `BalanceScreen`. **Go-live needs founder Razorpay-dashboard steps** — see `RAZORPAY_SUBSCRIPTION_SETUP.md` (enable Subscriptions, create ₹999 plan, add webhook, set RAZORPAY_PLAN_ID + RAZORPAY_WEBHOOK_SECRET in Vercel, run `subscription_migration.sql`).
 - First clients (outreach — see GTM/consent below)
 
 **Quality/launch-readiness:**
