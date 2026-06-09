@@ -34,7 +34,8 @@ create table if not exists agents (
   wa_phone_number_id text, -- Meta WhatsApp phone number ID
   wa_access_token text, -- Meta access token for this agent
   wa_verified boolean default false,
-  out_of_office_message text default 'Hi! Thanks for reaching out. Our team is currently unavailable but your message is important to us. We will get back to you first thing in the morning!'
+  out_of_office_message text default 'Hi! Thanks for reaching out. Our team is currently unavailable but your message is important to us. We will get back to you first thing in the morning!',
+  nurture_emails_sent text[] default array[]::text[] -- lifecycle email step keys already sent
 );
 
 -- ─────────────────────────────────────────

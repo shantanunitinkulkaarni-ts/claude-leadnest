@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { sendWindowKeepalive, sendAppointmentReminder } from '@/lib/whatsapp'
+import { runNurtureEmails } from '@/lib/nurture'
 
 // This route is called by Vercel Cron every 15 minutes
 // Add to vercel.json: { "crons": [{ "path": "/api/cron", "schedule": "*/15 * * * *" }] }
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const results = { keepalive: 0, reminders: 0, errors: 0 }
+  const results = { keepalive: 0, reminders: 0, errors: 0, nurture: { sent: 0, skipped: 0, errors: 0 } }
 
   try {
     // ── 1. WINDOW KEEP-ALIVE ──
@@ -115,6 +116,14 @@ export async function GET(request: NextRequest) {
       } catch (e) {
         results.errors++
       }
+    }
+
+    // ── 4. NURTURE / LIFECYCLE EMAILS ──
+    // Runs daily: welcome follow-ups, value recaps, upgrade nudges.
+    try {
+      results.nurture = await runNurtureEmails()
+    } catch (e) {
+      console.error('Nurture email run failed:', e)
     }
 
     return NextResponse.json({ ok: true, ...results })
