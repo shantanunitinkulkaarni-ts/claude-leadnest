@@ -38,7 +38,8 @@ export function getSupabaseAdmin(): ConvorianSupabaseClient {
 export function getSupabase(): ConvorianSupabaseClient {
   if (!_supabase) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hinqahjhtgsmljrrozql.supabase.co'
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhpbnFhaGpodGdzbWxqcnJvenFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NDgxMzAsImV4cCI6MjA5NTIyNDEzMH0.0LJNkJwdj5A12XaB8wFXCVI4uyfy19N6sjS5dKTg6JE'
+    // Fallback is the public publishable key (safe to ship to browser; RLS protects data).
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_MPhyLd2gZVgKDVn0zKYwmQ_9epTOzrr'
     if (!url || !key) throw new Error('Supabase env vars missing')
     
     // Use createBrowserClient so sessions are automatically synced to cookies!
