@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: June 9, 2026 (evening)*
+*Last updated: June 10, 2026*
 
 > **This is the single source of truth.** Every new chat: read this first, then update it (Done / Pending / Plan) at the end of the session. Deep business plan lives in `files/CONVORIAN_LAUNCH_BLUEPRINT.md`; user memory at `C:\Users\rahul\.claude\projects\C--LN\memory\`.
 >
@@ -36,7 +36,7 @@
 - App Review approval (then can message REAL leads — currently only 5 test recipients)
 - Tech Provider approval (for clients to self-connect numbers; concierge onboarding works before this)
 - A real WhatsApp number (founder) — **card DONE (Jupiter added to Meta account ✅)** so proactive/template messaging is unblocked once App Review lands
-- **₹999 subscription billing** — ✅ BUILT (Razorpay Subscriptions, UPI Autopay auto-debit). Code: `lib/razorpay.ts`, `app/api/subscription/{create,cancel}`, `app/api/razorpay-webhook`, bot enforcement in `app/api/webhook`, UI in `BalanceScreen`. **Go-live needs founder Razorpay-dashboard steps** — see `RAZORPAY_SUBSCRIPTION_SETUP.md` (enable Subscriptions, create ₹999 plan, add webhook, set RAZORPAY_PLAN_ID + RAZORPAY_WEBHOOK_SECRET in Vercel, run `subscription_migration.sql`).
+- **₹999 subscription billing** — ✅ **LIVE & TESTED (June 10)**. Founder completed a real UPI Autopay subscription end-to-end in production: Activate button → Checkout → mandate → webhook → status Active. Code: `lib/razorpay.ts`, `app/api/subscription/{create,cancel}`, `app/api/razorpay-webhook`, bot enforcement in `app/api/webhook`, UI in `BalanceScreen`. DB migration applied; webhook + RAZORPAY_PLAN_ID + RAZORPAY_WEBHOOK_SECRET configured in Razorpay/Vercel.
 - First clients (outreach — see GTM/consent below)
 
 **Quality/launch-readiness:**
@@ -44,16 +44,19 @@
 - [x] **Deployed** to production (convorian.in). Repo now `vercel link`-ed to project, so future deploys just need `vercel deploy --prod --yes` (logged in as shantanunitinkulkaarni-ts).
 - [x] **Sentry DSN** live in Vercel + deployed.
 - [x] **Branded email** — `lib/email.ts` built + deployed. Resend domain verified ✅. Nurture sequence live.
-- [ ] **Supabase Custom SMTP** (founder): Supabase → Auth → SMTP Settings → enable → Host: `smtp.resend.com`, Port: `465`, User: `resend`, Password: Resend API key, From: `noreply@convorian.in`. Makes auth/reset emails say "Convorian" not "Supabase".
-- [ ] **Uptime monitor** — UptimeRobot was down; use **betteruptime.com** instead (free, nicer). Add HTTPS monitor for `https://convorian.in`, 5-min interval.
+- [x] **Supabase Custom SMTP** — DONE (June 10). Auth/reset emails now send from "Convorian" via Resend. Verified by live password-reset test.
+- [x] **Uptime monitor** — DONE (June 10). Better Uptime watching https://convorian.in, alerts → support@convorian.in.
+- [x] **Daily DB backup (free)** — DONE (June 10). `.github/workflows/db-backup.yml` runs nightly 02:00 IST, pg_dump → GitHub artifact (90-day retention), SUPABASE_DB_URL secret set, test run verified (real 64KB dump). Supabase free plan has no native backups; upgrade to Pro for PITR when revenue allows.
+- [x] **Tests + CI** — DONE (June 10). Playwright tests (`npm test`) + GitHub Actions CI (lint/typecheck/tests) on every PR. Process now: branch → PR → CI green → merge.
+- [x] **CLAUDE.md briefing rewritten** (June 10) — every session now told to read HANDOFF.md first.
 - [x] **Sentry MCP** — ACTIVE. OAuth done, tools live. Org `covorian` (EU region `de.sentry.io`). Checked: only 1 sample test error, no real production errors. Say "check my Sentry errors" anytime.
 - [ ] Support chat (RAG), SEO foundation
 
 **Founder tasks:**
 - Supabase → Auth → URL config: Site URL `https://convorian.in`; Redirect URLs add `/reset-password`, `/**`, `localhost:3003/**`
-- Resend domain ✅ verified. Still to do: Supabase Custom SMTP (see above).
+- Resend domain ✅ · Supabase Custom SMTP ✅ (June 10).
 - Jupiter card ✅ added to Meta account. Clean WhatsApp number still needed.
-- Security cleanup: rotate AWS key, GitHub tokens, Vercel token shown in chat (low priority)
+- **Security cleanup (NEXT UP):** rotate GitHub token (in git remote URL, plain text), old AWS/Vercel keys shown in chats. CTO's top recommended task.
 - Outreach to warm network (target 10 clients / ₹10k July; ₹999 monthly, skip annual for now)
 
 ## 3. ENGINEERING MATURITY PLAN (do this properly — phased, not skipped)
@@ -69,9 +72,9 @@
 **Phase B — Observability & Safety net:**
 - [x] **Sentry** code wired — needs DSN env var (founder action above)
 - [x] **Dependabot** configured
-- [ ] **UptimeRobot** — founder signs up (5 min)
+- [x] **Uptime monitor** — Better Uptime live (June 10)
+- [x] **Daily DB backups** — free GitHub Actions nightly pg_dump live + verified (June 10)
 - [ ] **Staging environment** — use Vercel Preview deploys (branch → preview → verify → promote)
-- [ ] Supabase: enable Point-in-Time Recovery / confirm daily backups
 
 **Phase C — Testing & Process:**
 - [x] **E2E tests (Playwright)** for the 3 critical flows — `tests/` dir. Smoke tests (landing/login/onboarding/legal render), payment-verify + signup validation guards, demo-bot graceful-degradation + live-reply (auto-skips without GROQ_API_KEY). Run `npm test`. 12 pass locally.
