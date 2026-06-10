@@ -50,13 +50,13 @@
 - [x] **Tests + CI** — DONE (June 10). Playwright tests (`npm test`) + GitHub Actions CI (lint/typecheck/tests) on every PR. Process now: branch → PR → CI green → merge.
 - [x] **CLAUDE.md briefing rewritten** (June 10) — every session now told to read HANDOFF.md first.
 - [x] **Sentry MCP** — ACTIVE. OAuth done, tools live. Org `covorian` (EU region `de.sentry.io`). Checked: only 1 sample test error, no real production errors. Say "check my Sentry errors" anytime.
-- [ ] Support chat (RAG), SEO foundation
+- [ ] **NEXT UP (CTO queue):** (1) Invoice/receipt screen for subscribers, (2) Help/FAQ page + support chat (RAG), (3) SEO foundation. Also pending: clean WhatsApp business number (founder), invoice history for ₹999 subscribers.
 
 **Founder tasks:**
 - Supabase → Auth → URL config: Site URL `https://convorian.in`; Redirect URLs add `/reset-password`, `/**`, `localhost:3003/**`
 - Resend domain ✅ · Supabase Custom SMTP ✅ (June 10).
 - Jupiter card ✅ added to Meta account. Clean WhatsApp number still needed.
-- **Security cleanup (NEXT UP):** rotate GitHub token (in git remote URL, plain text), old AWS/Vercel keys shown in chats. CTO's top recommended task.
+- **Security cleanup — ✅ DONE (June 10).** Rotated ALL exposed secrets with zero downtime: GitHub token (removed from git remote, deleted on GitHub, now in Windows Credential Manager vault — git push/pull works via vault; for GitHub REST API calls retrieve token transiently via `git credential fill`), Groq key, Resend key, Supabase DB password (backup secret + Vercel updated), Supabase service-role key (migrated to NEW API key system: publishable `sb_publishable_...` + secret `sb_secret_...`; legacy JWT-based keys DISABLED in Supabase → old leaked key is dead). JWT signing key left untouched (no forced logouts). Local `.env` refreshed via `vercel env pull` — in sync with prod. Twilio skipped (unused). Verified: site 200, bot + DB working on new keys.
 - Outreach to warm network (target 10 clients / ₹10k July; ₹999 monthly, skip annual for now)
 
 ## 3. ENGINEERING MATURITY PLAN (do this properly — phased, not skipped)
