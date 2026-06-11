@@ -102,7 +102,7 @@ export default function Topbar({ screen, agentId, isSuperadmin = false, onNaviga
               transition: 'background 0.2s'
             }}>
             🔔
-            <div style={{ position: 'absolute', top: 6, right: 7, width: 5, height: 5, borderRadius: '50%', background: '#C0392B', border: '1.5px solid #fff' }} />
+            {/* Unread dot only when there are actual notifications (none yet). */}
           </button>
           
           {/* Notifications Dropdown */}
