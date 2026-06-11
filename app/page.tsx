@@ -384,6 +384,7 @@ function Footer() {
           </div>
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: G.dark, marginBottom: 10 }}>Contact</div>
+            <a href="/help" style={{ display: 'block', fontSize: 13, color: G.muted, textDecoration: 'none', marginBottom: 8 }}>Help & FAQ</a>
             <a href="mailto:support@convorian.in" style={{ display: 'block', fontSize: 13, color: G.muted, textDecoration: 'none', marginBottom: 8 }}>support@convorian.in</a>
             <span style={{ display: 'block', fontSize: 13, color: G.muted }}>Pune, Maharashtra, India</span>
           </div>
