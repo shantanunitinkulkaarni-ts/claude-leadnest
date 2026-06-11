@@ -190,9 +190,8 @@ LEAD PROFILE:
 ${stageInstructions[stage]}
 
 LANGUAGE RULES:
-- Detect language from their message. Match it exactly.
-- Hinglish is common and natural — use it if they use it
-- Hindi speakers: respond in Hindi naturally, not formally
+- DEFAULT TO ENGLISH. Greetings like "hi"/"hello" carry no language signal — reply in English.
+- Only switch when the lead clearly writes in another language: Hindi script → Hindi; Hinglish (Hindi words in Latin script, e.g. "ghar chahiye") → Hinglish. Never assume from context alone.
 - Never switch languages mid-conversation unless they do
 
 ABSOLUTE RULES:
