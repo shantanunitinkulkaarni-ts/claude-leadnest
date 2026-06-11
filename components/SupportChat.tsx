@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { SUPPORT_EMAIL, supportWhatsappLink, supportWhatsappConfigured } from '@/lib/support'
 
-type Msg = { from: 'user' | 'support'; text: string }
+type Msg = { from: 'user' | 'support'; text: string; logId?: string; rated?: 'up' | 'down' }
 
 const GREETING: Msg = {
   from: 'support',
@@ -67,7 +67,7 @@ export default function SupportChat() {
       })
       const data = await res.json()
       const reply = data.response || "I'm having trouble right now — please use Contact support below."
-      setMessages(prev => [...prev, { from: 'support', text: reply }])
+      setMessages(prev => [...prev, { from: 'support', text: reply, logId: data.log_id || undefined }])
       if (data.escalate) setEscalated(true)
     } catch {
       setMessages(prev => [...prev, { from: 'support', text: 'I could not reach the server. Please use Contact support below.' }])
@@ -75,6 +75,18 @@ export default function SupportChat() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const rateMessage = (index: number, rating: 'up' | 'down') => {
+    const target = messages[index]
+    if (!target?.logId || target.rated) return
+    setMessages(prev => prev.map((m, i) => (i === index ? { ...m, rated: rating } : m)))
+    // Fire-and-forget — feedback is a quality signal, not blocking.
+    fetch('/api/support-feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ log_id: target.logId, helpful: rating === 'up' }),
+    }).catch(() => {})
   }
 
   const lastUser = [...messages].reverse().find(m => m.from === 'user')?.text || ''
@@ -97,15 +109,26 @@ export default function SupportChat() {
           </div>
           <div ref={bodyRef} style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, background: '#FAFAFB' }}>
             {messages.map((m, i) => (
-              <div key={i} style={{
-                alignSelf: m.from === 'user' ? 'flex-end' : 'flex-start',
-                background: m.from === 'user' ? '#4F46E5' : '#fff',
-                color: m.from === 'user' ? '#fff' : '#2A2925',
-                border: m.from === 'user' ? 'none' : '1px solid #ECEAE4',
-                padding: '10px 13px', borderRadius: 12, fontSize: 13.5, lineHeight: 1.55,
-                maxWidth: '85%', whiteSpace: 'pre-wrap'
-              }}>
-                {m.text}
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.from === 'user' ? 'flex-end' : 'flex-start', maxWidth: '85%', alignSelf: m.from === 'user' ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                  background: m.from === 'user' ? '#4F46E5' : '#fff',
+                  color: m.from === 'user' ? '#fff' : '#2A2925',
+                  border: m.from === 'user' ? 'none' : '1px solid #ECEAE4',
+                  padding: '10px 13px', borderRadius: 12, fontSize: 13.5, lineHeight: 1.55,
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {m.text}
+                </div>
+                {m.from === 'support' && m.logId && (
+                  m.rated ? (
+                    <div style={{ fontSize: 11, color: '#9E9B92', margin: '4px 2px 0' }}>Thanks for the feedback{m.rated === 'up' ? ' 🙏' : ''}</div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 6, margin: '4px 2px 0' }}>
+                      <button onClick={() => rateMessage(i, 'up')} aria-label="Helpful" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, opacity: 0.55 }}>👍</button>
+                      <button onClick={() => rateMessage(i, 'down')} aria-label="Not helpful" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, opacity: 0.55 }}>👎</button>
+                    </div>
+                  )
+                )}
               </div>
             ))}
             {loading && <div style={{ fontSize: 12, color: '#9E9B92' }}>Assistant is typing…</div>}

@@ -69,7 +69,7 @@ Convorian is a technology platform — we are not responsible for how you use it
 
 - **Your data is yours.** All leads, conversations, and business data you upload or generate belongs to you.
 - You grant Convorian a limited licence to process your data solely to provide the Service.
-- We use anonymised, aggregated data to improve our AI engine. Individual agent data is never shared.
+- We use anonymised, aggregated data — including conversations handled through the platform — to evaluate, train and improve our AI engine. Personal identifiers are removed first, and individual agent data is never sold or shared. You may opt out by emailing privacy@convorian.in. See our Privacy Policy for details.
 - On account termination, you may export your data within 30 days. After 90 days, data is permanently deleted.
 
 ---

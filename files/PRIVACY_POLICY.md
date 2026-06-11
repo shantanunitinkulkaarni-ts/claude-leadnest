@@ -44,6 +44,16 @@ We use your data to:
 - Improve our AI engine and platform (using anonymised data only)
 - Comply with legal obligations
 
+### 3a. Improving our AI (conversation data)
+
+To make our AI assistants smarter and more helpful over time, we may use conversations handled through the platform — including support chats and messages exchanged with leads — to evaluate, train and improve our AI models.
+
+- **Anonymisation:** Before any conversation data is used for model improvement, we remove personal identifiers (such as names, phone numbers and email addresses) so the data cannot reasonably be linked back to an individual.
+- **Purpose limitation:** This data is used only to improve the quality, accuracy and safety of our AI — never sold or shared with third parties for their own marketing.
+- **Your choice:** If you would prefer your account's conversations not be used to improve our AI, email us at privacy@convorian.in and we will exclude your account.
+
+By using Convorian you consent to this use of anonymised conversation data as described above.
+
 ---
 
 ## 4. How We Store and Protect Your Data

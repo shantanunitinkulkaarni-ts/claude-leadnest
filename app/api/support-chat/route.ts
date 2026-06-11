@@ -92,19 +92,21 @@ RULES:
     // ── Data flywheel: log every turn so the agent can learn over time ──
     // Best-effort (never breaks the chat). Accumulates real Q&A + escalation
     // signal → future few-shot examples / fine-tuning data. See BOT ROADMAP.
+    let logId: string | null = null
     try {
       const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null
-      await supabaseAdmin.from('support_chat_logs').insert({
+      const { data: logRow } = await supabaseAdmin.from('support_chat_logs').insert({
         ip_address: ip,
         agent_id: typeof agent_id === 'string' ? agent_id : null,
         user_message: last,
         assistant_reply: text,
         escalated: escalate,
         turn_count: messages.length,
-      })
+      }).select('id').single()
+      logId = logRow?.id || null
     } catch { /* logging is non-critical */ }
 
-    return NextResponse.json({ response: text, escalate })
+    return NextResponse.json({ response: text, escalate, log_id: logId })
   } catch (e: any) {
     // Any failure → graceful human handoff, never a blank screen.
     return NextResponse.json({
