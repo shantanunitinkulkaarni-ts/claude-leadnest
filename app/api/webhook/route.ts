@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { generateBotReply } from '@/lib/gemini'
 import { sendWhatsAppMessage, sendViaMsg91 } from '@/lib/whatsapp'
+import { shouldBotReply } from '@/lib/botGating'
 import * as chrono from 'chrono-node'
 
 const PROVIDER = process.env.WHATSAPP_PROVIDER || 'meta'
@@ -105,28 +106,20 @@ export async function POST(request: NextRequest) {
       console.log('Webhook Debug: Agent not found')
       return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'agent_not_found' })
     }
-    if (!agent.bot_active) {
-      console.log('Webhook Debug: Bot is paused for agent')
-      return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'bot_paused' })
-    }
-    if (agent.messages_used >= agent.messages_limit) {
-      console.log('Webhook Debug: Message limit reached')
-      return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'limit_reached' })
-    }
-    // Subscription gate — pause the bot only when the plan has genuinely lapsed:
-    //   • 'halted'   = Razorpay exhausted retries on a failed auto-charge
-    //   • 'cancelled'/'pending' AND past the paid-through date (plan_expires_at)
-    // We intentionally do NOT pause 'active' agents even if plan_expires_at is in
-    // the past — that protects the demo/comp accounts and any legacy/trial agent.
+    // Agent-level gates (bot off / limit reached / subscription lapsed),
+    // centralised + unit-tested in lib/botGating.ts. 'active' agents are never
+    // blocked by expiry (protects demo/comp/legacy/trial-not-yet-expired).
     {
-      const planStatus = agent.plan_status || 'active'
-      const paidThrough = agent.plan_expires_at ? new Date(agent.plan_expires_at) : null
-      const expired = paidThrough ? paidThrough.getTime() < Date.now() : false
-      // 'trial' lapses like cancelled/pending: once the 30-day window ends with no
-      // paid subscription (paying flips plan_status to 'active'), pause the bot.
-      if (planStatus === 'halted' || ((planStatus === 'cancelled' || planStatus === 'pending' || planStatus === 'trial') && expired)) {
-        console.log('Webhook Debug: Subscription inactive', { planStatus, expired })
-        return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'subscription_inactive' })
+      const gate = shouldBotReply({
+        bot_active: agent.bot_active,
+        messages_used: agent.messages_used,
+        messages_limit: agent.messages_limit,
+        plan_status: agent.plan_status,
+        plan_expires_at: agent.plan_expires_at,
+      })
+      if (!gate.reply) {
+        console.log('Webhook Debug: bot gated —', gate.reason)
+        return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: gate.reason })
       }
     }
 
