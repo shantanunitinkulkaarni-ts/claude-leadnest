@@ -104,6 +104,9 @@ export async function sendViaMsg91(
         integrated_number: integratedNumber,
         content_type: 'text',
         recipient_number: to,
+        // Non-bulk session API expects `text` at the top level
+        // (returns "text not found in request" when nested under payload).
+        text: message,
         payload: {
           to,
           type: 'text',
