@@ -65,12 +65,24 @@ export async function POST(request: NextRequest) {
 
     let agent: any = null
     if (incomingProvider === 'msg91') {
-      // Map MSG91 inbound to an agent. For now route to a configured test agent;
-      // later this maps body.integratedNumber → the agent who owns that number.
-      const testId = process.env.MSG91_TEST_AGENT_ID
-      if (testId) {
-        const { data } = await supabaseAdmin.from('agents').select('*').eq('id', testId).single()
+      // Map the MSG91 business number that received the message → its owning agent
+      // (multi-tenant). Numbers are stored digits-only; normalise before matching.
+      const inboundNum = msg91IntegratedNumber.replace(/\D/g, '')
+      if (inboundNum) {
+        const { data } = await supabaseAdmin
+          .from('agents').select('*')
+          .eq('msg91_integrated_number', inboundNum)
+          .maybeSingle()
         agent = data
+      }
+      // Fallback for single-number setups (e.g. founder's own test SIM): route to
+      // the agent named in MSG91_TEST_AGENT_ID when no number match is found.
+      if (!agent) {
+        const testId = process.env.MSG91_TEST_AGENT_ID
+        if (testId) {
+          const { data } = await supabaseAdmin.from('agents').select('*').eq('id', testId).single()
+          agent = data
+        }
       }
     } else if (forcedAgentId) {
       const { data } = await supabaseAdmin.from('agents').select('*').eq('id', forcedAgentId).single()

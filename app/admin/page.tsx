@@ -13,6 +13,8 @@ export default function AdminDashboard() {
   // Modals state
   const [showBalModal, setShowBalModal] = useState<string | null>(null) // agency id
   const [newBal, setNewBal] = useState('')
+  const [showNumModal, setShowNumModal] = useState<string | null>(null) // agency id
+  const [newNum, setNewNum] = useState('')
 
   useEffect(() => {
     async function checkAdmin() {
@@ -75,6 +77,19 @@ export default function AdminDashboard() {
     })
   }
 
+  const handleUpdateNumber = async (agencyId: string) => {
+    // Store digits only (e.g. 919876543210) to match the webhook's normalisation.
+    const digits = newNum.replace(/\D/g, '')
+    setAgencies(prev => prev.map(a => a.id === agencyId ? { ...a, msg91_integrated_number: digits } : a))
+    setShowNumModal(null)
+    setNewNum('')
+    await fetch('/api/agent?id=' + agencyId, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ msg91_integrated_number: digits })
+    })
+  }
+
   const handleImpersonate = async (agencyId: string) => {
     // To impersonate, we can overwrite the team_members record for this session, 
     // OR we can just use localStorage to force a specific agentId if we want to build a switcher.
@@ -110,6 +125,7 @@ export default function AdminDashboard() {
                 <th style={{ padding: '12px 20px', fontSize: 12, fontWeight: 500, color: '#6B6860' }}>Owner Email</th>
                 <th style={{ padding: '12px 20px', fontSize: 12, fontWeight: 500, color: '#6B6860' }}>Status</th>
                 <th style={{ padding: '12px 20px', fontSize: 12, fontWeight: 500, color: '#6B6860' }}>WA Balance</th>
+                <th style={{ padding: '12px 20px', fontSize: 12, fontWeight: 500, color: '#6B6860' }}>WhatsApp #</th>
                 <th style={{ padding: '12px 20px', fontSize: 12, fontWeight: 500, color: '#6B6860' }}>Actions</th>
               </tr>
             </thead>
@@ -131,6 +147,14 @@ export default function AdminDashboard() {
                       <button onClick={() => setShowBalModal(agency.id)} style={{ padding: '2px 6px', fontSize: 11, background: '#F4F3EE', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Edit</button>
                     </div>
                   </td>
+                  <td style={{ padding: '16px 20px', fontSize: 13, color: '#15161B' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ color: agency.msg91_integrated_number ? '#15161B' : '#C0392B' }}>
+                        {agency.msg91_integrated_number || 'not set'}
+                      </span>
+                      <button onClick={() => { setShowNumModal(agency.id); setNewNum(agency.msg91_integrated_number || '') }} style={{ padding: '2px 6px', fontSize: 11, background: '#F4F3EE', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Edit</button>
+                    </div>
+                  </td>
                   <td style={{ padding: '16px 20px' }}>
                     <button onClick={() => handleImpersonate(agency.id)} style={{ fontSize: 12, padding: '6px 12px', background: '#FAFAFB', border: '1px solid rgba(26,25,22,0.18)', borderRadius: 6, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
                       Impersonate
@@ -140,7 +164,7 @@ export default function AdminDashboard() {
               ))}
               {agencies.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ padding: 40, textAlign: 'center', color: '#6B6860', fontSize: 14 }}>
+                  <td colSpan={6} style={{ padding: 40, textAlign: 'center', color: '#6B6860', fontSize: 14 }}>
                     No agencies registered yet.
                   </td>
                 </tr>
@@ -166,6 +190,28 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => { setShowBalModal(null); setNewBal(''); }} style={{ padding: '8px 16px', borderRadius: 8, background: '#F4F3EE', border: 'none', cursor: 'pointer', fontWeight: 500 }}>Cancel</button>
               <button onClick={() => handleUpdateBalance(showBalModal)} style={{ padding: '8px 16px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 500 }}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNumModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div style={{ background: '#fff', padding: 24, borderRadius: 12, width: 360, boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
+            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 6, color: '#15161B' }}>MSG91 WhatsApp Number</div>
+            <div style={{ fontSize: 12, color: '#6B6860', marginBottom: 16 }}>The agent&apos;s WhatsApp business number registered in MSG91, with country code (e.g. 919876543210). Inbound messages to this number route to this agency.</div>
+            <input
+              type="text"
+              value={newNum}
+              onChange={e => setNewNum(e.target.value)}
+              placeholder="e.g. 919876543210"
+              style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', marginBottom: 16, outline: 'none' }}
+              autoFocus
+              onKeyDown={e => e.key === 'Enter' && handleUpdateNumber(showNumModal)}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowNumModal(null); setNewNum(''); }} style={{ padding: '8px 16px', borderRadius: 8, background: '#F4F3EE', border: 'none', cursor: 'pointer', fontWeight: 500 }}>Cancel</button>
+              <button onClick={() => handleUpdateNumber(showNumModal)} style={{ padding: '8px 16px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 500 }}>Save</button>
             </div>
           </div>
         </div>
