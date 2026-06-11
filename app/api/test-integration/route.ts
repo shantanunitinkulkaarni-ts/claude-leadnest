@@ -1,9 +1,16 @@
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from 'next/server'
+import { headers } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase'
 
 export async function GET() {
+  // Debug-only endpoint: writes mock data. Locked behind CRON_SECRET so it
+  // can't be triggered (or used to enumerate/seed data) by the public.
+  const auth = headers().get('authorization')
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new NextResponse('Not found', { status: 404 })
+  }
   const testAgentId = process.env.TWILIO_TEST_AGENT_ID
   let passed = 0
   let failed = 0
