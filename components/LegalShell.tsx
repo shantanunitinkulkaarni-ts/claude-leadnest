@@ -27,6 +27,7 @@ export default function LegalShell({ children }: { children: React.ReactNode }) 
       <footer style={{ borderTop: '1px solid #E8E5DF', background: '#fff' }}>
         <div style={{ maxWidth: 820, margin: '0 auto', padding: '24px', textAlign: 'center', fontSize: 13, color: '#6B6860' }}>
           <div style={{ marginBottom: 6 }}>
+            <Link href="/help" style={{ color: '#4F46E5', textDecoration: 'none', margin: '0 10px' }}>Help & FAQ</Link>
             <Link href="/privacy-policy" style={{ color: '#4F46E5', textDecoration: 'none', margin: '0 10px' }}>Privacy Policy</Link>
             <Link href="/terms-of-service" style={{ color: '#4F46E5', textDecoration: 'none', margin: '0 10px' }}>Terms of Service</Link>
           </div>
