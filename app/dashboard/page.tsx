@@ -119,7 +119,7 @@ export default function DashboardPage() {
           </ErrorBoundary>
         </div>
       </div>
-      <SupportChat />
+      <SupportChat agentId={agentId ?? undefined} />
       <TutorialWalkthrough onNavigate={setScreen} />
     </div>
   )

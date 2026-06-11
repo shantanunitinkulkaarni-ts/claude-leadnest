@@ -37,7 +37,7 @@ function Escalation({ context }: { context: string }) {
   )
 }
 
-export default function SupportChat() {
+export default function SupportChat({ agentId }: { agentId?: string } = {}) {
   const [isOpen, setIsOpen] = useState(false)
   const [msg, setMsg] = useState('')
   const [loading, setLoading] = useState(false)
@@ -63,7 +63,7 @@ export default function SupportChat() {
       const res = await fetch('/api/support-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: payload }),
+        body: JSON.stringify({ messages: payload, agent_id: agentId }),
       })
       const data = await res.json()
       const reply = data.response || "I'm having trouble right now — please use Contact support below."
