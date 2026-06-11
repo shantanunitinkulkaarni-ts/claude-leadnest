@@ -21,6 +21,9 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
   const [subError, setSubError] = useState<string | null>(null)
   const [subMsg, setSubMsg] = useState<string | null>(null)
 
+  // Billing history (subscription receipts)
+  const [invoices, setInvoices] = useState<{ id: string; date: string; amount: number; payment_id: string }[]>([])
+
   const loadAgent = () => {
     fetch('/api/agent?id=' + agentId)
       .then(r => r.json())
@@ -35,7 +38,14 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
       })
   }
 
-  useEffect(() => { loadAgent() }, [agentId])
+  const loadInvoices = () => {
+    fetch('/api/subscription/invoices?agent_id=' + agentId)
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.invoices)) setInvoices(d.invoices) })
+      .catch(() => {})
+  }
+
+  useEffect(() => { loadAgent(); loadInvoices() }, [agentId])
 
   const fmtDate = (iso: string | null) => {
     if (!iso) return '—'
@@ -235,6 +245,34 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
           )}
         </div>
       </div>
+
+      {/* ── Billing history (subscription receipts) ──────── */}
+      {invoices.length > 0 && (
+        <>
+          <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>Billing history</div>
+          <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '8px 20px', marginBottom: 28 }}>
+            {invoices.map((inv, i) => (
+              <div key={inv.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: i < invoices.length - 1 ? '1px solid rgba(26,25,22,0.06)' : 'none' }}>
+                <div>
+                  <div style={{ fontSize: 13, color: '#15161B', fontWeight: 500 }}>Convorian subscription</div>
+                  <div style={{ fontSize: 12, color: '#9E9B92', marginTop: 2 }}>{fmtDate(inv.date)}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#15161B' }}>₹{inv.amount.toLocaleString('en-IN')}</span>
+                  <a
+                    href={`/api/subscription/receipt?agent_id=${encodeURIComponent(agentId)}&event_id=${encodeURIComponent(inv.id)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 12, fontWeight: 500, color: '#4F46E5', textDecoration: 'none', border: '1px solid rgba(79,70,229,0.3)', borderRadius: 7, padding: '6px 12px' }}
+                  >
+                    Receipt
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>WhatsApp balance</div>
       <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: 24, marginBottom: 14 }}>
