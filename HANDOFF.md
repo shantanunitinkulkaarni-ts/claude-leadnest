@@ -62,6 +62,16 @@
 - Jupiter card ✅ added to Meta account. Clean WhatsApp number still needed.
 - **Security cleanup — ✅ DONE (June 10).** Rotated ALL exposed secrets with zero downtime: GitHub token (removed from git remote, deleted on GitHub, now in Windows Credential Manager vault — git push/pull works via vault; for GitHub REST API calls retrieve token transiently via `git credential fill`), Groq key, Resend key, Supabase DB password (backup secret + Vercel updated), Supabase service-role key (migrated to NEW API key system: publishable `sb_publishable_...` + secret `sb_secret_...`; legacy JWT-based keys DISABLED in Supabase → old leaked key is dead). JWT signing key left untouched (no forced logouts). Local `.env` refreshed via `vercel env pull` — in sync with prod. Twilio skipped (unused). Verified: site 200, bot + DB working on new keys.
 - Outreach to warm network (target 10 clients / ₹10k July; ₹999 monthly, skip annual for now)
+- **Verify Supabase → Auth → URL config** (founder-only, can't check from code): Site URL `https://convorian.in`, redirects incl `/reset-password`, `/**`.
+
+## SECURITY & COMPLIANCE (June 11 audit)
+- **RLS now ON for ALL data tables** + tenant-scoped policies via `team_members`: agents, leads, messages, appointments, properties, wa_transactions, support_chat_logs, subscription_events, demo_rate_limits. (leads/messages/appointments/properties were RLS-OFF — fixed; were not publicly readable as anon/authenticated lacked SELECT, but now defense-in-depth.) App reads via service_role (bypasses RLS) so behaviour unchanged. Migrations: `rls_lockdown_migration.sql`, `rls_tenant_policies_migration.sql`.
+- **Security headers** live (HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy). CSP still PENDING (needs testing vs Razorpay/Sentry).
+- **Debug endpoint** `/api/test-integration` now CRON_SECRET-gated (was public).
+- **SEO**: robots.txt + sitemap.xml live.
+- **Consent**: onboarding now has a required Terms+Privacy+marketing consent checkbox; stored on agents (`consent_terms/consent_marketing/consent_at`). Privacy/Terms have the AI data-use clause. Migration: `consent_trial_migration.sql`.
+- **30-day FREE TRIAL live (promo):** onboarding sets `plan_status='trial'`, `messages_limit=500`, `wa_balance=10` (₹10 starter), `plan_expires_at=+30d`. Webhook pauses the bot when a trial lapses (no paid sub). Nurture emails run across the 30 days → upgrade. Paying flips plan_status to 'active' via Razorpay webhook.
+- ⏳ **Security PENDING:** CSP header; rate limiting on public routes (register/support-chat); add `middleware.ts` for page-level auth (defense-in-depth); periodic RLS cross-tenant test.
 
 ## 3. ENGINEERING MATURITY PLAN (do this properly — phased, not skipped)
 

@@ -122,7 +122,9 @@ export async function POST(request: NextRequest) {
       const planStatus = agent.plan_status || 'active'
       const paidThrough = agent.plan_expires_at ? new Date(agent.plan_expires_at) : null
       const expired = paidThrough ? paidThrough.getTime() < Date.now() : false
-      if (planStatus === 'halted' || ((planStatus === 'cancelled' || planStatus === 'pending') && expired)) {
+      // 'trial' lapses like cancelled/pending: once the 30-day window ends with no
+      // paid subscription (paying flips plan_status to 'active'), pause the bot.
+      if (planStatus === 'halted' || ((planStatus === 'cancelled' || planStatus === 'pending' || planStatus === 'trial') && expired)) {
         console.log('Webhook Debug: Subscription inactive', { planStatus, expired })
         return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'subscription_inactive' })
       }

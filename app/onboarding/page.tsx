@@ -9,6 +9,7 @@ export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(0)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [consentGiven, setConsentGiven] = useState(false)
   const [error, setError] = useState('')
 
   // Step 1: Account (now handled mostly by Google)
@@ -183,6 +184,10 @@ export default function OnboardingPage() {
       setError('Agency name and city are required.')
       return
     }
+    if (!consentGiven) {
+      setError('Please accept the Terms of Service and Privacy Policy to continue.')
+      return
+    }
     setIsSubmitting(true)
     try {
       const supabase = getSupabase()
@@ -193,6 +198,11 @@ export default function OnboardingPage() {
       const finalEmail = email || userData.user.email || ''
       const finalName = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : (userMeta.full_name || userMeta.name || 'Agent')
       const finalPhone = phone || userMeta.phone || ''
+
+      // 30-day free trial: trial status, 500-message cap, ₹10 starter wallet
+      // (so they can fully test free), and an explicit expiry the bot enforces.
+      const trialExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      const nowIso = new Date().toISOString()
 
       // Insert into agents (Workspace)
       const { data: agentDataRaw, error: agentError } = await supabase.from('agents').insert({
@@ -209,9 +219,15 @@ export default function OnboardingPage() {
         office_open: officeOpen,
         office_close: officeClose,
         bot_active: true,
-        wa_balance: 0,
-        plan: 'free',
-        plan_status: 'active'
+        wa_balance: 10,
+        messages_limit: 500,
+        plan: 'trial',
+        plan_status: 'trial',
+        plan_started_at: nowIso,
+        plan_expires_at: trialExpiry,
+        consent_terms: true,
+        consent_marketing: true,
+        consent_at: nowIso
       }).select().single()
 
       if (agentError) throw agentError
@@ -516,9 +532,20 @@ export default function OnboardingPage() {
                   </div>
                 </div>
               </div>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: '20px 0 4px', fontSize: 13, color: 'var(--ink-2, #4A4843)', lineHeight: 1.5, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={consentGiven}
+                  onChange={e => setConsentGiven(e.target.checked)}
+                  style={{ marginTop: 2, width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }}
+                />
+                <span>
+                  I agree to Convorian&apos;s <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green, #4F46E5)', textDecoration: 'underline' }}>Terms of Service</a> and <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green, #4F46E5)', textDecoration: 'underline' }}>Privacy Policy</a>, and consent to receive product updates, tips and offers from Convorian on WhatsApp and email. You can opt out anytime.
+                </span>
+              </label>
               <div className="form-footer">
                 <button className="btn-back" onClick={() => setCurrentStep(1)}>← Back</button>
-                <button className="btn-next" disabled={isSubmitting} onClick={handleSaveProfile}>{isSubmitting ? 'Saving...' : 'Continue'}</button>
+                <button className="btn-next" disabled={isSubmitting || !consentGiven} onClick={handleSaveProfile}>{isSubmitting ? 'Saving...' : 'Continue'}</button>
               </div>
             </div>
           )}
