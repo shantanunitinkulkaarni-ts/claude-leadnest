@@ -176,6 +176,12 @@ export default function InboxScreen({ agentId }: Props) {
   }, [agentId])
 
   // Fetching Messages + Activity + WebSockets
+  // Keep the Manual/Auto toggle in sync with the lead's SAVED state, so the
+  // button never shows "Auto" while the bot is actually paused in the DB.
+  useEffect(() => {
+    setIsManual(!!selected?.bot_paused)
+  }, [selected])
+
   useEffect(() => {
     if (!selected) return
     fetchMessages()
