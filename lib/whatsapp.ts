@@ -95,11 +95,15 @@ export async function sendViaMsg91(
     const authkey = process.env.MSG91_AUTHKEY
     if (!authkey) { console.error('MSG91 send: MSG91_AUTHKEY not set'); return null }
     const to = toPhone.replace(/^\+/, '')
+    // NOTE: the /bulk/ variant of this endpoint accepts ONLY templates
+    // ("for now, only template is supported for bulk"). Free-text session
+    // replies (inside the 24h window) must use the non-bulk endpoint.
     const res = await axios.post(
-      'https://control.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/',
+      'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/',
       {
         integrated_number: integratedNumber,
         content_type: 'text',
+        recipient_number: to,
         payload: {
           to,
           type: 'text',
