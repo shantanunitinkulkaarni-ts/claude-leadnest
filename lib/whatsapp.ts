@@ -83,6 +83,40 @@ async function sendViaTwilio(
   }
 }
 
+// ─── MSG91 sender (WhatsApp Business API via MSG91 BSP) ───────────────────────
+// Sends a free-text session reply (within the 24h window) through MSG91.
+// integratedNumber = the business number that received the message (from webhook).
+export async function sendViaMsg91(
+  integratedNumber: string,
+  toPhone: string,
+  message: string
+): Promise<string | null> {
+  try {
+    const authkey = process.env.MSG91_AUTHKEY
+    if (!authkey) { console.error('MSG91 send: MSG91_AUTHKEY not set'); return null }
+    const to = toPhone.replace(/^\+/, '')
+    const res = await axios.post(
+      'https://control.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/',
+      {
+        integrated_number: integratedNumber,
+        content_type: 'text',
+        payload: {
+          to,
+          type: 'text',
+          text: { body: message },
+          messaging_product: 'whatsapp'
+        }
+      },
+      { headers: { authkey, 'Content-Type': 'application/json' } }
+    )
+    console.log('MSG91 send OK:', JSON.stringify(res.data).slice(0, 400))
+    return res.data?.data?.[0]?.requestId || res.data?.requestId || res.data?.request_id || 'sent'
+  } catch (err: any) {
+    console.error('MSG91 send ERROR:', JSON.stringify(err?.response?.data || err?.message).slice(0, 600))
+    return null
+  }
+}
+
 // ─── Template message (Meta only — Twilio uses free-form for sandbox) ─────────
 export async function sendWhatsAppTemplate(
   phoneNumberId: string,
