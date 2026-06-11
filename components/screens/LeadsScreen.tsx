@@ -10,7 +10,7 @@ const STATUS_MAP: Record<string, string[]> = {
   'New': ['new', 'contacted'],
   'Qualified': ['qualified'],
   'Visit Booked': ['visit_booked', 'visit_done'],
-  'Closed': ['closed_won', 'closed_lost']
+  'Closed': ['closed_won', 'closed_lost', 'closed_rented']
 }
 
 const DROP_STATUS: Record<string, string> = {
@@ -102,7 +102,17 @@ export default function LeadsScreen({ agentId }: Props) {
     e.preventDefault()
     if (!draggedId || !isUnlocked) return
 
-    const dbStatus = DROP_STATUS[colStatus] || colStatus.toLowerCase()
+    let dbStatus = DROP_STATUS[colStatus] || colStatus.toLowerCase()
+
+    // Closing a lead: capture the real OUTCOME (won/lost/rented). This is the
+    // ground-truth signal the engine learns from — don't assume "won".
+    if (colStatus === 'Closed') {
+      const choice = (window.prompt('How did this lead close?\nType: won, lost, or rented', 'won') || '').trim().toLowerCase()
+      if (!choice) { setDraggedId(null); return } // cancelled — abort the move
+      if (choice.startsWith('l')) dbStatus = 'closed_lost'
+      else if (choice.startsWith('r')) dbStatus = 'closed_rented'
+      else dbStatus = 'closed_won'
+    }
 
     // Optimistic update
     setLeads(prev => prev.map(l => l.id === draggedId ? { ...l, status: dbStatus } : l))
