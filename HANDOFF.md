@@ -103,6 +103,7 @@ Vision (founder): an engine that **learns from conversations and customizes per 
 - **Now:** Groq + sophisticated prompt engineering (the IP is the prompting + stage logic).
 - **Phase 1:** per-agent context (their properties, tone, areas) already feeds the prompt — deepen this so each client's bot feels tailored.
 - **Phase 2:** capture which messages/conversations convert → feed back as few-shot examples per vertical/agent (lightweight "learning" without training).
+  - **June 11 progress (support bot):** support-chat prompt overhauled to be empathetic + context-aware (WhatsApp launching-soon, refund handling). **Conversation logging LIVE** — every turn logged to `support_chat_logs` (table created in prod; `support_chat_logs_migration.sql`). This is the data foundation. **NEXT learning step:** retrieve best past answers (or thumbs-up rated ones — `helpful` column exists) as few-shot examples in the prompt. Same pattern can extend to the main WhatsApp lead bot.
 - **Phase 3:** fine-tune an open model (Llama/Mistral) on anonymised winning conversations (with consent) → the "Convorian engine".
 - **Data flywheel:** more agents → more conversations → better engine → more conversions → more agents. Protect it.
 - Engine name TBD (Converge / Cortex — deferred).
