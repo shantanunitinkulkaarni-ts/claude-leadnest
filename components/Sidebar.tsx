@@ -123,9 +123,40 @@ export default function Sidebar({ activeScreen, onNavigate, agent, isOpen = fals
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>{agencyName}</div>
               </div>
             </div>
-            <div onClick={toggleBot} style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 5, background: botActive ? 'rgba(129,140,248,0.15)' : 'rgba(255,255,255,0.08)', border: `1px solid ${botActive ? 'rgba(129,140,248,0.25)' : 'rgba(255,255,255,0.15)'}`, borderRadius: 20, padding: '4px 10px', cursor: 'pointer' }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: botActive ? '#818CF8' : '#888' }} />
-              <span style={{ fontSize: 10, color: botActive ? '#818CF8' : 'rgba(255,255,255,0.4)', fontWeight: 500 }}>{botActive ? 'Bot active' : 'Bot paused'}</span>
+            {/* AI Bot toggle — full-width row with a proper switch */}
+            <div
+              onClick={toggleBot}
+              title={botActive ? 'AI bot is replying to leads. Click to pause.' : 'AI bot is paused. Click to activate.'}
+              style={{
+                marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                gap: 8, padding: '8px 12px', borderRadius: 10, cursor: 'pointer',
+                background: botActive ? 'rgba(129,140,248,0.12)' : 'rgba(255,255,255,0.05)',
+                border: `1px solid ${botActive ? 'rgba(129,140,248,0.30)' : 'rgba(255,255,255,0.12)'}`,
+                transition: 'background 0.2s, border-color 0.2s'
+              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                  background: botActive ? '#818CF8' : 'rgba(255,255,255,0.35)',
+                  boxShadow: botActive ? '0 0 6px rgba(129,140,248,0.8)' : 'none',
+                  transition: 'all 0.2s'
+                }} />
+                <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.01em', color: botActive ? '#C7D2FE' : 'rgba(255,255,255,0.5)' }}>
+                  {botActive ? 'AI Bot active' : 'AI Bot paused'}
+                </span>
+              </div>
+              {/* Switch track + knob */}
+              <div style={{
+                width: 34, height: 19, borderRadius: 20, flexShrink: 0, position: 'relative',
+                background: botActive ? 'linear-gradient(135deg,#6366F1,#4F46E5)' : 'rgba(255,255,255,0.18)',
+                transition: 'background 0.2s'
+              }}>
+                <span style={{
+                  position: 'absolute', top: 2.5, left: botActive ? 17.5 : 2.5,
+                  width: 14, height: 14, borderRadius: '50%', background: '#fff',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.35)', transition: 'left 0.2s ease'
+                }} />
+              </div>
             </div>
           </div>
           {/* Nav */}
