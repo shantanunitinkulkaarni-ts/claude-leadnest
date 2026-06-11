@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { generateBotReply } from '@/lib/gemini'
-import { sendWhatsAppMessage } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, sendViaMsg91 } from '@/lib/whatsapp'
 import * as chrono from 'chrono-node'
 
 const PROVIDER = process.env.WHATSAPP_PROVIDER || 'meta'
@@ -23,6 +23,8 @@ export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get('content-type') || ''
     let fromPhone = '', messageText = '', waMessageId = '', phoneNumberId = '', forcedAgentId = ''
+    let incomingProvider: 'meta' | 'twilio' | 'msg91' = PROVIDER === 'twilio' ? 'twilio' : 'meta'
+    let msg91IntegratedNumber = ''
 
     if (PROVIDER === 'twilio' || contentType.includes('application/x-www-form-urlencoded')) {
       const text = await request.text()
@@ -37,19 +39,40 @@ export async function POST(request: NextRequest) {
       if (!messageText || !fromPhone) return new NextResponse('OK', { status: 200 })
     } else {
       const body = await request.json()
-      if (body.object !== 'whatsapp_business_account') return NextResponse.json({ status: 'ignored' })
-      const value = body.entry?.[0]?.changes?.[0]?.value
-      if (!value?.messages?.length) return NextResponse.json({ status: 'no_messages' })
-      const incomingMsg = value.messages[0]
-      phoneNumberId = value.metadata?.phone_number_id || ''
-      fromPhone = incomingMsg.from || ''
-      messageText = incomingMsg.text?.body || ''
-      waMessageId = incomingMsg.id || ''
-      if (!messageText || !phoneNumberId) return NextResponse.json({ status: 'no_text' })
+      // ── MSG91 (BSP) inbound — detected by its distinctive fields ──
+      if (body.integratedNumber && (body.customerNumber || body.messages)) {
+        incomingProvider = 'msg91'
+        msg91IntegratedNumber = String(body.integratedNumber)
+        fromPhone = body.customerNumber ? '+' + String(body.customerNumber).replace(/^\+/, '') : ''
+        messageText = body.text || ''
+        waMessageId = body.uuid || ''
+        if (body.contentType && body.contentType !== 'text') return NextResponse.json({ status: 'ignored_non_text' })
+        if (!messageText || !fromPhone) return NextResponse.json({ status: 'no_text' })
+      } else if (body.object === 'whatsapp_business_account') {
+        // ── Meta Cloud API inbound ──
+        const value = body.entry?.[0]?.changes?.[0]?.value
+        if (!value?.messages?.length) return NextResponse.json({ status: 'no_messages' })
+        const incomingMsg = value.messages[0]
+        phoneNumberId = value.metadata?.phone_number_id || ''
+        fromPhone = incomingMsg.from || ''
+        messageText = incomingMsg.text?.body || ''
+        waMessageId = incomingMsg.id || ''
+        if (!messageText || !phoneNumberId) return NextResponse.json({ status: 'no_text' })
+      } else {
+        return NextResponse.json({ status: 'ignored' })
+      }
     }
 
     let agent: any = null
-    if (forcedAgentId) {
+    if (incomingProvider === 'msg91') {
+      // Map MSG91 inbound to an agent. For now route to a configured test agent;
+      // later this maps body.integratedNumber → the agent who owns that number.
+      const testId = process.env.MSG91_TEST_AGENT_ID
+      if (testId) {
+        const { data } = await supabaseAdmin.from('agents').select('*').eq('id', testId).single()
+        agent = data
+      }
+    } else if (forcedAgentId) {
       const { data } = await supabaseAdmin.from('agents').select('*').eq('id', forcedAgentId).single()
       agent = data
     } else if (PROVIDER === 'twilio') {
@@ -320,9 +343,14 @@ export async function POST(request: NextRequest) {
     })
 
     // Then attempt WhatsApp delivery (non-blocking — simulation works even if this fails)
-    const toPhone = PROVIDER === 'twilio' ? `whatsapp:${fromPhone}` : fromPhone
     try {
-      const outWaId = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, toPhone, reply)
+      let outWaId: string | null
+      if (incomingProvider === 'msg91') {
+        outWaId = await sendViaMsg91(msg91IntegratedNumber, fromPhone, reply)
+      } else {
+        const toPhone = PROVIDER === 'twilio' ? `whatsapp:${fromPhone}` : fromPhone
+        outWaId = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, toPhone, reply)
+      }
       if (outWaId) {
         await supabaseAdmin.from('messages')
           .update({ wa_message_id: outWaId })
