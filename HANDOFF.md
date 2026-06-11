@@ -29,6 +29,8 @@
 - **Dependabot:** weekly npm vulnerability PRs configured (`.github/dependabot.yml`).
 - **Mobile:** Sidebar is now a collapsible drawer with hamburger. Dashboard usable on phones.
 - **Demo account** (Razorpay + Meta reviewers): demo@convorian.in / ConvorianDemo@2026 (has the WhatsApp test number + sample data).
+- **Invoices/receipts (June 11):** Balance screen now has a "Billing history" list (`/api/subscription/invoices`) with per-payment branded printable receipts (`/api/subscription/receipt`, Print→Save-as-PDF, no PDF lib). Backed by existing `subscription_events`; no migration. Labelled payment receipt, not tax invoice (no GST). LIVE.
+- **Help/FAQ + support chat (June 11):** `/help` page (FAQ accordion via `lib/faq.ts`, shared chrome) LIVE. Support chat (floating bubble on dashboard + /help) is now real — Groq-grounded on the FAQ KB (`/api/support-chat`), degrades gracefully, and escalates to a human. Escalation surfaces WhatsApp + email (`lib/support.ts`). **WhatsApp number is a PLACEHOLDER** — until `NEXT_PUBLIC_SUPPORT_WHATSAPP` is set in Vercel it shows "WhatsApp support — launching soon" + email (no dead links). One-line swap when the business SIM arrives. LIVE.
 
 ## 2. PENDING ⏳
 
@@ -50,7 +52,9 @@
 - [x] **Tests + CI** — DONE (June 10). Playwright tests (`npm test`) + GitHub Actions CI (lint/typecheck/tests) on every PR. Process now: branch → PR → CI green → merge.
 - [x] **CLAUDE.md briefing rewritten** (June 10) — every session now told to read HANDOFF.md first.
 - [x] **Sentry MCP** — ACTIVE. OAuth done, tools live. Org `covorian` (EU region `de.sentry.io`). Checked: only 1 sample test error, no real production errors. Say "check my Sentry errors" anytime.
-- [ ] **NEXT UP (CTO queue):** (1) Invoice/receipt screen for subscribers, (2) Help/FAQ page + support chat (RAG), (3) SEO foundation. Also pending: clean WhatsApp business number (founder), invoice history for ₹999 subscribers.
+- [x] **CTO queue (1) Invoice/receipt screen** — DONE & LIVE (June 11).
+- [x] **CTO queue (2) Help/FAQ page + support chat** — DONE & LIVE (June 11). Full ticketing/support team is a later phase (founder's call).
+- [ ] **NEXT UP (CTO queue): (3) SEO foundation.** Also pending: clean WhatsApp business number (founder) — once the SIM arrives, set `NEXT_PUBLIC_SUPPORT_WHATSAPP` in Vercel (digits only, e.g. 9198xxxxxxxx) to flip the support-chat WhatsApp button live.
 
 **Founder tasks:**
 - Supabase → Auth → URL config: Site URL `https://convorian.in`; Redirect URLs add `/reset-password`, `/**`, `localhost:3003/**`
