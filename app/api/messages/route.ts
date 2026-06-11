@@ -37,21 +37,28 @@ export async function POST(request: NextRequest) {
 
   const { data: agent } = await supabaseAdmin
     .from('agents')
-    .select('wa_phone_number_id, wa_access_token')
+    .select('wa_phone_number_id, wa_access_token, msg91_integrated_number')
     .eq('id', body.agent_id)
     .single()
 
-  if (!agent?.wa_phone_number_id) {
+  if (!agent?.wa_phone_number_id && !agent?.msg91_integrated_number) {
     return NextResponse.json({ error: 'WhatsApp not connected' }, { status: 400 })
   }
 
-  const { sendWhatsAppMessage } = await import('@/lib/whatsapp')
-  const waId = await sendWhatsAppMessage(
-    agent.wa_phone_number_id,
-    agent.wa_access_token,
-    body.phone,
-    body.content
-  )
+  // Agents connected via MSG91 send through it; others via Meta/Twilio.
+  let waId: string | null
+  if (agent.msg91_integrated_number) {
+    const { sendViaMsg91 } = await import('@/lib/whatsapp')
+    waId = await sendViaMsg91(agent.msg91_integrated_number, body.phone, body.content)
+  } else {
+    const { sendWhatsAppMessage } = await import('@/lib/whatsapp')
+    waId = await sendWhatsAppMessage(
+      agent.wa_phone_number_id,
+      agent.wa_access_token,
+      body.phone,
+      body.content
+    )
+  }
 
   const { data, error } = await supabaseAdmin
     .from('messages')
