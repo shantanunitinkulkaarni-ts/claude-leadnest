@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import Groq from 'groq-sdk'
+import { glmChat, glmKey } from '@/lib/llm'
 import { faqAsText } from '@/lib/faq'
 import { supportWhatsappConfigured } from '@/lib/support'
 import { supabaseAdmin } from '@/lib/supabase'
@@ -28,15 +28,13 @@ export async function POST(req: Request) {
       })
     }
 
-    const apiKey = process.env.GROQ_API_KEY
-    if (!apiKey) {
+    if (!glmKey()) {
       // Degrade gracefully — never blank. Send them straight to a human.
       return NextResponse.json({
         response: 'Our assistant is briefly unavailable. Please use the “Contact support” option below and we’ll help you right away.',
         escalate: true,
       })
     }
-    const groq = new Groq({ apiKey })
 
     // Tell the model what the escalation UI can actually offer, so its words
     // match the buttons the user sees (no "use WhatsApp" when WhatsApp isn't live).
@@ -73,18 +71,14 @@ RULES:
     }))
     const last = String(messages[messages.length - 1]?.content || '')
 
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
+    let text = await glmChat(
+      [
         { role: 'system' as const, content: systemPrompt },
         ...history,
         { role: 'user' as const, content: last },
       ],
-      max_tokens: 220,
-      temperature: 0.4,
-    })
-
-    let text = completion.choices[0]?.message?.content?.trim() || ''
+      { maxTokens: 220, temperature: 0.4 }
+    )
     const escalate = text.includes('[ESCALATE]')
     text = text.replace('[ESCALATE]', '').trim()
     if (!text) text = "I want to make sure you get the right answer — tap “Contact support” below and our team will help."

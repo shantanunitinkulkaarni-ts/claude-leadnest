@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic"
-// Engine can take Gemini (12s) + Groq fallback + DB work — without this Vercel
+// Engine can take a GLM attempt (8s) + retry (20s) + DB work — without this Vercel
 // kills the function mid-run and Meta/MSG91 retry the webhook, causing double replies.
 export const maxDuration = 60
 
@@ -191,20 +191,20 @@ export async function POST(request: NextRequest) {
       return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'manual_mode' })
     }
 
-    console.log(`Webhook Debug: Calling Gemini for lead ${lead.phone} with message: "${messageText}"`)
+    console.log(`Webhook Debug: Calling engine for lead ${lead.phone} with message: "${messageText}"`)
     const tEngine = Date.now()
     let reply: string, metadata: any
     try {
       const result = await generateBotReply(agent.id, lead.id, messageText)
       reply = result.reply
       metadata = result.metadata
-    } catch (groqErr: any) {
-      console.error('Webhook: Groq/AI error, using fallback reply', groqErr.message)
+    } catch (engineErr: any) {
+      console.error('Webhook: engine error, using fallback reply', engineErr.message)
       reply = `Thank you for reaching out! Our team will get back to you shortly. 🙏`
       metadata = {}
     }
     console.log(`Webhook Timing: engine took ${Date.now() - tEngine}ms`)
-    console.log(`Webhook Debug: Gemini replied with: "${reply}" and metadata:`, metadata)
+    console.log(`Webhook Debug: Engine replied with: "${reply}" and metadata:`, metadata)
 
     const leadUpdates: any = { updated_at: now }
     if (metadata.score) leadUpdates.ai_score = metadata.score
