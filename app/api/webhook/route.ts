@@ -319,17 +319,17 @@ export async function POST(request: NextRequest) {
               title: 'Action needed: call this lead to fix the visit time',
               description: `${lead.name || lead.phone} has rescheduled 3+ times. The bot has stopped changing the appointment — please call them to confirm a final time.`
             })
+            // High-priority → the trio (email + WhatsApp; call later). ROI-critical.
             try {
-              const { sendEmail } = await import('@/lib/email')
-              if (agent.email) {
-                await sendEmail({
-                  to: agent.email,
-                  subject: `Action needed: ${lead.name || lead.phone} keeps rescheduling — please call them`,
-                  html: `<p>Hi ${agent.name || ''},</p><p><strong>${lead.name || 'A lead'} (${lead.phone})</strong> has rescheduled their site visit 3+ times. Your AI assistant has stopped changing the appointment and told them your team will call to fix a final time.</p><p><strong>Please call them to confirm the visit.</strong> The bot is still answering their other questions in the meantime.</p>`
-                })
-              }
-            } catch (mailErr: any) {
-              console.error('Handover email failed (non-critical):', mailErr?.message)
+              const { sendHighPriorityAlert } = await import('@/lib/alerts')
+              await sendHighPriorityAlert(agent, {
+                subject: `Action needed: ${lead.name || lead.phone} keeps rescheduling — please call them`,
+                html: `<p>Hi ${agent.name || ''},</p><p><strong>${lead.name || 'A lead'} (${lead.phone})</strong> has rescheduled their site visit 3+ times. Your AI assistant has stopped changing the appointment and told them your team will call to fix a final time.</p><p><strong>Please call them to confirm the visit.</strong> The bot is still answering their other questions in the meantime.</p>`,
+                whatsappText: `🔴 Convorian — action needed\n\n${lead.name || 'A lead'} (${lead.phone}) has rescheduled their site visit 3+ times. The AI has locked the appointment and told them your team will call.\n\n📞 Please call them now to fix the final time — this lead is at risk.`,
+                msg91IntegratedNumber,
+              })
+            } catch (alertErr: any) {
+              console.error('Handover alert failed (non-critical):', alertErr?.message)
             }
           }
 
