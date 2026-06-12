@@ -1,12 +1,71 @@
 import { supabaseAdmin } from './supabase'
 import Groq from 'groq-sdk'
+import axios from 'axios'
 
 const GROQ_MODEL = 'llama-3.3-70b-versatile'
+const GEMINI_MODEL = 'gemini-flash-latest'
 
 function getGroqClient() {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) throw new Error('GROQ_API_KEY env var is missing')
   return new Groq({ apiKey })
+}
+
+function geminiKey(): string | undefined {
+  return process.env.GEMINI_API_KEY || process.env.Gemini_API_KEY
+}
+
+// ─── Provider-agnostic engine call: Gemini primary → Groq fallback ───────────
+// Gemini Flash (free tier) is the primary brain; if it errors, is rate-limited,
+// or returns empty, we automatically fall back to Groq so the bot never goes
+// silent on a paying client. Returns the raw model text.
+async function callEngineLLM(
+  systemPrompt: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[],
+  incomingMessage: string
+): Promise<string> {
+  // 1) Try Gemini.
+  const key = geminiKey()
+  if (key) {
+    try {
+      // Gemini wants roles user|model, alternating, starting with user.
+      const contents = [
+        ...chatHistory.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
+        { role: 'user', parts: [{ text: incomingMessage }] },
+      ]
+      while (contents.length && contents[0].role === 'model') contents.shift()
+      const res = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`,
+        {
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents,
+          // thinkingBudget:0 disables Gemini 2.5 Flash's internal reasoning so it
+          // doesn't eat the output budget — we want fast, concise WhatsApp replies.
+          generationConfig: { temperature: 0.7, maxOutputTokens: 800, thinkingConfig: { thinkingBudget: 0 } },
+        },
+        { headers: { 'Content-Type': 'application/json' }, timeout: 25000 }
+      )
+      const text = res.data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('').trim()
+      if (text) return text
+      console.warn('Gemini returned empty — falling back to Groq')
+    } catch (e: any) {
+      console.warn('Gemini failed, falling back to Groq:', e?.response?.status || e?.message)
+    }
+  }
+
+  // 2) Fallback: Groq (Llama 3.3 70B).
+  const groq = getGroqClient()
+  const completion = await groq.chat.completions.create({
+    model: GROQ_MODEL,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...chatHistory,
+      { role: 'user', content: incomingMessage },
+    ],
+    max_tokens: 600,
+    temperature: 0.7,
+  })
+  return completion.choices[0]?.message?.content?.trim() || ''
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -314,21 +373,9 @@ export async function generateBotReply(
     }
   }
 
-  // ─── Call Groq (Llama 3.3 70B) ───────────────────────────────────────────
-  const groq = getGroqClient()
-  const completion = await groq.chat.completions.create({
-    model: GROQ_MODEL,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      ...chatHistory,
-      { role: 'user', content: incomingMessage }
-    ],
-    max_tokens: 600,
-    temperature: 0.7
-  })
-
-  const responseText = completion.choices[0]?.message?.content?.trim() || ''
-  if (!responseText) throw new Error('Groq returned empty response')
+  // ─── Generate reply: Gemini primary → Groq fallback ──────────────────────
+  const responseText = await callEngineLLM(systemPrompt, chatHistory, incomingMessage)
+  if (!responseText) throw new Error('Both Gemini and Groq returned empty')
 
   // Parse reply and metadata JSON from the structured response
   const lines = responseText.trim().split('\n')
