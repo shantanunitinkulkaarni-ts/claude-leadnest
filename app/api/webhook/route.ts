@@ -1,4 +1,7 @@
 export const dynamic = "force-dynamic"
+// Engine can take Gemini (12s) + Groq fallback + DB work — without this Vercel
+// kills the function mid-run and Meta/MSG91 retry the webhook, causing double replies.
+export const maxDuration = 60
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
@@ -123,6 +126,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Early dedup: Meta/MSG91 retry deliveries, so the same message can arrive
+    // more than once. Cheap pre-check here; the authoritative guard is the
+    // unique-index-protected insert below (atomic, race-proof).
+    if (waMessageId) {
+      const { data: existing } = await supabaseAdmin.from('messages').select('id').eq('wa_message_id', waMessageId).eq('direction', 'inbound').limit(1)
+      if (existing && existing.length > 0) {
+        return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'duplicate' })
+      }
+    }
+
     const now = new Date().toISOString()
     const windowExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 
@@ -155,18 +168,22 @@ export async function POST(request: NextRequest) {
       await supabaseAdmin.from('leads').update({ last_message_at: now, window_expires_at: windowExpiry }).eq('id', lead.id)
     }
 
-    // Dedup: skip if we already processed this message
-    if (waMessageId) {
-      const { data: existing } = await supabaseAdmin.from('messages').select('id').eq('wa_message_id', waMessageId).limit(1)
-      if (existing && existing.length > 0) {
+    // Atomic dedup: the unique index on inbound wa_message_id makes this insert
+    // fail with 23505 if a concurrent retry already recorded the same message —
+    // the loser exits WITHOUT generating a second reply.
+    const { error: inboundInsertError } = await supabaseAdmin.from('messages').insert({
+      lead_id: lead.id, agent_id: agent.id, direction: 'inbound',
+      content: messageText, wa_message_id: waMessageId || null, sent_by: 'lead'
+    })
+    if (inboundInsertError) {
+      if (inboundInsertError.code === '23505') {
+        console.log('Webhook Debug: duplicate inbound message (unique index), skipping')
         return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'duplicate' })
       }
+      console.error('Webhook: Failed to record inbound message', inboundInsertError)
+      // Don't reply if we couldn't record the message — a retry will reprocess it cleanly.
+      return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'message_insert_failed' })
     }
-
-    await supabaseAdmin.from('messages').insert({
-      lead_id: lead.id, agent_id: agent.id, direction: 'inbound',
-      content: messageText, wa_message_id: waMessageId, sent_by: 'lead'
-    })
 
     if (lead.bot_paused) {
       console.log('Webhook Debug: Lead is in manual mode (bot paused)')
@@ -344,10 +361,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Save bot reply to DB first — ensures simulation mode always shows the reply
-    await supabaseAdmin.from('messages').insert({
+    const { data: outboundMsg } = await supabaseAdmin.from('messages').insert({
       lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
       content: reply, sent_by: 'bot'
-    })
+    }).select('id').single()
 
     // Then attempt WhatsApp delivery (non-blocking — simulation works even if this fails)
     try {
@@ -358,14 +375,11 @@ export async function POST(request: NextRequest) {
         const toPhone = PROVIDER === 'twilio' ? `whatsapp:${fromPhone}` : fromPhone
         outWaId = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, toPhone, reply)
       }
-      if (outWaId) {
+      if (outWaId && outboundMsg?.id) {
+        // Stamp the exact row we just inserted (order/limit are not valid on updates).
         await supabaseAdmin.from('messages')
           .update({ wa_message_id: outWaId })
-          .eq('lead_id', lead.id)
-          .eq('direction', 'outbound')
-          .eq('sent_by', 'bot')
-          .order('created_at', { ascending: false })
-          .limit(1)
+          .eq('id', outboundMsg.id)
       }
       console.log(`Webhook Debug: WhatsApp sent. ID: ${outWaId}`)
     } catch (waErr: any) {
