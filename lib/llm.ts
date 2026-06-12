@@ -41,7 +41,7 @@ async function glmOnce(
 // call hasn't answered within HEDGE_AFTER_MS we fire a parallel duplicate and
 // take whichever answers first. Typical cost: zero extra calls (the hedge only
 // fires on slow ones); typical slow-case latency: ~6-7s instead of 12-28s.
-const HEDGE_AFTER_MS = 4000
+const HEDGE_AFTER_MS = 3000
 const ATTEMPT_TIMEOUT_MS = 20000
 
 export function glmChat(
