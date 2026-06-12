@@ -43,7 +43,9 @@ async function callEngineLLM(
           // doesn't eat the output budget — we want fast, concise WhatsApp replies.
           generationConfig: { temperature: 0.7, maxOutputTokens: 800, thinkingConfig: { thinkingBudget: 0 } },
         },
-        { headers: { 'Content-Type': 'application/json' }, timeout: 25000 }
+        // 12s budget: leaves room for the Groq fallback + DB writes inside the
+        // webhook's 60s maxDuration, and keeps the lead from waiting too long.
+        { headers: { 'Content-Type': 'application/json' }, timeout: 12000 }
       )
       const text = res.data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('').trim()
       if (text) return text
@@ -315,10 +317,11 @@ Rules for JSON:
 }
 
 function isOfficeHours(openTime: string, closeTime: string): boolean {
-  const now = new Date()
+  // Agent office hours are IST; the server runs in UTC — compare in IST.
+  const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
   const [openH, openM] = openTime.split(':').map(Number)
   const [closeH, closeM] = closeTime.split(':').map(Number)
-  const cur = now.getHours() * 60 + now.getMinutes()
+  const cur = istNow.getUTCHours() * 60 + istNow.getUTCMinutes()
   return cur >= openH * 60 + openM && cur <= closeH * 60 + closeM
 }
 
@@ -377,28 +380,38 @@ export async function generateBotReply(
   const responseText = await callEngineLLM(systemPrompt, chatHistory, incomingMessage)
   if (!responseText) throw new Error('Both Gemini and Groq returned empty')
 
-  // Parse reply and metadata JSON from the structured response
-  const lines = responseText.trim().split('\n')
-  let reply = responseText.trim()
+  return parseEngineResponse(responseText, stage)
+}
+
+// Split the model output into the WhatsApp reply + trailing metadata JSON.
+// Tolerant of model formatting drift: code fences around the JSON, multi-line
+// JSON, or extra blank lines. If the JSON is malformed we keep the reply and
+// just skip the metadata — losing a score must never lose the message.
+export function parseEngineResponse(responseText: string, stage: ConversationStage): { reply: string; metadata: any } {
+  // Strip markdown code fences (Gemini often wraps the JSON in ```json ... ```)
+  let text = responseText.trim().replace(/```(?:json)?/gi, '').trim()
+  let reply = text
   let metadata: any = { stage }
 
-  // Find JSON line — could be last or second to last
-  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 3); i--) {
-    const line = lines[i].trim()
-    if (line.startsWith('{') && line.endsWith('}')) {
-      try {
-        const parsed = JSON.parse(line)
+  // The metadata object is the LAST {...} block in the output. Scan candidate
+  // '{' positions from the end and take the first substring that parses.
+  for (let i = text.lastIndexOf('{'); i >= 0; i = i > 0 ? text.lastIndexOf('{', i - 1) : -1) {
+    const candidate = text.slice(i).trim()
+    if (!candidate.endsWith('}')) continue
+    try {
+      const parsed = JSON.parse(candidate)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         metadata = { ...parsed, stage }
-        reply = lines.slice(0, i).join('\n').trim()
-        break
-      } catch (e) { /* continue */ }
+        reply = text.slice(0, i).trim()
+      }
+      break
+    } catch (e) {
+      // Not valid JSON from this position — try an earlier '{' (handles nested
+      // braces and emoji-adjacent braces in the reply text itself).
     }
   }
 
-  // Clean up reply — remove any trailing JSON artifacts
-  reply = reply.replace(/\{[^}]*\}$/, '').trim()
-
-  if (!reply) throw new Error('Groq returned reply with no text content')
+  if (!reply) throw new Error('Engine returned reply with no text content')
 
   return { reply, metadata }
 }
