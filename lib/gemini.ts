@@ -4,6 +4,7 @@ import axios from 'axios'
 
 const GROQ_MODEL = 'llama-3.3-70b-versatile'
 const GEMINI_MODEL = 'gemini-flash-latest'
+const GLM_MODEL = 'glm-4.5-flash'
 
 function getGroqClient() {
   const apiKey = process.env.GROQ_API_KEY
@@ -15,16 +16,57 @@ function geminiKey(): string | undefined {
   return process.env.GEMINI_API_KEY || process.env.Gemini_API_KEY
 }
 
-// ─── Provider-agnostic engine call: Gemini primary → Groq fallback ───────────
-// Gemini Flash (free tier) is the primary brain; if it errors, is rate-limited,
-// or returns empty, we automatically fall back to Groq so the bot never goes
-// silent on a paying client. Returns the raw model text.
-async function callEngineLLM(
+function glmKey(): string | undefined {
+  return process.env.GLM_API_KEY
+}
+
+// ─── GLM-4.5-Flash (Z.ai) — free tier, OpenAI-compatible ────────────────────
+// thinking disabled: GLM-4.5 is a reasoning model by default and would spend
+// the whole token budget "thinking", returning empty text for chat use.
+async function callGLM(
   systemPrompt: string,
   chatHistory: { role: 'user' | 'assistant'; content: string }[],
   incomingMessage: string
 ): Promise<string> {
-  // 1) Try Gemini.
+  const res = await axios.post(
+    'https://api.z.ai/api/paas/v4/chat/completions',
+    {
+      model: GLM_MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...chatHistory,
+        { role: 'user', content: incomingMessage },
+      ],
+      max_tokens: 600,
+      temperature: 0.7,
+      thinking: { type: 'disabled' },
+    },
+    { headers: { Authorization: `Bearer ${glmKey()}`, 'Content-Type': 'application/json' }, timeout: 12000 }
+  )
+  return (res.data?.choices?.[0]?.message?.content || '').trim()
+}
+
+// ─── Provider-agnostic engine call: GLM → Gemini → Groq ──────────────────────
+// GLM-4.5-Flash (Z.ai, free) is the primary brain; on any error/ratelimit/empty
+// we fall through to Gemini (if a key is set) and finally Groq, so the bot
+// never goes silent on a paying client. Returns the raw model text.
+export async function callEngineLLM(
+  systemPrompt: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[],
+  incomingMessage: string
+): Promise<string> {
+  // 1) Try GLM-4.5-Flash (primary).
+  if (glmKey()) {
+    try {
+      const text = await callGLM(systemPrompt, chatHistory, incomingMessage)
+      if (text) return text
+      console.warn('GLM returned empty — falling back')
+    } catch (e: any) {
+      console.warn('GLM failed, falling back:', e?.response?.status || e?.message)
+    }
+  }
+
+  // 2) Try Gemini.
   const key = geminiKey()
   if (key) {
     try {
@@ -55,7 +97,7 @@ async function callEngineLLM(
     }
   }
 
-  // 2) Fallback: Groq (Llama 3.3 70B).
+  // 3) Last resort: Groq (Llama 3.3 70B).
   const groq = getGroqClient()
   const completion = await groq.chat.completions.create({
     model: GROQ_MODEL,
@@ -158,9 +200,6 @@ Techniques:
     presentation: `
 STAGE: PRESENTATION (Property Matching)
 Goal: Present the BEST match first. Anchor high if budget allows.
-Properties available:
-${propertiesList || 'No active properties — tell them you have options coming in and ask for their WhatsApp to send details directly'}
-
 Techniques:
 - If multiple properties fit, recommend the SINGLE closest match to their stated area + budget + type — don't dump a list.
 - Share the key details in a clean, scannable format (see FORMAT below). Do NOT claim to have sent photos/floor plans — you cannot send media. If they ask for photos/floor plans: say honestly they aren't available in chat right now, and offer alternatives — "I can have our team arrange them for you, or you're welcome to see it in person on a visit."
@@ -257,6 +296,9 @@ AGENCY: ${agent.agency_name}
 AREAS: ${(agent.areas || []).join(', ')}
 PROPERTY TYPES: ${(agent.property_types || []).join(', ')}
 OFFICE HOURS: ${agent.office_open} to ${agent.office_close}
+
+PROPERTY INVENTORY (complete and authoritative — every price/size/detail you ever quote MUST come from here, in ANY stage of the conversation):
+${propertiesList || 'No active properties right now — never invent one; say new options are coming in and you\'ll share details as soon as they land.'}
 TONE: ${toneMap[agent.bot_tone] || toneMap.friendly}
 LANGUAGES THIS AGENCY SUPPORTS: ${(agent.languages || ['English']).join(', ')}
 
@@ -293,6 +335,8 @@ ABSOLUTE RULES:
 - BE CONCISE AND TO THE POINT. Short WhatsApp-style messages (usually 1-3 sentences, under ~50 words). No filler, no rambling. Sharing property details is the only time you go longer — and even then, keep it tight.
 - ONE message at a time. One question or next step.
 - NEVER fabricate property details, prices, availability, or terms.
+- PRICES AND FACTS ARE SACRED: when quoting a price, size, or location, COPY THE EXACT FIGURE from the property list in this prompt — re-read the list before answering any price question. If the property or its price is not in the list, say you'll confirm with the team. NEVER quote a number from memory or estimate one.
+- THE PROPERTY LIST IS THE COMPLETE INVENTORY. If one property matches, that IS the property they mean — answer about it directly. Never imply other options exist ("we have several...") unless they are actually in the list.
 - GUIDE toward a visit when the moment is right, but NEVER pester. If they're not ready, back off gracefully and nurture — pushing irritates and loses them.
 - NEVER schedule a visit outside the agent's OFFICE HOURS (${agent.office_open} to ${agent.office_close}). Offer an in-hours alternative instead.
 
