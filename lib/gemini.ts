@@ -263,6 +263,7 @@ RESPONSE FORMAT — return EXACTLY this structure:
 Rules for JSON:
 - score: 1-10 (1=cold, 10=ready to buy today)
 - temperature: "hot" (8-10), "warm" (5-7), "cold" (1-4), "new" (first contact)
+- budget_min/budget_max: EXACT amount in plain rupees, copied from what the lead said — never rescale. "20,000 rent" → 20000. "1.2 crore" → 12000000. "95 lakh" → 9500000. For rentals this is the MONTHLY rent. Double-check the zeros.
 - Only include fields you are confident about from THIS conversation
 - matched_property_id: include ONLY if you just recommended a specific property
 - appointment_booked_time: CRITICAL AND MANDATORY if you just confirmed an appointment time with the user. Must be a valid ISO 8601 string in Indian Standard Time (IST, UTC+05:30). For example, if the user says "5 PM tomorrow" and tomorrow is June 2nd, output "2026-06-02T17:00:00+05:30". Do NOT omit this if an appointment was agreed upon. Current IST time: ${ctx.currentTime}.

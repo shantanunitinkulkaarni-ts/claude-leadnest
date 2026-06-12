@@ -4,6 +4,13 @@ import Papa from 'papaparse'
 
 interface Props { agentId: string }
 
+// Indian-style money: ₹20,000 · ₹95L · ₹1.2Cr — never raw digit dumps.
+function formatINR(amount: number): string {
+  if (amount >= 10000000) return `₹${(amount / 10000000).toFixed(amount % 10000000 === 0 ? 0 : 1)}Cr`
+  if (amount >= 100000) return `₹${(amount / 100000).toFixed(amount % 100000 === 0 ? 0 : 1)}L`
+  return `₹${amount.toLocaleString('en-IN')}`
+}
+
 const COLUMNS = ['New', 'Qualified', 'Visit Booked', 'Closed']
 
 const STATUS_MAP: Record<string, string[]> = {
@@ -334,7 +341,7 @@ export default function LeadsScreen({ agentId }: Props) {
               {colLeads.map(lead => {
                 const ss = getScoreColor(lead.ai_score || 0)
                 const intent = lead.intent || 'Unknown intent'
-                const budget = lead.budget_max ? `Up to ₹${lead.budget_max}` : ''
+                const budget = lead.budget_max ? `Up to ${formatINR(lead.budget_max)}${lead.intent === 'rent' ? '/mo' : ''}` : ''
                 return (
                   <div 
                     key={lead.id} 

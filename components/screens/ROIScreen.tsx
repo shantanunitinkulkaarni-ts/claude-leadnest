@@ -46,7 +46,7 @@ function Metric({ label, value, sub, color, icon, trend }: any) {
             </div>
           )}
         </div>
-        <div style={{ fontSize: 24 }}>{icon}</div>
+        {icon ? <div style={{ fontSize: 24 }}>{icon}</div> : null}
       </div>
     </Card>
   )
@@ -153,12 +153,16 @@ export function ROIScreen({ agentId }: { agentId: string }) {
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
             <div style={{ fontSize: 48, fontWeight: 700, color: '#fff', letterSpacing: '-0.03em' }}>
-              {hasAnything ? fmt(heroAmount) : 'Add leads to unlock'}
+              {hasAnything ? fmt(heroAmount) : (summary.totalLeads > 0 ? fmt(0) : '—')}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {isPotential ? (
                 <div style={{ fontSize: 13, color: '#818CF8', fontWeight: 500 }}>
-                  {hasAnything ? 'Waiting to be earned from active leads' : 'Your earning potential appears here'}
+                  {hasAnything
+                    ? 'Waiting to be earned from active leads'
+                    : summary.totalLeads > 0
+                      ? `Pipeline building — as your ${summary.totalLeads} leads share budgets, projected commission appears here`
+                      : 'Your earning potential appears here once leads come in'}
                 </div>
               ) : (
                 <div style={{ fontSize: 13, color: '#818CF8', fontWeight: 500 }}>
@@ -190,11 +194,11 @@ export function ROIScreen({ agentId }: { agentId: string }) {
       </div>
 
       {/* Metrics row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-        <Metric label="Total Leads" value={summary.totalLeads} sub={`${summary.hotLeads} hot · ${summary.warmLeads} warm`} icon="👥" trend={parseInt(summary.leadGrowth)} />
-        <Metric label="Qualified" value={summary.qualifiedLeads} sub={`${conversion.leadToQualified}% conversion`} icon="✅" color={G.green} />
-        <Metric label="Bot Messages" value={bot.totalMessages.toLocaleString()} sub={`${bot.botHandledPct}% automated`} icon="🤖" color={G.blue} />
-        <Metric label="Lead Leakage" value={`${leakage.leakagePct}%`} sub={`${leakage.leakageCount} leads at risk`} icon="⚠️" color={leakage.leakagePct > 40 ? G.red : G.amber} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
+        <Metric label="Total Leads" value={summary.totalLeads} sub={`${summary.hotLeads} hot · ${summary.warmLeads} warm`} trend={parseInt(summary.leadGrowth)} />
+        <Metric label="Qualified" value={summary.qualifiedLeads} sub={`${conversion.leadToQualified}% conversion`} color={G.green} />
+        <Metric label="Bot Messages" value={bot.totalMessages.toLocaleString()} sub={`${bot.botHandledPct}% automated`} color={G.blue} />
+        <Metric label="Lead Leakage" value={`${leakage.leakagePct}%`} sub={`${leakage.leakageCount} leads at risk`} color={leakage.leakagePct > 40 ? G.red : G.amber} />
       </div>
 
       {/* Income by deal type — rental vs purchase have very different economics */}
@@ -207,7 +211,7 @@ export function ROIScreen({ agentId }: { agentId: string }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           {/* Purchase */}
           <div style={{ background: G.goldLight, borderRadius: 10, padding: '16px 18px', border: `1px solid ${G.border}` }}>
-            <div style={{ fontSize: 12, color: G.gold, fontWeight: 600, marginBottom: 10 }}>🏠 Purchase Deals</div>
+            <div style={{ fontSize: 12, color: G.gold, fontWeight: 600, marginBottom: 10 }}>Purchase Deals</div>
             <div style={{ fontSize: 11, color: G.muted }}>{roi.earnedPurchase > 0 ? 'Earned this period' : 'Potential in pipeline'}</div>
             <div style={{ fontSize: 24, fontWeight: 700, color: G.text, letterSpacing: '-0.02em' }}>
               {roi.earnedPurchase > 0 ? fmt(roi.earnedPurchase) : (roi.potentialPurchase > 0 ? fmt(roi.potentialPurchase) : '—')}
@@ -218,7 +222,7 @@ export function ROIScreen({ agentId }: { agentId: string }) {
           </div>
           {/* Rental */}
           <div style={{ background: G.blueLight, borderRadius: 10, padding: '16px 18px', border: `1px solid ${G.border}` }}>
-            <div style={{ fontSize: 12, color: G.blue, fontWeight: 600, marginBottom: 10 }}>🔑 Rental Deals</div>
+            <div style={{ fontSize: 12, color: G.blue, fontWeight: 600, marginBottom: 10 }}>Rental Deals</div>
             <div style={{ fontSize: 11, color: G.muted }}>{roi.earnedRental > 0 ? 'Earned this period' : 'Potential in pipeline'}</div>
             <div style={{ fontSize: 24, fontWeight: 700, color: G.text, letterSpacing: '-0.02em' }}>
               {roi.earnedRental > 0 ? fmt(roi.earnedRental) : (roi.potentialRental > 0 ? fmt(roi.potentialRental) : '—')}
@@ -298,7 +302,7 @@ export function ROIScreen({ agentId }: { agentId: string }) {
               </div>
             </div>
             <div style={{ fontSize: 11, color: G.muted, background: G.bg, borderRadius: 8, padding: '8px 12px' }}>
-              ⏱ Avg response time: &lt;30 seconds (bot) vs 2-4 hours (manual)
+              Avg response time: &lt;30 seconds (bot) vs 2-4 hours (manual)
             </div>
           </div>
         </Card>
@@ -311,15 +315,15 @@ export function ROIScreen({ agentId }: { agentId: string }) {
           <div style={{ fontSize: 12, color: G.muted, marginBottom: 16 }}>Leads at risk of being lost</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: leakage.coldLeadsCount > 0 ? G.amberLight : G.bg, borderRadius: 8, padding: '10px 14px' }}>
-              <div style={{ fontSize: 12, color: G.text }}>🧊 Cold leads (no response)</div>
+              <div style={{ fontSize: 12, color: G.text }}>Cold leads (no response)</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: G.amber }}>{leakage.coldLeadsCount}</div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: leakage.lostLeads > 0 ? G.redLight : G.bg, borderRadius: 8, padding: '10px 14px' }}>
-              <div style={{ fontSize: 12, color: G.text }}>❌ Marked as lost</div>
+              <div style={{ fontSize: 12, color: G.text }}>Marked as lost</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: G.red }}>{leakage.lostLeads}</div>
             </div>
             <div style={{ background: G.greenLight, borderRadius: 8, padding: '12px 14px', marginTop: 4 }}>
-              <div style={{ fontSize: 11, color: G.green, fontWeight: 500, marginBottom: 3 }}>💡 Potential revenue at risk</div>
+              <div style={{ fontSize: 11, color: G.green, fontWeight: 500, marginBottom: 3 }}>Potential revenue at risk</div>
               <div style={{ fontSize: 18, fontWeight: 700, color: G.green }}>
                 {fmt(leakage.leakageCount * 112500)}
               </div>
@@ -334,9 +338,7 @@ export function ROIScreen({ agentId }: { agentId: string }) {
             {activity.length === 0 && <div style={{ fontSize: 12, color: G.muted }}>No activity yet</div>}
             {activity.map((a: any) => (
               <div key={a.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: G.greenLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}>
-                  {a.type === 'lead_created' ? '👤' : a.type === 'score_updated' ? '📊' : a.type === 'visit_booked' ? '📅' : '✅'}
-                </div>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: a.type === 'visit_booked' ? G.green : a.type === 'lead_created' ? G.blue : G.border, marginTop: 5, flexShrink: 0 }} />
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 500, color: G.text }}>{a.title}</div>
                   {a.description && <div style={{ fontSize: 11, color: G.muted, marginTop: 1 }}>{a.description}</div>}

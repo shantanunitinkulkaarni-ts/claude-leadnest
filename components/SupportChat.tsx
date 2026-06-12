@@ -12,26 +12,32 @@ const GREETING: Msg = {
 
 // WhatsApp / email escalation — shown when the assistant hands off to a human.
 function Escalation({ context }: { context: string }) {
+  const [copied, setCopied] = useState(false)
   const waLink = supportWhatsappLink(`Hi Convorian support, I need help.\n\n(From support chat) ${context}`.slice(0, 600))
+  const copyEmail = () => {
+    try { navigator.clipboard.writeText(SUPPORT_EMAIL) } catch { /* ignore */ }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2500)
+  }
   return (
     <div style={{ background: '#fff', border: '1px solid #E0DEF8', borderRadius: 12, padding: '12px 14px' }}>
       <div style={{ fontSize: 12, fontWeight: 600, color: '#15161B', marginBottom: 8 }}>Talk to our team</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {supportWhatsappConfigured() && waLink ? (
+        {supportWhatsappConfigured() && waLink && (
           <a href={waLink} target="_blank" rel="noopener noreferrer"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, background: '#25D366', color: '#fff', fontSize: 12.5, fontWeight: 600, textDecoration: 'none' }}>
             💬 Chat on WhatsApp
           </a>
-        ) : (
-          // Placeholder until the business WhatsApp number goes live (set NEXT_PUBLIC_SUPPORT_WHATSAPP).
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, background: '#F1F4F2', color: '#6B6860', fontSize: 12.5, fontWeight: 500 }}>
-            💬 WhatsApp support — launching soon
-          </span>
         )}
-        <a href={`mailto:${SUPPORT_EMAIL}`}
+        {/* mailto AND copy — mailto silently does nothing when no mail app is
+            configured, so the address is always visible + copyable. */}
+        <a href={`mailto:${SUPPORT_EMAIL}`} onClick={copyEmail}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, background: '#fff', border: '1px solid #D6D3F0', color: '#4F46E5', fontSize: 12.5, fontWeight: 600, textDecoration: 'none' }}>
-          ✉️ Email us
+          ✉️ {SUPPORT_EMAIL}
         </a>
+      </div>
+      <div style={{ fontSize: 11, color: copied ? '#1B7A43' : '#9E9B92', marginTop: 8 }}>
+        {copied ? '✓ Email address copied to clipboard' : 'Tap the email to copy the address.'}
       </div>
     </div>
   )
@@ -54,6 +60,9 @@ export default function SupportChat({ agentId }: { agentId?: string } = {}) {
     const text = msg.trim()
     if (!text || loading) return
     setMsg('')
+    // Resuming the conversation dismisses the escalation card — it re-appears
+    // only if the assistant escalates again.
+    setEscalated(false)
     const next: Msg[] = [...messages, { from: 'user', text }]
     setMessages(next)
     setLoading(true)
@@ -77,16 +86,32 @@ export default function SupportChat({ agentId }: { agentId?: string } = {}) {
     }
   }
 
-  const rateMessage = (index: number, rating: 'up' | 'down') => {
-    const target = messages[index]
-    if (!target?.logId || target.rated) return
-    setMessages(prev => prev.map((m, i) => (i === index ? { ...m, rated: rating } : m)))
-    // Fire-and-forget — feedback is a quality signal, not blocking.
-    fetch('/api/support-feedback', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ log_id: target.logId, helpful: rating === 'up' }),
-    }).catch(() => {})
+  // End-of-chat feedback (replaces the old per-message thumbs — too noisy).
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [feedbackSent, setFeedbackSent] = useState(false)
+
+  const handleClose = () => {
+    const hadConversation = messages.some(m => m.from === 'user')
+    if (hadConversation && !feedbackSent && !showFeedback) {
+      setShowFeedback(true)
+      return
+    }
+    setShowFeedback(false)
+    setIsOpen(false)
+  }
+
+  const submitFeedback = (helpful: boolean) => {
+    setFeedbackSent(true)
+    const lastLogged = [...messages].reverse().find(m => m.logId)
+    if (lastLogged?.logId) {
+      // Fire-and-forget — feedback is a quality signal, not blocking.
+      fetch('/api/support-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ log_id: lastLogged.logId, helpful }),
+      }).catch(() => {})
+    }
+    setTimeout(() => { setShowFeedback(false); setIsOpen(false) }, 900)
   }
 
   const lastUser = [...messages].reverse().find(m => m.from === 'user')?.text || ''
@@ -105,7 +130,7 @@ export default function SupportChat({ agentId }: { agentId?: string } = {}) {
               <div style={{ fontWeight: 700, fontSize: 14 }}>Convorian Support</div>
               <div style={{ fontSize: 11, opacity: 0.85 }}>Usually replies instantly</div>
             </div>
-            <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 16 }}>✕</button>
+            <button onClick={handleClose} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 16 }}>✕</button>
           </div>
           <div ref={bodyRef} style={{ flex: 1, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, background: '#FAFAFB' }}>
             {messages.map((m, i) => (
@@ -119,20 +144,35 @@ export default function SupportChat({ agentId }: { agentId?: string } = {}) {
                 }}>
                   {m.text}
                 </div>
-                {m.from === 'support' && m.logId && (
-                  m.rated ? (
-                    <div style={{ fontSize: 11, color: '#9E9B92', margin: '4px 2px 0' }}>Thanks for the feedback{m.rated === 'up' ? ' 🙏' : ''}</div>
-                  ) : (
-                    <div style={{ display: 'flex', gap: 6, margin: '4px 2px 0' }}>
-                      <button onClick={() => rateMessage(i, 'up')} aria-label="Helpful" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, opacity: 0.55 }}>👍</button>
-                      <button onClick={() => rateMessage(i, 'down')} aria-label="Not helpful" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, opacity: 0.55 }}>👎</button>
-                    </div>
-                  )
-                )}
               </div>
             ))}
             {loading && <div style={{ fontSize: 12, color: '#9E9B92' }}>Assistant is typing…</div>}
             {escalated && <Escalation context={lastUser} />}
+            {showFeedback && (
+              <div style={{ background: '#fff', border: '1px solid #E0DEF8', borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
+                {feedbackSent ? (
+                  <div style={{ fontSize: 13, color: '#1B7A43', fontWeight: 500 }}>Thank you for your feedback!</div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B', marginBottom: 10 }}>Before you go — was this conversation helpful?</div>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                      <button onClick={() => submitFeedback(true)}
+                        style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #D6D3F0', background: '#fff', color: '#1B7A43', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        Yes, it helped
+                      </button>
+                      <button onClick={() => submitFeedback(false)}
+                        style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #D6D3F0', background: '#fff', color: '#C0392B', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        Not really
+                      </button>
+                      <button onClick={() => { setShowFeedback(false); setIsOpen(false) }}
+                        style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'transparent', color: '#9E9B92', fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        Skip
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
           <form onSubmit={handleSend} style={{ padding: 12, borderTop: '1px solid #ECEAE0', display: 'flex', gap: 8 }}>
             <input

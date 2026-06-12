@@ -17,7 +17,7 @@ const navItems: { screen: Screen; label: string; icon: string }[] = [
   { screen: 'properties', label: 'Properties', icon: '🏠' },
   { screen: 'appointments', label: 'Appointments', icon: '📅' },
   { screen: 'analytics', label: 'ROI Dashboard', icon: '📊' },
-  { screen: 'balance', label: 'WA Balance', icon: '💳' },
+  { screen: 'balance', label: 'Billing & Credits', icon: '💳' },
   { screen: 'settings', label: 'Settings', icon: '⚙️' },
 ]
 

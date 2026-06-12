@@ -11,7 +11,7 @@ const titles: Record<Screen, string> = {
   properties: 'Properties',
   appointments: 'Appointments',
   analytics: 'ROI Dashboard',
-  balance: 'WA Balance',
+  balance: 'Billing & Credits',
   settings: 'Settings'
 }
 
@@ -21,6 +21,8 @@ export default function Topbar({ screen, agentId, isSuperadmin = false, onNaviga
   const [showProfile, setShowProfile] = useState(false)
   
   const [userName, setUserName] = useState('')
+  const [userEmail, setUserEmail] = useState('')
+  const [agencyName, setAgencyName] = useState('')
   const [role, setRole] = useState(isSuperadmin ? 'Superadmin' : 'Agent')
   
   const notifRef = useRef<HTMLDivElement>(null)
@@ -51,6 +53,8 @@ export default function Topbar({ screen, agentId, isSuperadmin = false, onNaviga
         const d = await res.json()
         if (d.data) {
           setUserName(d.data.name || 'User')
+          setUserEmail(d.data.email || '')
+          setAgencyName(d.data.agency_name || '')
           setRole(isSuperadmin ? 'Superadmin' : 'Owner')
         }
       } catch (e) {
@@ -137,70 +141,61 @@ export default function Topbar({ screen, agentId, isSuperadmin = false, onNaviga
           {/* Profile Dropdown */}
           {showProfile && (
             <div style={{
-              position: 'absolute', top: 44, right: 0, width: 200, background: '#fff', 
+              position: 'absolute', top: 44, right: 0, width: 248, background: '#fff',
               borderRadius: 12, border: '1px solid rgba(26,25,22,0.08)',
-              boxShadow: '0 4px 24px rgba(0,0,0,0.06)', zIndex: 100, padding: 8
+              boxShadow: '0 8px 32px rgba(0,0,0,0.10)', zIndex: 100, padding: 6, overflow: 'hidden'
             }}>
-              <div style={{ padding: '8px 12px', borderBottom: '1px solid rgba(26,25,22,0.08)', marginBottom: 4 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B' }}>{userName}</div>
-                <div style={{ fontSize: 11, color: '#737373' }}>{role}</div>
+              {/* Identity header — Settings & Billing live in the sidebar; this menu is account-level only. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 12px 12px', borderBottom: '1px solid rgba(26,25,22,0.08)', marginBottom: 4 }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: '50%', background: 'linear-gradient(135deg,#4F46E5,#4338CA)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#fff', flexShrink: 0
+                }}>{initials}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userName}</div>
+                  <div style={{ fontSize: 11, color: '#737373', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userEmail || role}</div>
+                  {agencyName && <div style={{ fontSize: 11, color: '#9E9B92', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agencyName}</div>}
+                </div>
               </div>
-              <button
-                onClick={() => { setShowProfile(false); onNavigate?.('settings'); }}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#F4F3EE'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                style={{
-                  width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, color: '#15161B',
-                  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'background 0.2s',
-                  display: 'flex', alignItems: 'center', gap: 8
-                }}>
-                ⚙️ Settings
-              </button>
-              <button
-                onClick={() => { setShowProfile(false); onNavigate?.('balance'); }}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#F4F3EE'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                style={{
-                  width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, color: '#15161B',
-                  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'background 0.2s',
-                  display: 'flex', alignItems: 'center', gap: 8
-                }}>
-                💳 WhatsApp Balance
-              </button>
-              <button
-                onClick={() => { setShowProfile(false); window.dispatchEvent(new Event('leadnest:restart-tutorial')); }}
-                onMouseEnter={(e) => e.currentTarget.style.background = '#F4F3EE'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                style={{
-                  width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, color: '#15161B',
-                  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'background 0.2s',
-                  display: 'flex', alignItems: 'center', gap: 8
-                }}>
-                🎓 Restart Tutorial
-              </button>
-              <a
-                href="mailto:support@convorian.in"
-                onClick={() => setShowProfile(false)}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#F4F3EE')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                style={{
-                  width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, color: '#15161B',
-                  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'background 0.2s',
-                  display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', boxSizing: 'border-box'
-                }}>
-                ❓ Help &amp; Support
-              </a>
+
+              {[
+                {
+                  label: 'Help & Support',
+                  icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+                  onClick: () => { setShowProfile(false); router.push('/help') }
+                },
+                {
+                  label: 'Take the tour again',
+                  icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+                  onClick: () => { setShowProfile(false); window.dispatchEvent(new Event('leadnest:restart-tutorial')) }
+                },
+              ].map(item => (
+                <button
+                  key={item.label}
+                  onClick={item.onClick}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#F4F3EE'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  style={{
+                    width: '100%', textAlign: 'left', padding: '9px 12px', fontSize: 13, color: '#3D3B34',
+                    background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', transition: 'background 0.15s',
+                    display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'inherit'
+                  }}>
+                  <span style={{ color: '#6B6860', display: 'flex' }}>{item.icon}</span> {item.label}
+                </button>
+              ))}
+
               <div style={{ height: 1, background: 'rgba(26,25,22,0.08)', margin: '4px 0' }} />
               <button
                 onClick={async () => { await getSupabase().auth.signOut(); router.push('/login'); }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#FDECEA'; e.currentTarget.style.color = '#C0392B'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#15161B'; }}
-                style={{ 
-                  width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, color: '#15161B',
-                  background: 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', transition: 'all 0.2s',
-                  display: 'flex', alignItems: 'center', gap: 8
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#3D3B34'; }}
+                style={{
+                  width: '100%', textAlign: 'left', padding: '9px 12px', fontSize: 13, color: '#3D3B34',
+                  background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', transition: 'all 0.15s',
+                  display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'inherit'
                 }}>
-                🚪 Sign out
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                Sign out
               </button>
             </div>
           )}

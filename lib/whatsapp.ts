@@ -124,6 +124,48 @@ export async function sendViaMsg91(
   }
 }
 
+// ─── MSG91 template message ───────────────────────────────────────────────────
+// Templates work OUTSIDE the 24h session window (needed for proactive alerts,
+// e.g. Convorian → agent "call this lead"). The template must be created and
+// approved in the MSG91 dashboard first. bodyValues fill {{1}}, {{2}}, … in order.
+export async function sendViaMsg91Template(
+  integratedNumber: string,
+  toPhone: string,
+  templateName: string,
+  bodyValues: string[],
+  languageCode = 'en'
+): Promise<string | null> {
+  try {
+    const authkey = process.env.MSG91_AUTHKEY
+    if (!authkey) { console.error('MSG91 template send: MSG91_AUTHKEY not set'); return null }
+    const to = toPhone.replace(/^\+/, '')
+    const components: Record<string, { type: string; value: string }> = {}
+    bodyValues.forEach((v, i) => { components[`body_${i + 1}`] = { type: 'text', value: v } })
+    const res = await axios.post(
+      'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/',
+      {
+        integrated_number: integratedNumber.replace(/\D/g, ''),
+        content_type: 'template',
+        payload: {
+          messaging_product: 'whatsapp',
+          type: 'template',
+          template: {
+            name: templateName,
+            language: { code: languageCode, policy: 'deterministic' },
+            to_and_components: [{ to: [to], components }],
+          },
+        },
+      },
+      { headers: { authkey, 'Content-Type': 'application/json' } }
+    )
+    console.log('MSG91 template send OK:', JSON.stringify(res.data).slice(0, 300))
+    return res.data?.data?.[0]?.requestId || res.data?.requestId || 'sent'
+  } catch (err: any) {
+    console.error('MSG91 template send ERROR:', JSON.stringify(err?.response?.data || err?.message).slice(0, 500))
+    return null
+  }
+}
+
 // ─── Template message (Meta only — Twilio uses free-form for sandbox) ─────────
 export async function sendWhatsAppTemplate(
   phoneNumberId: string,
