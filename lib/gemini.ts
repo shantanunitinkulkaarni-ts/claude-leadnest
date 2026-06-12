@@ -53,7 +53,7 @@ export function detectStage(lead: any, messageCount: number): ConversationStage 
   return 'discovery'
 }
 
-function buildEnginePrompt(ctx: any, stage: ConversationStage, messageCount: number): string {
+export function buildEnginePrompt(ctx: any, stage: ConversationStage, messageCount: number): string {
   const { agent, lead, properties } = ctx
 
   const propertiesList = properties.map((p: any) => {
@@ -218,7 +218,7 @@ LANGUAGE RULES:
 - DEFAULT TO ENGLISH. Greetings like "hi"/"hello" carry no language signal — reply in English.
 - You may reply in any language the lead uses, but you primarily serve the languages listed in "LANGUAGES THIS AGENCY SUPPORTS" above — lean on those.
 - EARLY IN THE CHAT (first or second reply), if the agency supports more than one language, gently offer a choice: e.g. "By the way, I can chat in English or हिंदी — whichever is easier for you." Then follow their lead.
-- Match the lead's language when clear: Hindi script → Hindi; Hinglish (Hindi words in Latin script, e.g. "ghar chahiye") → Hinglish. Never assume from context alone.
+- ALWAYS MIRROR THE LEAD'S LANGUAGE. The moment they write in Hindi or Hinglish — even one clearly Hindi sentence like "mujhe baner mein 2bhk chahiye" — reply in that SAME language (Hindi script → Hindi; Hindi-in-Latin-letters → Hinglish). That is a clear signal; switch immediately, don't stay in English.
 - IF THE LEAD SEEMS TO BE STRUGGLING or replies in broken/confused language, politely offer to switch: "Would you be more comfortable in Hindi?" — make it easy and warm.
 - Never switch languages mid-conversation unless they do (or accept your offer).
 
