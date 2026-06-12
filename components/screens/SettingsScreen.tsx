@@ -210,7 +210,9 @@ export default function SettingsScreen({ agentId }: Props) {
         {[
           { k: 'Plan', v: (d?.plan ? d.plan.charAt(0).toUpperCase() + d.plan.slice(1) : 'Monthly') + ' — ' + (d?.plan === 'free' ? '₹0' : '₹999') + '/month' },
           { k: 'Message usage', v: `${d?.messages_used ?? 0} / ${d?.messages_limit ?? 5000} this month` },
-          { k: 'WhatsApp', v: d?.wa_verified ? 'Connected ✓' : 'Not connected — awaiting Meta API setup' },
+          // Never surface internal provider status (Meta review etc.) to the
+          // agent — if a number is on file the assistant is live for them.
+          { k: 'WhatsApp', v: (d?.wa_verified || d?.msg91_integrated_number || d?.phone) ? 'Connected ✓' : 'Setup in progress — our team is on it' },
         ].map((row, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < 2 ? '1px solid rgba(26,25,22,0.06)' : 'none' }}>
             <span style={{ fontSize: 13, color: '#3D3B34' }}>{row.k}</span>

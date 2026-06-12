@@ -107,7 +107,9 @@ export default function AppointmentsScreen({ agentId }: { agentId: string }) {
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      await fetch('/api/appointments', {
+      // fetch() does NOT throw on 4xx/5xx — check res.ok or a failed save
+      // silently closes the modal and the card stays "Needs Feedback".
+      const res = await fetch('/api/appointments', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -117,6 +119,12 @@ export default function AppointmentsScreen({ agentId }: { agentId: string }) {
           status: selectedResult === 'no_show' ? 'no_show' : 'done'
         })
       })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        alert(`Could not save feedback: ${d.error || `server error ${res.status}`}. Please try again.`)
+        setIsSubmitting(false)
+        return
+      }
 
       await fetch('/api/activity', {
         method: 'POST',

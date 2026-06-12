@@ -164,6 +164,7 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
             const vData = await vRes.json()
             if (!vRes.ok) throw new Error(vData.error || 'Verification failed')
             setBalance(vData.wa_balance)
+            loadTxns()
             onTopUp?.()
           } catch (e: any) {
             setError(e.message || 'Payment verification failed. If money was deducted, it will reflect shortly.')
@@ -182,8 +183,15 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
     }
   }
 
-  // Replaced mock transactions with empty state until billing history API is added
-  const txns: any[] = []
+  // Credit/usage history (top-ups + template deductions) from wa_transactions
+  const [txns, setTxns] = useState<{ id: string; type: string; amount: number; description: string; created_at: string }[]>([])
+  const loadTxns = () => {
+    fetch('/api/transactions?agent_id=' + agentId)
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.transactions)) setTxns(d.transactions) })
+      .catch(() => {})
+  }
+  useEffect(() => { loadTxns() }, [agentId])
 
   // "Subscribed" requires a real Razorpay subscription on file — NOT just the
   // free/trial default of plan_status='active' that every new account starts with.
@@ -199,8 +207,9 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
       <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: 24, marginBottom: 28 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
           <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#4F46E5', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Convorian Pro</div>
             <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 30, color: '#15161B', lineHeight: 1 }}>₹999<span style={{ fontSize: 15, color: '#9E9B92' }}>/month</span></div>
-            <div style={{ fontSize: 12, color: '#9E9B92', marginTop: 4 }}>Convorian AI WhatsApp assistant</div>
+            <div style={{ fontSize: 12, color: '#9E9B92', marginTop: 4 }}>AI assistant · lead qualification · visit booking · 24/7 replies</div>
           </div>
           <span style={{
             fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20, textTransform: 'uppercase', letterSpacing: '0.04em',
@@ -274,13 +283,13 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
         </>
       )}
 
-      <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>WhatsApp balance</div>
+      <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>Messaging credits</div>
       <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: 24, marginBottom: 14 }}>
-        <div style={{ fontSize: 12, color: '#9E9B92' }}>Available balance</div>
+        <div style={{ fontSize: 12, color: '#9E9B92' }}>Available credits</div>
         <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 42, color: '#15161B', lineHeight: 1, margin: '4px 0' }}>
           ₹{balance !== null ? balance : '...'}
         </div>
-        <div style={{ fontSize: 12, color: '#9E9B92' }}>Used for outbound template messages · Meta charges deducted automatically</div>
+        <div style={{ fontSize: 12, color: '#9E9B92' }}>Used for proactive WhatsApp messages (reminders, follow-ups) · deducted automatically</div>
         {error && (
           <div style={{ background: '#FDF0F0', color: '#8B1A1A', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginTop: 14 }}>⚠️ {error}</div>
         )}
@@ -323,14 +332,21 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
       </div>
       <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '18px 20px' }}>
         <div style={{ fontSize: 11, fontWeight: 500, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>Transaction history</div>
-        {txns.length > 0 ? txns.map((t, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderBottom: i < txns.length - 1 ? '1px solid rgba(26,25,22,0.06)' : 'none', fontSize: 12 }}>
-            <span style={{ color: '#3D3B34' }}>{t.desc}</span>
-            <span style={{ color: '#C8C5BC', fontSize: 11, margin: '0 12px' }}>{t.date}</span>
-            <span style={{ fontWeight: 500, color: t.credit ? '#4338CA' : '#C0392B' }}>{t.amount}</span>
-          </div>
-        )) : (
-          <div style={{ fontSize: 12, color: '#9E9B92', textAlign: 'center', padding: '20px 0' }}>No recent transactions.</div>
+        {txns.length > 0 ? txns.map((t, i) => {
+          const isCredit = t.type === 'credit'
+          return (
+            <div key={t.id || i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '11px 0', borderBottom: i < txns.length - 1 ? '1px solid rgba(26,25,22,0.06)' : 'none', fontSize: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ color: '#3D3B34', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isCredit ? 'Credits added' : (t.description || 'Message charge')}</div>
+                <div style={{ color: '#9E9B92', fontSize: 11, marginTop: 2 }}>{fmtDate(t.created_at)}</div>
+              </div>
+              <span style={{ fontWeight: 600, whiteSpace: 'nowrap', color: isCredit ? '#1B7A43' : '#3D3B34' }}>
+                {isCredit ? '+' : '−'}₹{Number(t.amount).toLocaleString('en-IN')}
+              </span>
+            </div>
+          )
+        }) : (
+          <div style={{ fontSize: 12, color: '#9E9B92', textAlign: 'center', padding: '20px 0' }}>No transactions yet. Top-ups and message charges will appear here.</div>
         )}
       </div>
 

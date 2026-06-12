@@ -27,6 +27,7 @@ export default function InboxScreen({ agentId }: Props) {
   const [now, setNow] = useState(Date.now())
   const [properties, setProperties] = useState<any[]>([])
   const [activityLog, setActivityLog] = useState<any[]>([])
+  const [appointments, setAppointments] = useState<any[]>([])
 
   // Book Visit modal
   const [showBookModal, setShowBookModal] = useState(false)
@@ -150,6 +151,29 @@ export default function InboxScreen({ agentId }: Props) {
       .then(d => { if (d.data) setProperties(d.data) })
   }
 
+  const fetchAppointments = () => {
+    fetch('/api/appointments?agent_id=' + agentId)
+      .then(r => r.json())
+      .then(d => { if (d.data) setAppointments(d.data) })
+      .catch(() => {})
+  }
+
+  // One-glance highlight for a conversation — the single most important fact.
+  const getHighlight = (lead: any): { text: string; bg: string; c: string } | null => {
+    const appt = appointments.find(a => a.lead_id === lead.id && a.status === 'upcoming')
+    if (appt) {
+      const dt = new Date(appt.scheduled_at)
+      const when = dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ', ' + dt.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })
+      return { text: `📅 Visit booked — ${when}`, bg: '#E7F6EC', c: '#1B7A43' }
+    }
+    if (lead.post_visit_result) return { text: '🏁 Visited — close the deal', bg: '#EEF0FE', c: '#4338CA' }
+    if (lead.timeline === 'immediately' || lead.timeline === 'urgent') return { text: '⚡ Urgent — wants to move now', bg: '#FDF0F0', c: '#8B1A1A' }
+    if ((lead.ai_score || 0) >= 8) return { text: '🔥 Hot lead — push for a visit', bg: '#FDF0F0', c: '#8B1A1A' }
+    if (lead.status === 'qualified') return { text: `✓ Qualified${lead.budget_max ? ` — up to ₹${Number(lead.budget_max).toLocaleString('en-IN')}` : ''}`, bg: '#FEF9E7', c: '#7A5200' }
+    if (lead.bot_paused) return { text: '👤 Manual mode — you\'re handling this', bg: '#FEF9E7', c: '#7A5200' }
+    return null
+  }
+
   const fetchActivity = (leadId: string) => {
     fetch('/api/activity?lead_id=' + leadId)
       .then(r => r.json())
@@ -160,7 +184,8 @@ export default function InboxScreen({ agentId }: Props) {
   useEffect(() => {
     fetchLeads()
     fetchProperties()
-    const interval = setInterval(fetchLeads, 30000)
+    fetchAppointments()
+    const interval = setInterval(() => { fetchLeads(); fetchAppointments() }, 30000)
 
     const supabase = getSupabase()
     const channel = supabase.channel('inbox-leads-changes')
@@ -209,10 +234,16 @@ export default function InboxScreen({ agentId }: Props) {
     }
   }, [leads, selected])
 
-  // Auto-scroll
+  // Auto-scroll on new messages…
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+  // …and when returning to the chat tab (it remounts at the top otherwise).
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }))
+    }
+  }, [activeTab, selected?.id])
 
   const handleSendMessage = async () => {
     if (!msgInput.trim() || !selected) return
@@ -370,7 +401,12 @@ export default function InboxScreen({ agentId }: Props) {
                   <div style={{ width: 36, height: 36, minWidth: 36, borderRadius: '50%', background: t.bg, color: t.c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 500 }}>{getInitials(lead.name || lead.phone)}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B' }}>{lead.name || 'Unknown User'}</div>
-                    <div style={{ fontSize: 11, color: '#9E9B92', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{lead.phone}</div>
+                    {(() => {
+                      const h = getHighlight(lead)
+                      return h
+                        ? <div style={{ fontSize: 10.5, fontWeight: 600, color: h.c, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{h.text}</div>
+                        : <div style={{ fontSize: 11, color: '#9E9B92', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{lead.phone}</div>
+                    })()}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
                     <span style={{ fontSize: 10, color: '#C8C5BC' }}>{formatTime(lead.updated_at)}</span>
@@ -392,7 +428,13 @@ export default function InboxScreen({ agentId }: Props) {
               <div style={{ background: '#fff', borderBottom: '1px solid rgba(26,25,22,0.08)', padding: '14px 22px', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
                 <div style={{ width: 40, height: 40, borderRadius: '50%', background: tc.bg, color: tc.c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 500, flexShrink: 0 }}>{getInitials(selected.name || selected.phone)}</div>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B' }}>{selected.name || 'Unknown User'}</div>
+                  <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {selected.name || 'Unknown User'}
+                    {(() => {
+                      const h = getHighlight(selected)
+                      return h ? <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: h.bg, color: h.c, whiteSpace: 'nowrap' }}>{h.text}</span> : null
+                    })()}
+                  </div>
                   <div style={{ fontSize: 12, color: '#9E9B92', marginTop: 1 }}>{selected.phone}</div>
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -473,7 +515,7 @@ export default function InboxScreen({ agentId }: Props) {
                     {[
                       { k: 'Looking for', v: (selected.intent || 'Unknown') + ' — ' + (selected.property_category || 'Any') },
                       { k: 'Areas preferred', v: (selected.preferred_areas || []).join(', ') || 'Not specified' },
-                      { k: 'Budget', v: selected.budget_max ? `Up to ₹${selected.budget_max}` : 'Not specified' },
+                      { k: 'Budget', v: selected.budget_max ? `Up to ₹${Number(selected.budget_max).toLocaleString('en-IN')}${selected.intent === 'rent' ? '/mo' : ''}` : 'Not specified' },
                       { k: 'Timeline', v: selected.timeline || 'Not specified' },
                       { k: 'Lead source', v: selected.source === 'whatsapp_inbound' ? 'WhatsApp inbound' : selected.source },
                       { k: 'First contact', v: new Date(selected.created_at).toLocaleDateString() },

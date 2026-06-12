@@ -268,13 +268,37 @@ export async function POST(request: NextRequest) {
 
       console.log('APPT-DEBUG: metadata.appointment_booked_time =', metadata.appointment_booked_time || 'NOT SET')
 
+    // HARD GUARD: never accept a visit outside the agent's office hours — the
+    // model is told the hours but occasionally agrees anyway (e.g. "8pm is
+    // fine" against 09:00-19:00). Server-side rule beats prompt hope.
+    if (metadata.appointment_booked_time) {
+      const checkDate = new Date(metadata.appointment_booked_time)
+      if (!isNaN(checkDate.getTime())) {
+        const ist = new Date(checkDate.getTime() + 5.5 * 60 * 60 * 1000)
+        const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes()
+        const [oH, oM] = String(agent.office_open || '09:00').split(':').map(Number)
+        const [cH, cM] = String(agent.office_close || '19:00').split(':').map(Number)
+        if (mins < oH * 60 + oM || mins > cH * 60 + cM) {
+          console.log('APPT-DEBUG: Booked time outside office hours — refusing and correcting reply')
+          metadata.appointment_booked_time = null
+          const fmt = (t: string) => {
+            const [h, m] = t.split(':').map(Number)
+            const ampm = h >= 12 ? 'PM' : 'AM'
+            const h12 = h % 12 === 0 ? 12 : h % 12
+            return `${h12}${m ? ':' + String(m).padStart(2, '0') : ''} ${ampm}`
+          }
+          reply = `Apologies — site visits are only possible between ${fmt(String(agent.office_open || '09:00'))} and ${fmt(String(agent.office_close || '19:00'))}. Could we pick a time in that window? Morning or evening, whichever suits you better.`
+        }
+      }
+    }
+
     if (metadata.appointment_booked_time) {
       let parsedDate = new Date(metadata.appointment_booked_time);
       if (isNaN(parsedDate.getTime())) {
-         parsedDate = new Date(Date.now() + 24 * 60 * 60 * 1000); 
+         parsedDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
          console.log('APPT-DEBUG: Date was unparseable, using fallback:', parsedDate.toISOString())
       }
-      
+
       leadUpdates.status = 'visit_booked'
       
       let safePropertyId = null;
@@ -326,6 +350,7 @@ export async function POST(request: NextRequest) {
                 subject: `Action needed: ${lead.name || lead.phone} keeps rescheduling — please call them`,
                 html: `<p>Hi ${agent.name || ''},</p><p><strong>${lead.name || 'A lead'} (${lead.phone})</strong> has rescheduled their site visit 3+ times. Your AI assistant has stopped changing the appointment and told them your team will call to fix a final time.</p><p><strong>Please call them to confirm the visit.</strong> The bot is still answering their other questions in the meantime.</p>`,
                 whatsappText: `🔴 Convorian — action needed\n\n${lead.name || 'A lead'} (${lead.phone}) has rescheduled their site visit 3+ times. The AI has locked the appointment and told them your team will call.\n\n📞 Please call them now to fix the final time — this lead is at risk.`,
+                templateValues: [lead.name || 'A lead', lead.phone, 'rescheduled their site visit 3+ times — please call them to fix the final time'],
                 msg91IntegratedNumber,
               })
             } catch (alertErr: any) {

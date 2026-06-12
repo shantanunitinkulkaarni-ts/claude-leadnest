@@ -57,8 +57,9 @@ export default function FeedbackGate({ agentId, children }: { agentId: string, c
   const submitFeedback = async (resultType: string, isSkip: boolean = false) => {
     setIsSubmitting(true)
     try {
-      // 1. Update appointment
-      await fetch('/api/appointments', {
+      // 1. Update appointment — fetch() does NOT throw on 4xx/5xx, so check
+      // res.ok or a failed save silently leaves the appointment "pending".
+      const res = await fetch('/api/appointments', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -68,6 +69,12 @@ export default function FeedbackGate({ agentId, children }: { agentId: string, c
           status: resultType === 'no_show' ? 'no_show' : 'done'
         })
       })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        alert(`Could not save feedback: ${d.error || `server error ${res.status}`}. Please try again.`)
+        setIsSubmitting(false)
+        return
+      }
 
       // 2. Log activity
       await fetch('/api/activity', {

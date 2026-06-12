@@ -77,6 +77,9 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   const [step, setStep] = useState(0)
   const [rect, setRect] = useState<Rect | null>(null)
   const [completed, setCompleted] = useState(false)
+  // Replays from the profile menu are a refresher — never re-lock the
+  // hands-on steps (the user already has leads/properties by then).
+  const [isReplay, setIsReplay] = useState(false)
 
   const finish = useCallback(() => {
     localStorage.setItem('leadnest_tutorial_seen', 'true')
@@ -96,7 +99,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
 
   // Allow re-launching from anywhere (profile menu, settings, etc.)
   useEffect(() => {
-    const handler = () => { setStep(0); setCompleted(false); setVisible(true) }
+    const handler = () => { setStep(0); setCompleted(false); setIsReplay(true); setVisible(true) }
     window.addEventListener('leadnest:restart-tutorial', handler)
     return () => window.removeEventListener('leadnest:restart-tutorial', handler)
   }, [])
@@ -157,80 +160,87 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   const current = STEPS[step]
   const isLast = step === STEPS.length - 1
   const hasTarget = !!current.target && !!rect
-  const isAction = !!current.doneEvent
+  const isAction = !!current.doneEvent && !isReplay
   const nextLocked = isAction && !completed
 
   // Action steps sit BELOW the app's own modals (z-index 100+) so the user can
   // actually fill in the form that opens. Informational steps sit on top.
   const zBase = isAction ? 90 : 9000
 
-  const cardCommon: React.CSSProperties = {
-    position: 'fixed', maxWidth: 360, width: '100%',
-    background: '#fff', borderRadius: 16, padding: '24px 28px',
-    boxShadow: '0 24px 48px rgba(0,0,0,0.25)', zIndex: zBase + 3
-  }
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800
 
   const advance = () => { if (!nextLocked) (isLast ? finish() : setStep(step + 1)) }
   const goBack = step > 0 ? () => setStep(step - 1) : undefined
 
-  if (hasTarget && rect) {
-    const spotlightTop = rect.top - PAD
-    const spotlightLeft = rect.left - PAD
-    const spotlightW = rect.width + PAD * 2
-    const spotlightH = rect.height + PAD * 2
-    const vw = typeof window !== 'undefined' ? window.innerWidth : 1280
+  // ── Single persistent overlay tree ─────────────────────────────────────────
+  // The dimmer + spotlight + card stay MOUNTED across every step and animate
+  // between positions. Unmounting between steps is what caused the old
+  // "flash-bang" (full dark flash, then a new spotlight popping in).
 
-    let cardStyle = cardCommon
-    let arrow: React.ReactNode = null
+  // Spotlight geometry: a real target, or a zero-size point at screen centre
+  // (the 9999px shadow still dims the whole screen evenly → no flash).
+  const sp = hasTarget && rect
+    ? { top: rect.top - PAD, left: rect.left - PAD, w: rect.width + PAD * 2, h: rect.height + PAD * 2 }
+    : { top: vh / 2, left: vw / 2, w: 0, h: 0 }
+
+  // Card placement: beside/below the spotlight, or centred for intro/outro.
+  const cardW = hasTarget ? 320 : 420
+  let cardStyle: React.CSSProperties
+  let arrow: React.ReactNode = null
+  if (hasTarget && rect) {
     const placeRight = rect.left < vw / 2
     if (placeRight) {
-      cardStyle = { ...cardCommon, top: Math.max(16, spotlightTop), left: spotlightLeft + spotlightW + 18, maxWidth: 320 }
+      cardStyle = { top: Math.max(16, Math.min(sp.top, vh - 320)), left: sp.left + sp.w + 18 }
       arrow = (
         <div style={{
           position: 'fixed', top: rect.top + rect.height / 2 - 8,
-          left: spotlightLeft + spotlightW + 4, zIndex: zBase + 2,
+          left: sp.left + sp.w + 4, zIndex: zBase + 2,
           width: 0, height: 0, borderTop: '8px solid transparent', borderBottom: '8px solid transparent',
-          borderRight: '12px solid #fff', filter: 'drop-shadow(-2px 0 2px rgba(0,0,0,0.08))'
+          borderRight: '12px solid #fff', filter: 'drop-shadow(-2px 0 2px rgba(0,0,0,0.08))',
+          transition: 'top 0.35s cubic-bezier(.4,0,.2,1), left 0.35s cubic-bezier(.4,0,.2,1)'
         }} />
       )
     } else {
-      const cardW = 320
-      const clampedLeft = Math.min(Math.max(16, spotlightLeft), vw - cardW - 16)
-      cardStyle = { ...cardCommon, top: spotlightTop + spotlightH + 18, left: clampedLeft, maxWidth: cardW }
+      cardStyle = { top: Math.min(sp.top + sp.h + 18, vh - 280), left: Math.min(Math.max(16, sp.left), vw - cardW - 16) }
       arrow = (
         <div style={{
-          position: 'fixed', top: spotlightTop + spotlightH + 6,
+          position: 'fixed', top: sp.top + sp.h + 6,
           left: rect.left + rect.width / 2 - 8, zIndex: zBase + 2,
           width: 0, height: 0, borderLeft: '8px solid transparent', borderRight: '8px solid transparent',
-          borderBottom: '12px solid #fff', filter: 'drop-shadow(0 -2px 2px rgba(0,0,0,0.08))'
+          borderBottom: '12px solid #fff', filter: 'drop-shadow(0 -2px 2px rgba(0,0,0,0.08))',
+          transition: 'top 0.35s cubic-bezier(.4,0,.2,1), left 0.35s cubic-bezier(.4,0,.2,1)'
         }} />
       )
     }
-
-    return (
-      <>
-        <div style={{
-          position: 'fixed', top: spotlightTop, left: spotlightLeft,
-          width: spotlightW, height: spotlightH, borderRadius: 10,
-          boxShadow: `0 0 0 9999px rgba(0,0,0,${isAction ? 0.5 : 0.62})`,
-          border: '2px solid #4F46E5', zIndex: zBase,
-          pointerEvents: 'none', transition: 'all 0.25s ease'
-        }} />
-        {arrow}
-        <div style={cardStyle}>
-          <TourCard step={step} current={current} isLast={isLast} nextLocked={nextLocked} completed={completed} onSkip={finish} onNext={advance} onBack={goBack} />
-        </div>
-      </>
-    )
+  } else {
+    cardStyle = { top: vh / 2 - 170, left: vw / 2 - cardW / 2, textAlign: 'center' }
   }
 
-  // Centered card (welcome / final / fallback when target not found)
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: zBase, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ ...cardCommon, position: 'relative', textAlign: 'center', maxWidth: 420 }}>
-        <TourCard step={step} current={current} isLast={isLast} centered nextLocked={nextLocked} completed={completed} onSkip={finish} onNext={advance} onBack={goBack} />
+    <>
+      <style>{`@keyframes tourCardIn { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }`}</style>
+      {/* Dimmer + spotlight (one element, animates between steps) */}
+      <div style={{
+        position: 'fixed', top: sp.top, left: sp.left, width: sp.w, height: sp.h,
+        borderRadius: 10,
+        boxShadow: `0 0 0 9999px rgba(0,0,0,${isAction ? 0.5 : 0.6})`,
+        border: sp.w > 0 ? '2px solid #4F46E5' : 'none',
+        zIndex: zBase, pointerEvents: 'none',
+        transition: 'all 0.35s cubic-bezier(.4,0,.2,1)'
+      }} />
+      {arrow}
+      {/* keyed by step → gentle fade/slide per step, while overlay stays put */}
+      <div key={step} style={{
+        position: 'fixed', maxWidth: cardW, width: '100%',
+        background: '#fff', borderRadius: 16, padding: '24px 28px',
+        boxShadow: '0 24px 48px rgba(0,0,0,0.25)', zIndex: zBase + 3,
+        animation: 'tourCardIn 0.28s cubic-bezier(.4,0,.2,1)',
+        ...cardStyle
+      }}>
+        <TourCard step={step} current={current} isLast={isLast} centered={!hasTarget} nextLocked={nextLocked} completed={completed} onSkip={finish} onNext={advance} onBack={goBack} />
       </div>
-    </div>
+    </>
   )
 }
 

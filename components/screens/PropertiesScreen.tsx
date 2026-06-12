@@ -337,7 +337,9 @@ export default function PropertiesScreen({ agentId }: Props) {
 
       {!loading && !fetchError && properties.length === 0 && (
         <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🏠</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16, color: '#C8C5BC' }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5 12 3l9 6.5"/><path d="M5 8.5V21h14V8.5"/><path d="M9 21v-7h6v7"/></svg>
+          </div>
           <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B', marginBottom: 8 }}>No properties yet</div>
           <div style={{ fontSize: 13, color: '#9E9B92', marginBottom: 24, maxWidth: 320, margin: '0 auto 24px' }}>
             Add your first property listing. The AI bot will use these to recommend matches to leads during conversations.
@@ -351,16 +353,20 @@ export default function PropertiesScreen({ agentId }: Props) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
         {properties.map((p) => {
           const isActive = p.status === 'active'
-          const isSale = p.type === 'sale'
-          const bg = isSale ? '#EEF4FC' : '#FEF9E7'
-          
+
           const media = p.features?.filter((f: string) => f.startsWith('media:')) || []
           const firstImage = media.length > 0 ? media[0].split('media:')[1] : null
 
           return (
             <div key={p.id} onClick={() => openEditModal(p)} className="prop-card" style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', opacity: isActive ? 1 : 0.65, transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-              <div style={{ height: 140, background: firstImage ? `url(${firstImage}) center/cover` : bg, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', position: 'relative', padding: 10 }}>
-                {!firstImage && <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: 40 }}>{isSale ? '🏢' : '🚪'}</div>}
+              <div style={{ height: 140, background: firstImage ? `url(${firstImage}) center/cover` : 'linear-gradient(160deg, #F4F3EE 0%, #ECEAE4 100%)', display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', position: 'relative', padding: 10 }}>
+                {!firstImage && (
+                  // Professional no-photo placeholder: neutral gradient + outline mark + label
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#B7B4AA' }}>
+                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    <span style={{ fontSize: 10.5, fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>No photos yet</span>
+                  </div>
+                )}
                 <button 
                   onClick={(e) => toggleStatus(e, p)}
                   style={{ position: 'relative', zIndex: 2, fontSize: 10, padding: '4px 10px', borderRadius: 20, fontWeight: 500, background: 'rgba(255,255,255,0.92)', color: isActive ? '#4338CA' : '#6B6860', border: `1px solid ${isActive ? 'rgba(79,70,229,0.25)' : 'rgba(26,25,22,0.18)'}`, cursor: 'pointer', fontFamily: 'inherit' }}
