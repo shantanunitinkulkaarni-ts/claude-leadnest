@@ -302,19 +302,39 @@ export async function POST(request: NextRequest) {
           .eq('title', 'Site visit rescheduled by AI')
 
         if (rescheduleCount !== null && rescheduleCount >= 3) {
-          console.log('APPT-DEBUG: Troll detected (>=3 reschedules). Handing over to human.')
-          reply = "I notice we've had to reschedule a few times. To ensure we find a time that works perfectly without any back-and-forth, I'll have a human agent reach out to coordinate with you directly."
-          leadUpdates.bot_paused = true
-          leadUpdates.status = 'contacted'
+          // Reschedule limit reached: block this time change and bring in a
+          // human — but KEEP THE BOT ON. Pausing here left leads talking to a
+          // wall (no replies at all) while the agent never noticed the silent
+          // activity-log entry. Now: bot keeps answering, agent gets an email.
+          console.log('APPT-DEBUG: Reschedule limit (>=3). Blocking change, alerting agent, bot stays on.')
+          reply = "Noted! Since we've moved this a few times, our team will personally call you to lock in the final time — that way it's settled in one go. Meanwhile, I'm right here for anything else you'd like to know. 😊"
 
-          await supabaseAdmin.from('activity_log').insert({
-            agent_id: agent.id, lead_id: lead.id, type: 'bot_paused',
-            title: 'Bot Paused (Troll Detection)',
-            description: 'Lead rescheduled 3 or more times. Handed over to human.'
-          })
-          
+          // Alert the agent ONCE per lead (email + activity log), not on every attempt.
+          const { data: prevHandover } = await supabaseAdmin
+            .from('activity_log').select('id')
+            .eq('lead_id', lead.id).eq('type', 'human_handover').limit(1)
+          if (!prevHandover || prevHandover.length === 0) {
+            await supabaseAdmin.from('activity_log').insert({
+              agent_id: agent.id, lead_id: lead.id, type: 'human_handover',
+              title: 'Action needed: call this lead to fix the visit time',
+              description: `${lead.name || lead.phone} has rescheduled 3+ times. The bot has stopped changing the appointment — please call them to confirm a final time.`
+            })
+            try {
+              const { sendEmail } = await import('@/lib/email')
+              if (agent.email) {
+                await sendEmail({
+                  to: agent.email,
+                  subject: `Action needed: ${lead.name || lead.phone} keeps rescheduling — please call them`,
+                  html: `<p>Hi ${agent.name || ''},</p><p><strong>${lead.name || 'A lead'} (${lead.phone})</strong> has rescheduled their site visit 3+ times. Your AI assistant has stopped changing the appointment and told them your team will call to fix a final time.</p><p><strong>Please call them to confirm the visit.</strong> The bot is still answering their other questions in the meantime.</p>`
+                })
+              }
+            } catch (mailErr: any) {
+              console.error('Handover email failed (non-critical):', mailErr?.message)
+            }
+          }
+
           // Skip updating the appointment time in DB
-          metadata.appointment_booked_time = null 
+          metadata.appointment_booked_time = null
         } else {
           console.log('APPT-DEBUG: Found existing upcoming appointment, updating time to:', parsedDate.toISOString())
           const res = await supabaseAdmin.from('appointments').update({

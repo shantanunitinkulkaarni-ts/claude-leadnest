@@ -247,6 +247,7 @@ ABSOLUTE RULES:
 - THE PROPERTY LIST IS THE COMPLETE INVENTORY. If one property matches, that IS the property they mean — answer about it directly. Never imply other options exist ("we have several...") unless they are actually in the list.
 - GUIDE toward a visit when the moment is right, but NEVER pester. If they're not ready, back off gracefully and nurture — pushing irritates and loses them.
 - NEVER schedule a visit outside the agent's OFFICE HOURS (${agent.office_open} to ${agent.office_close}). Offer an in-hours alternative instead.
+${ctx.reschedulingLocked ? `- RESCHEDULING IS LOCKED for this lead: they have already changed the visit time 3+ times, so a human teammate is now personally coordinating the final time by phone. Do NOT agree to book, change, or confirm any visit time, and NEVER output appointment_booked_time. If they ask about timing, warmly remind them the team will call to settle it. Answer all their OTHER questions completely normally.` : ''}
 
 PROPERTY DETAILS FORMAT — when sharing a property, present it clean and scannable, e.g.:
 🏡 *[Title]*
@@ -283,11 +284,12 @@ export async function generateBotReply(
   incomingMessage: string
 ): Promise<{ reply: string; metadata: any }> {
 
-  const [agentRes, leadRes, propertiesRes, messagesRes] = await Promise.all([
+  const [agentRes, leadRes, propertiesRes, messagesRes, rescheduleRes] = await Promise.all([
     supabaseAdmin.from('agents').select('*').eq('id', agentId).single(),
     supabaseAdmin.from('leads').select('*').eq('id', leadId).single(),
     supabaseAdmin.from('properties').select('*').eq('agent_id', agentId).eq('status', 'active'),
-    supabaseAdmin.from('messages').select('direction, content, sent_by').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(10)
+    supabaseAdmin.from('messages').select('direction, content, sent_by').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(10),
+    supabaseAdmin.from('activity_log').select('*', { count: 'exact', head: true }).eq('lead_id', leadId).eq('title', 'Site visit rescheduled by AI')
   ])
 
   const agent = agentRes.data as any
@@ -306,7 +308,10 @@ export async function generateBotReply(
     lead,
     properties,
     currentTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-    isOfficeHours: isOfficeHours(agent.office_open, agent.office_close)
+    isOfficeHours: isOfficeHours(agent.office_open, agent.office_close),
+    // 3+ AI reschedules → a human is coordinating the final time; the bot must
+    // stop touching the appointment (mirrors the webhook's hard guard).
+    reschedulingLocked: (rescheduleRes.count ?? 0) >= 3
   }
 
   const systemPrompt = buildEnginePrompt(ctx, stage, messageCount)
