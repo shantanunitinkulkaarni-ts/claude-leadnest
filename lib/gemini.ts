@@ -1,115 +1,23 @@
 import { supabaseAdmin } from './supabase'
-import Groq from 'groq-sdk'
-import axios from 'axios'
+import { glmChat } from './llm'
 
-const GROQ_MODEL = 'llama-3.3-70b-versatile'
-const GEMINI_MODEL = 'gemini-flash-latest'
-const GLM_MODEL = 'glm-4.5-flash'
-
-function getGroqClient() {
-  const apiKey = process.env.GROQ_API_KEY
-  if (!apiKey) throw new Error('GROQ_API_KEY env var is missing')
-  return new Groq({ apiKey })
-}
-
-function geminiKey(): string | undefined {
-  return process.env.GEMINI_API_KEY || process.env.Gemini_API_KEY
-}
-
-function glmKey(): string | undefined {
-  return process.env.GLM_API_KEY
-}
-
-// ─── GLM-4.5-Flash (Z.ai) — free tier, OpenAI-compatible ────────────────────
-// thinking disabled: GLM-4.5 is a reasoning model by default and would spend
-// the whole token budget "thinking", returning empty text for chat use.
-async function callGLM(
-  systemPrompt: string,
-  chatHistory: { role: 'user' | 'assistant'; content: string }[],
-  incomingMessage: string
-): Promise<string> {
-  const res = await axios.post(
-    'https://api.z.ai/api/paas/v4/chat/completions',
-    {
-      model: GLM_MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...chatHistory,
-        { role: 'user', content: incomingMessage },
-      ],
-      max_tokens: 600,
-      temperature: 0.7,
-      thinking: { type: 'disabled' },
-    },
-    { headers: { Authorization: `Bearer ${glmKey()}`, 'Content-Type': 'application/json' }, timeout: 12000 }
-  )
-  return (res.data?.choices?.[0]?.message?.content || '').trim()
-}
-
-// ─── Provider-agnostic engine call: GLM → Gemini → Groq ──────────────────────
-// GLM-4.5-Flash (Z.ai, free) is the primary brain; on any error/ratelimit/empty
-// we fall through to Gemini (if a key is set) and finally Groq, so the bot
-// never goes silent on a paying client. Returns the raw model text.
+// ─── Engine LLM call: GLM-4.5-Flash ONLY (see lib/llm.ts) ─────────────────────
+// Gemini and Groq were removed (June 13, founder decision): Gemini's key needs
+// paid billing, Groq's free daily cap caused mid-day canned replies to real
+// leads. Reliability now = fast first attempt + one auto-retry inside glmChat.
 export async function callEngineLLM(
   systemPrompt: string,
   chatHistory: { role: 'user' | 'assistant'; content: string }[],
   incomingMessage: string
 ): Promise<string> {
-  // 1) Try GLM-4.5-Flash (primary).
-  if (glmKey()) {
-    try {
-      const text = await callGLM(systemPrompt, chatHistory, incomingMessage)
-      if (text) return text
-      console.warn('GLM returned empty — falling back')
-    } catch (e: any) {
-      console.warn('GLM failed, falling back:', e?.response?.status || e?.message)
-    }
-  }
-
-  // 2) Try Gemini.
-  const key = geminiKey()
-  if (key) {
-    try {
-      // Gemini wants roles user|model, alternating, starting with user.
-      const contents = [
-        ...chatHistory.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })),
-        { role: 'user', parts: [{ text: incomingMessage }] },
-      ]
-      while (contents.length && contents[0].role === 'model') contents.shift()
-      const res = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`,
-        {
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents,
-          // thinkingBudget:0 disables Gemini 2.5 Flash's internal reasoning so it
-          // doesn't eat the output budget — we want fast, concise WhatsApp replies.
-          generationConfig: { temperature: 0.7, maxOutputTokens: 800, thinkingConfig: { thinkingBudget: 0 } },
-        },
-        // 12s budget: leaves room for the Groq fallback + DB writes inside the
-        // webhook's 60s maxDuration, and keeps the lead from waiting too long.
-        { headers: { 'Content-Type': 'application/json' }, timeout: 12000 }
-      )
-      const text = res.data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('').trim()
-      if (text) return text
-      console.warn('Gemini returned empty — falling back to Groq')
-    } catch (e: any) {
-      console.warn('Gemini failed, falling back to Groq:', e?.response?.status || e?.message)
-    }
-  }
-
-  // 3) Last resort: Groq (Llama 3.3 70B).
-  const groq = getGroqClient()
-  const completion = await groq.chat.completions.create({
-    model: GROQ_MODEL,
-    messages: [
+  return glmChat(
+    [
       { role: 'system', content: systemPrompt },
       ...chatHistory,
       { role: 'user', content: incomingMessage },
     ],
-    max_tokens: 600,
-    temperature: 0.7,
-  })
-  return completion.choices[0]?.message?.content?.trim() || ''
+    { maxTokens: 500, temperature: 0.7 }
+  )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -406,7 +314,7 @@ export async function generateBotReply(
   // Build conversation history — exclude the LAST message (the one we just inserted)
   const historyMessages = recentMessages.slice(0, -1).slice(-8)
 
-  // Convert to Groq/OpenAI format
+  // Convert to OpenAI chat format
   const chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
   for (const m of historyMessages) {
     const role = m.direction === 'inbound' ? 'user' : 'assistant'
@@ -420,9 +328,9 @@ export async function generateBotReply(
     }
   }
 
-  // ─── Generate reply: Gemini primary → Groq fallback ──────────────────────
+  // ─── Generate reply via GLM (fast attempt + auto-retry) ──────────────────
   const responseText = await callEngineLLM(systemPrompt, chatHistory, incomingMessage)
-  if (!responseText) throw new Error('Both Gemini and Groq returned empty')
+  if (!responseText) throw new Error('Engine LLM returned empty')
 
   return parseEngineResponse(responseText, stage)
 }
@@ -432,7 +340,7 @@ export async function generateBotReply(
 // JSON, or extra blank lines. If the JSON is malformed we keep the reply and
 // just skip the metadata — losing a score must never lose the message.
 export function parseEngineResponse(responseText: string, stage: ConversationStage): { reply: string; metadata: any } {
-  // Strip markdown code fences (Gemini often wraps the JSON in ```json ... ```)
+  // Strip markdown code fences (models often wrap the JSON in ```json ... ```)
   let text = responseText.trim().replace(/```(?:json)?/gi, '').trim()
   let reply = text
   let metadata: any = { stage }

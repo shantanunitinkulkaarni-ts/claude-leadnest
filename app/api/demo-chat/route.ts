@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import Groq from 'groq-sdk'
+import { glmChat, glmKey } from '@/lib/llm'
 import { createClient } from '@supabase/supabase-js'
 
 export const maxDuration = 30; // max Vercel function timeout
@@ -45,12 +45,10 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Initialize Groq
-    const apiKey = process.env.GROQ_API_KEY
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Missing GROQ_API_KEY configuration' }, { status: 500 })
+    // 2. LLM availability check (GLM is the only provider — see lib/llm.ts)
+    if (!glmKey()) {
+      return NextResponse.json({ error: 'Missing GLM_API_KEY configuration' }, { status: 500 })
     }
-    const groq = new Groq({ apiKey })
 
     // 3. System Prompt
     const systemInstructionText = `You are Aisha, an elite and highly professional luxury real estate specialist for "The Azure Villas" located in Goa, India. You are an AI assistant designed to demonstrate the power of Convorian's Conversion Engine.
@@ -69,18 +67,14 @@ RULES:
 
     const lastMessage = messages[messages.length - 1].content
 
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
+    const responseText = await glmChat(
+      [
         { role: 'system', content: systemInstructionText },
         ...history,
         { role: 'user', content: lastMessage }
       ],
-      max_tokens: 200,
-      temperature: 0.7
-    })
-
-    const responseText = completion.choices[0]?.message?.content?.trim() || ''
+      { maxTokens: 200, temperature: 0.7 }
+    )
 
     return NextResponse.json({ response: responseText })
 

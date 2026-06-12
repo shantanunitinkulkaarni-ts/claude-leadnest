@@ -30,7 +30,6 @@ function loadEnvKey(name: string): string | undefined {
 
 const KEY = loadEnvKey('GROQ_API_KEY')
 loadEnvKey('GLM_API_KEY')
-loadEnvKey('GEMINI_API_KEY')
 const MODEL = 'llama-3.3-70b-versatile'
 
 const baseAgent = {
