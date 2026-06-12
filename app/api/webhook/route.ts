@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const tStart = Date.now()
   try {
     const contentType = request.headers.get('content-type') || ''
     let fromPhone = '', messageText = '', waMessageId = '', phoneNumberId = '', forcedAgentId = ''
@@ -191,6 +192,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`Webhook Debug: Calling Gemini for lead ${lead.phone} with message: "${messageText}"`)
+    const tEngine = Date.now()
     let reply: string, metadata: any
     try {
       const result = await generateBotReply(agent.id, lead.id, messageText)
@@ -201,6 +203,7 @@ export async function POST(request: NextRequest) {
       reply = `Thank you for reaching out! Our team will get back to you shortly. 🙏`
       metadata = {}
     }
+    console.log(`Webhook Timing: engine took ${Date.now() - tEngine}ms`)
     console.log(`Webhook Debug: Gemini replied with: "${reply}" and metadata:`, metadata)
 
     const leadUpdates: any = { updated_at: now }
@@ -388,6 +391,7 @@ export async function POST(request: NextRequest) {
 
     await supabaseAdmin.from('agents').update({ messages_used: (agent.messages_used || 0) + 2 }).eq('id', agent.id)
 
+    console.log(`Webhook Timing: total ${Date.now() - tStart}ms (lead ${lead.phone})`)
     return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'ok' })
 
   } catch (err: any) {
