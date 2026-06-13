@@ -365,6 +365,71 @@ export async function generateBotReply(
   return parseEngineResponse(responseText, stage)
 }
 
+// ─── Proactive follow-up nudge (the lead went quiet) ─────────────────────────
+// Composes ONE short, NEW, value-adding re-engagement message from the full
+// conversation context. Used by the nurture cron for in-window touches at
+// 3h / 10h / 23h. Returns just the WhatsApp text (no JSON metadata).
+// `intensity` shapes tone: 'soft' (early), 'value' (mid), 'window_save' (last).
+export async function generateNudge(
+  agentId: string,
+  leadId: string,
+  intensity: 'soft' | 'value' | 'window_save' = 'soft'
+): Promise<string> {
+  const [agentRes, leadRes, propertiesRes, messagesRes] = await Promise.all([
+    supabaseAdmin.from('agents').select('*').eq('id', agentId).single(),
+    supabaseAdmin.from('leads').select('*').eq('id', leadId).single(),
+    supabaseAdmin.from('properties').select('*').eq('agent_id', agentId).eq('status', 'active'),
+    supabaseAdmin.from('messages').select('direction, content, sent_by').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(10),
+  ])
+  const agent = agentRes.data as any
+  const lead = leadRes.data as any
+  if (!agent || !lead) throw new Error('Agent or lead not found')
+  const properties = propertiesRes.data || []
+  const recentMessages = (messagesRes.data || []).reverse()
+  const messageCount = recentMessages.length
+  const stage = detectStage(lead, messageCount)
+
+  const ctx = {
+    agent, lead, properties,
+    currentTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+    isOfficeHours: isOfficeHours(agent.office_open, agent.office_close),
+    reschedulingLocked: false,
+  }
+  const systemPrompt = buildEnginePrompt(ctx, stage, messageCount)
+
+  const chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
+  for (const m of recentMessages.slice(-8)) {
+    const role = m.direction === 'inbound' ? 'user' : 'assistant'
+    const text = (m.content || '').toString()
+    if (!text.trim()) continue
+    const last = chatHistory[chatHistory.length - 1]
+    if (last && last.role === role) last.content += '\n' + text
+    else chatHistory.push({ role, content: text })
+  }
+
+  const toneLine = intensity === 'window_save'
+    ? "This is your LAST message today before the chat window closes. Be warm and give one clear, easy reason to reply (a question they can answer in one tap). Do NOT sound desperate."
+    : intensity === 'value'
+      ? "Add genuine NEW value — a property detail they haven't heard, a fresh matching option, or answer a likely next question. Move things forward by one small step."
+      : "A light, friendly check-in that references where you left off. One sentence. No pressure."
+
+  const nudgeInstruction = `[SYSTEM — COMPOSE A FOLLOW-UP NUDGE]
+The lead has gone quiet (no reply to your last message). Write ONE short WhatsApp follow-up to re-engage them.
+HARD RULES:
+- Do NOT greet again ("hi/hello") — you're already mid-conversation.
+- Do NOT repeat or rephrase anything you already said. Say something NEW.
+- ${toneLine}
+- Respect their language (mirror Hindi/Marathi/English as before), tone and stage.
+- If there is genuinely nothing new and useful to say, reply with exactly: SKIP
+- Output ONLY the message text. No JSON, no quotes, no preamble.`
+
+  const text = await callEngineLLM(systemPrompt, chatHistory, nudgeInstruction)
+  const cleaned = (text || '').trim().replace(/^["']|["']$/g, '').trim()
+  if (!cleaned || /^SKIP$/i.test(cleaned)) return ''
+  // Strip any stray JSON the model may append despite instructions.
+  return parseEngineResponse(cleaned, stage).reply || cleaned
+}
+
 // Split the model output into the WhatsApp reply + trailing metadata JSON.
 // Tolerant of model formatting drift: code fences around the JSON, multi-line
 // JSON, or extra blank lines. If the JSON is malformed we keep the reply and
