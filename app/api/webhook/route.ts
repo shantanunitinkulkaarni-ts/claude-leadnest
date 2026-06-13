@@ -54,9 +54,12 @@ export async function POST(request: NextRequest) {
         // interactive reply — our templates use quick-reply buttons, which arrive
         // as a different content type with the text NOT in `body.text`.
         const pick = (...xs: any[]) => { for (const x of xs) if (typeof x === 'string' && x.trim()) return x; return '' }
+        const btn = body.button
         messageText = pick(
           body.text,
-          body.button?.text, body.button?.payload,
+          typeof btn === 'string' ? btn : '',
+          btn?.text, btn?.payload, btn?.title, btn?.value,
+          body.buttonText, body.button_text, body.payload, body.buttonPayload,
           body.interactive?.button_reply?.title, body.interactive?.button_reply?.id,
           body.interactive?.list_reply?.title, body.interactive?.list_reply?.id,
           body.content?.text, typeof body.content === 'string' ? body.content : '',
@@ -68,7 +71,8 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ status: 'ignored_non_text' })
         }
         if (!messageText || !fromPhone) {
-          console.log('MSG91 inbound: could not extract text — raw payload:', JSON.stringify(body).slice(0, 600))
+          // Full payload (not truncated) so we can map any unexpected button shape.
+          console.log('MSG91 inbound: could not extract text — FULL payload:', JSON.stringify(body))
           return NextResponse.json({ status: 'no_text' })
         }
       } else if (body.object === 'whatsapp_business_account') {
