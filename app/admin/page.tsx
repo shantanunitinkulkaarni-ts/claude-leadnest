@@ -17,37 +17,43 @@ export default function AdminDashboard() {
   const [newNum, setNewNum] = useState('')
 
   useEffect(() => {
-    async function checkAdmin() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        router.push('/login')
-        return
-      }
+    let cancelled = false
 
-      // Check if user is in superadmins table
+    const fetchAgencies = async () => {
+      const { data: agencyData } = await supabase.from('agents').select('*').order('created_at', { ascending: false })
+      if (!cancelled) setAgencies(agencyData || [])
+    }
+
+    async function decide(session: any) {
+      if (cancelled) return
+      if (!session) { router.push('/login'); return }
+      // Is the user a superadmin? (RLS lets them read only their own row.)
       const { data: adminRecord } = await supabase
-        .from('superadmins')
-        .select('*')
-        .eq('auth_user_id', session.user.id)
-        .single()
-
-      if (!adminRecord) {
-        // Not an admin, kick them back to dashboard
-        router.push('/dashboard')
-        return
-      }
-
+        .from('superadmins').select('*').eq('auth_user_id', session.user.id).maybeSingle()
+      if (cancelled) return
+      if (!adminRecord) { router.push('/dashboard'); return }
       setIsSuperadmin(true)
-
-      // Fetch all agencies for global view
-      const fetchAgencies = async () => {
-        const { data: agencyData } = await supabase.from('agents').select('*').order('created_at', { ascending: false })
-        setAgencies(agencyData || [])
-      }
       fetchAgencies()
     }
-    
-    checkAdmin()
+
+    ;(async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) { decide(session); return }
+      // No session on first read — the browser client may still be hydrating the
+      // cookie. Wait briefly (auth event or 1.5s) before bouncing to /login, so
+      // a logged-in superadmin isn't falsely kicked out.
+      const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+        if (s && !cancelled) { sub.subscription.unsubscribe(); decide(s) }
+      })
+      setTimeout(async () => {
+        if (cancelled) return
+        sub.subscription.unsubscribe()
+        const { data: { session: s2 } } = await supabase.auth.getSession()
+        decide(s2)
+      }, 1500)
+    })()
+
+    return () => { cancelled = true }
   }, [router])
 
   const handleToggleSuspend = async (agency: any) => {
