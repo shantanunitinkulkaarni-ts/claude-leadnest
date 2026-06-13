@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [agentId, setAgentId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [impersonating, setImpersonating] = useState<string | null>(null) // agency name when admin is viewing as a client
 
   const refreshAgent = useCallback(async (id: string) => {
     try {
@@ -45,17 +46,37 @@ export default function DashboardPage() {
         return
       }
 
+      // Superadmin impersonation: if an admin chose to view a client's dashboard
+      // (/admin → Impersonate), honour that target instead of their own agency.
+      // Only trusted for verified superadmins; the data APIs independently allow
+      // superadmins, so this never grants access a normal user could fake.
+      const impersonateId = typeof window !== 'undefined' ? localStorage.getItem('convorian_impersonate_agent_id') : null
+      if (impersonateId) {
+        const { data: sa } = await supabase
+          .from('superadmins').select('auth_user_id').eq('auth_user_id', session.user.id).maybeSingle()
+        if (sa) {
+          setAgentId(impersonateId)
+          setImpersonating(localStorage.getItem('convorian_impersonate_agent_name') || 'client')
+          await refreshAgent(impersonateId)
+          setIsLoading(false)
+          return
+        }
+        // Not actually an admin — clear the stale flag and fall through.
+        localStorage.removeItem('convorian_impersonate_agent_id')
+        localStorage.removeItem('convorian_impersonate_agent_name')
+      }
+
       const { data: teamMember, error } = await supabase
         .from('team_members')
         .select('agent_id')
         .eq('auth_user_id', session.user.id)
         .single()
-        
+
       if (error || !teamMember) {
         router.push('/onboarding')
         return
       }
-      
+
       setAgentId(teamMember.agent_id)
       await refreshAgent(teamMember.agent_id)
       setIsLoading(false)
@@ -107,6 +128,16 @@ export default function DashboardPage() {
         onClose={() => setSidebarOpen(false)}
       />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+        {impersonating && (
+          <div style={{ background: '#15161B', color: '#fff', padding: '8px 16px', fontSize: 12.5, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexShrink: 0 }}>
+            <span>👁 Viewing as <strong>{impersonating}</strong> (admin mode)</span>
+            <button
+              onClick={() => { localStorage.removeItem('convorian_impersonate_agent_id'); localStorage.removeItem('convorian_impersonate_agent_name'); router.push('/admin') }}
+              style={{ background: '#fff', color: '#15161B', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Exit to admin
+            </button>
+          </div>
+        )}
         <Topbar
           screen={screen}
           agentId={agentId ?? undefined}
