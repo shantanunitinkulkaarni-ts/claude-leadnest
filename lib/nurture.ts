@@ -23,12 +23,16 @@ const MAX_SEND_ATTEMPTS = 3
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // Failure attempts are tracked in nurture_emails_sent as "<key>#failN" markers,
-// kept out of the way of the plain "<key>" success markers.
+// kept out of the way of the plain "<key>" success markers. String parsing
+// (not regex) to avoid backslash-escaping pitfalls in the digit class.
 function failCount(sent: string[], key: string): number {
+  const prefix = `${key}#fail`
   let max = 0
   for (const s of sent) {
-    const m = s.match(new RegExp(`^${key}#fail(\\d+)$`))
-    if (m) max = Math.max(max, parseInt(m[1], 10))
+    if (s.startsWith(prefix)) {
+      const n = parseInt(s.slice(prefix.length), 10)
+      if (!isNaN(n)) max = Math.max(max, n)
+    }
   }
   return max
 }
