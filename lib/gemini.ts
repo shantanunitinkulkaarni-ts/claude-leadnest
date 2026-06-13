@@ -291,7 +291,8 @@ Rules for JSON:
 - Only include fields you are confident about from THIS conversation
 - matched_property_id: include ONLY if you just recommended a specific property
 - appointment_booked_time: CRITICAL AND MANDATORY if you just confirmed an appointment time with the user. Must be a valid ISO 8601 string in Indian Standard Time (IST, UTC+05:30). For example, if the user says "5 PM tomorrow" and tomorrow is June 2nd, output "2026-06-02T17:00:00+05:30". Do NOT omit this if an appointment was agreed upon. Current IST time: ${ctx.currentTime}.
-- appointment_status: Output "upcoming" if you booked/rescheduled a visit. Output "cancelled" if the user explicitly cancels their visit. Omit otherwise.`
+- appointment_status: Output "upcoming" if you booked/rescheduled a visit. Output "cancelled" if the user explicitly cancels their visit. Omit otherwise.
+- lang: the language THIS lead is writing in — "hi" (Hindi), "mr" (Marathi), or "en" (English/Hinglish). Judge by their words (Marathi: आहे/मला/हवंय/का; Hindi: है/मुझे/चाहिए/क्या). This sets which language future reminders use, so be accurate.`
 }
 
 function isOfficeHours(openTime: string, closeTime: string): boolean {

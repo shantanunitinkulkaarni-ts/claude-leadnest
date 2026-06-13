@@ -32,6 +32,9 @@ export async function GET(request: NextRequest) {
     // IST quiet hours: only send 9 AM–8 PM IST so we never ping at night.
     const istHour = new Date(now + 5.5 * H(1)).getUTCHours()
     const withinQuietHours = istHour >= 9 && istHour < 20
+    // Approved-template sending master switch (flip on after verifying MSG91 format).
+    const TEMPLATES_LIVE = process.env.MSG91_TEMPLATES_LIVE === 'true'
+    const TEMPLATE_COST = Number(process.env.MSG91_TEMPLATE_COST || '1') // ₹ per send
 
     if (withinQuietHours) {
       // Window still open (lead messaged in the last 24h), not closed/paused/opted-out.
@@ -108,8 +111,6 @@ export async function GET(request: NextRequest) {
     // (lib/outreach), capped by agent intensity, credits-gated. The right
     // template + language + named variables are chosen per lead by pickTemplate.
     // Gated by MSG91_TEMPLATES_LIVE so it can be flipped on after a test send.
-    const TEMPLATES_LIVE = process.env.MSG91_TEMPLATES_LIVE === 'true'
-    const TEMPLATE_COST = Number(process.env.MSG91_TEMPLATE_COST || '1') // ₹ per send
     if (TEMPLATES_LIVE && withinQuietHours) {
       const windowClosedBefore = new Date(now - H(24)).toISOString()
       const { data: dormantCandidates } = await supabaseAdmin
@@ -201,16 +202,29 @@ export async function GET(request: NextRequest) {
         if (!ag || !appt.leads?.phone) continue
 
         if (ag.msg91_integrated_number) {
-          // MSG91: no approved reminder template yet → free-text (works if the
-          // lead's 24h window is open; harmless no-op otherwise). Template
-          // upgrade tracked in HANDOFF.
           const dt = new Date(appt.scheduled_at)
           const dateStr = dt.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
           const timeStr = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-          const msg = `Hi ${appt.leads.name || 'there'}! Reminder: your site visit${appt.properties?.title ? ` for ${appt.properties.title}` : ''} is on ${dateStr} at ${timeStr}. See you there! 🏠`
-          await sendToLead(ag, appt.leads, msg)
-          await supabaseAdmin.from('appointments').update({ reminder_sent: true }).eq('id', appt.id)
-          results.reminders++
+          if (TEMPLATES_LIVE) {
+            // Approved `visit_reminder` Utility template — delivers even outside
+            // the 24h window. Named variables, white-label (agency name).
+            const values = {
+              customer_name: (appt.leads.name || '').trim().split(/\s+/)[0] || 'there',
+              agency_name: ag.agency_name || 'your property advisor',
+              property: appt.properties?.title || 'your booked visit',
+              visit_date: dateStr,
+              visit_time: timeStr,
+            }
+            const rid = await sendViaMsg91Template(ag.msg91_integrated_number, appt.leads.phone, 'visit_reminder', values, 'en')
+            if (rid) { await supabaseAdmin.from('appointments').update({ reminder_sent: true }).eq('id', appt.id); results.reminders++ }
+            else results.errors++
+          } else {
+            // Pre-go-live fallback: free-text (only delivers inside the 24h window).
+            const msg = `Hi ${appt.leads.name || 'there'}! Reminder: your site visit${appt.properties?.title ? ` for ${appt.properties.title}` : ''} is on ${dateStr} at ${timeStr}. See you there! 🏠`
+            await sendToLead(ag, appt.leads, msg)
+            await supabaseAdmin.from('appointments').update({ reminder_sent: true }).eq('id', appt.id)
+            results.reminders++
+          }
         } else if (ag.wa_phone_number_id) {
           await sendAppointmentReminder(ag, appt.leads, appt, appt.properties)
           await supabaseAdmin.from('appointments').update({ reminder_sent: true }).eq('id', appt.id)
