@@ -102,25 +102,35 @@ function propertyType(lead: any): string {
 // order the variables appear in the template body. `lang` = 'en' | 'hi' | 'mr'.
 export function pickTemplate(
   lead: any, agent: any, lang: string
-): { name: string; language: string; values: string[] } | null {
+): { name: string; language: string; values: { name: string; value: string }[] } | null {
   const agency = agent?.agency_name || 'your property advisor'
   const isLastTouch = (lead.template_touches || 0) >= 2 // graceful sign-off on later touches
   const qualified = lead.status === 'qualified' || (lead.ai_score || 0) >= 6
 
   let key: keyof typeof TEMPLATES
-  let values: string[]
+  let values: { name: string; value: string }[]
   if (isLastTouch) {
-    // lead_final_touch: {{customer_name}} {{agency_name}} {{area}}
     key = 'lead_final_touch'
-    values = [firstName(lead), agency, leadArea(lead, agent)]
+    values = [
+      { name: 'customer_name', value: firstName(lead) },
+      { name: 'agency_name', value: agency },
+      { name: 'area', value: leadArea(lead, agent) },
+    ]
   } else if (qualified) {
-    // lead_visit_invite: {{customer_name}} {{agency_name}} {{property}}
     key = 'lead_visit_invite'
-    values = [firstName(lead), agency, `a ${propertyType(lead)} in ${leadArea(lead, agent)}`]
+    values = [
+      { name: 'customer_name', value: firstName(lead) },
+      { name: 'agency_name', value: agency },
+      { name: 'property', value: `a ${propertyType(lead)} in ${leadArea(lead, agent)}` },
+    ]
   } else {
-    // lead_new_match: {{customer_name}} {{agency_name}} {{area}} {{property_type}}
     key = 'lead_new_match'
-    values = [firstName(lead), agency, leadArea(lead, agent), propertyType(lead)]
+    values = [
+      { name: 'customer_name', value: firstName(lead) },
+      { name: 'agency_name', value: agency },
+      { name: 'area', value: leadArea(lead, agent) },
+      { name: 'property_type', value: propertyType(lead) },
+    ]
   }
 
   const cfg = TEMPLATES[key]

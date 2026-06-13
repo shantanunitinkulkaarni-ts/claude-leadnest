@@ -210,11 +210,11 @@ export async function GET(request: NextRequest) {
             // the 24h window. Values positional, in template order:
             // {{customer_name}} {{agency_name}} {{property}} {{visit_date}} {{visit_time}}
             const values = [
-              (appt.leads.name || '').trim().split(/\s+/)[0] || 'there',
-              ag.agency_name || 'your property advisor',
-              appt.properties?.title || 'your booked visit',
-              dateStr,
-              timeStr,
+              { name: 'customer_name', value: (appt.leads.name || '').trim().split(/\s+/)[0] || 'there' },
+              { name: 'agency_name', value: ag.agency_name || 'your property advisor' },
+              { name: 'property', value: appt.properties?.title || 'your booked visit' },
+              { name: 'visit_date', value: dateStr },
+              { name: 'visit_time', value: timeStr },
             ]
             const rid = await sendViaMsg91Template(ag.msg91_integrated_number, appt.leads.phone, 'visit_reminder', values, 'en')
             if (rid) { await supabaseAdmin.from('appointments').update({ reminder_sent: true }).eq('id', appt.id); results.reminders++ }

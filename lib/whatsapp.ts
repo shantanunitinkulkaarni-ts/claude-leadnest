@@ -127,27 +127,31 @@ export async function sendViaMsg91(
 // ─── MSG91 template message ───────────────────────────────────────────────────
 // Templates work OUTSIDE the 24h session window (proactive re-engagement +
 // agent alerts). The template must be approved in MSG91 first.
-// `bodyValues` accepts either:
-//   - string[]  → positional, fills body_1, body_2, … (legacy / numbered templates)
-//   - Record<string,string> → named, keyed by the variable name ({{customer_name}}…)
-//     which is what MSG91 requires for named-variable templates.
+// `bodyValues` accepts (positional, in template-variable order):
+//   - string[]                 → numbered templates ({{1}},{{2}}…): body_N = value
+//   - { name, value }[]        → NAMED templates ({{customer_name}}…): each body_N
+//                                also carries parameter_name (Meta requires this
+//                                for named-parameter templates).
+type TemplateVar = { name: string; value: string }
 export async function sendViaMsg91Template(
   integratedNumber: string,
   toPhone: string,
   templateName: string,
-  bodyValues: string[] | Record<string, string>,
+  bodyValues: string[] | TemplateVar[],
   languageCode = 'en'
 ): Promise<string | null> {
   try {
     const authkey = process.env.MSG91_AUTHKEY
     if (!authkey) { console.error('MSG91 template send: MSG91_AUTHKEY not set'); return null }
     const to = toPhone.replace(/^\+/, '')
-    const components: Record<string, { type: string; value: string }> = {}
-    if (Array.isArray(bodyValues)) {
-      bodyValues.forEach((v, i) => { components[`body_${i + 1}`] = { type: 'text', value: v } })
-    } else {
-      for (const [k, v] of Object.entries(bodyValues)) components[k] = { type: 'text', value: String(v) }
-    }
+    const components: Record<string, any> = {}
+    bodyValues.forEach((v, i) => {
+      if (typeof v === 'string') {
+        components[`body_${i + 1}`] = { type: 'text', value: v }
+      } else {
+        components[`body_${i + 1}`] = { type: 'text', value: v.value, parameter_name: v.name }
+      }
+    })
     const res = await axios.post(
       'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/',
       {
