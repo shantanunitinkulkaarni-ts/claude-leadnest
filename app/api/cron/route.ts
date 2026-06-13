@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { sendAppointmentReminder, sendToLead, sendViaMsg91Template, deductWABalance } from '@/lib/whatsapp'
 import { generateNudge } from '@/lib/gemini'
 import { runNurtureEmails } from '@/lib/nurture'
-import { decideOutreach } from '@/lib/outreach'
+import { decideOutreach, pickTemplate } from '@/lib/outreach'
 
 export const maxDuration = 60
 
@@ -103,14 +103,14 @@ export async function GET(request: NextRequest) {
     }
 
     // ── 1b. PAID TEMPLATE RE-ENGAGEMENT (window closed) ──
-    // Once the free 24h window has closed, re-engage quiet leads with the
-    // approved Marketing template. Context-driven cadence (lib/outreach), agent
-    // intensity, daytime/weekend fit, capped, credits-gated. Disabled until the
-    // template is configured (MSG91_NURTURE_TEMPLATE).
-    const NURTURE_TEMPLATE = process.env.MSG91_NURTURE_TEMPLATE || ''
-    const TEMPLATE_LANG = process.env.MSG91_NURTURE_TEMPLATE_LANG || 'en'
+    // Once the free 24h window closes, re-engage quiet leads with an approved
+    // Marketing template. Context-driven cadence + value scaling + daytime fit
+    // (lib/outreach), capped by agent intensity, credits-gated. The right
+    // template + language + named variables are chosen per lead by pickTemplate.
+    // Gated by MSG91_TEMPLATES_LIVE so it can be flipped on after a test send.
+    const TEMPLATES_LIVE = process.env.MSG91_TEMPLATES_LIVE === 'true'
     const TEMPLATE_COST = Number(process.env.MSG91_TEMPLATE_COST || '1') // ₹ per send
-    if (NURTURE_TEMPLATE && withinQuietHours) {
+    if (TEMPLATES_LIVE && withinQuietHours) {
       const windowClosedBefore = new Date(now - H(24)).toISOString()
       const { data: dormantCandidates } = await supabaseAdmin
         .from('leads')
@@ -126,10 +126,8 @@ export async function GET(request: NextRequest) {
         try {
           const agent = lead.agents
           if (!agent?.bot_active) continue
-          // Only MSG91-routed agents can send this template today.
-          if (!agent.msg91_integrated_number) continue
-          // Budget gate — never send without credits.
-          if (Number(agent.wa_balance || 0) < TEMPLATE_COST) continue
+          if (!agent.msg91_integrated_number) continue // MSG91-routed agents only
+          if (Number(agent.wa_balance || 0) < TEMPLATE_COST) continue // budget gate
 
           const decision = decideOutreach(lead, agent, now)
           if (!decision.send) {
@@ -139,15 +137,29 @@ export async function GET(request: NextRequest) {
             continue
           }
 
+          // Detect the lead's chat language from their most recent inbound text
+          // (Devanagari → Hindi; refine to Marathi once that template clears).
+          let lang = lead.language || 'en'
+          if (!lead.language) {
+            const { data: lastIn } = await supabaseAdmin
+              .from('messages').select('content').eq('lead_id', lead.id).eq('direction', 'inbound')
+              .order('created_at', { ascending: false }).limit(1)
+            const txt = lastIn?.[0]?.content || ''
+            if (/[ऀ-ॿ]/.test(txt)) lang = 'hi'
+          }
+
+          const tmpl = pickTemplate(lead, agent, lang)
+          if (!tmpl) continue // nothing suitable/approved
+
           const reqId = await sendViaMsg91Template(
-            agent.msg91_integrated_number, lead.phone, NURTURE_TEMPLATE, decision.values, TEMPLATE_LANG
+            agent.msg91_integrated_number, lead.phone, tmpl.name, tmpl.values, tmpl.language
           )
           if (!reqId) { results.errors++; continue }
 
-          await deductWABalance(agent.id, TEMPLATE_COST, `Re-engagement template — ${lead.name || lead.phone}`, NURTURE_TEMPLATE, lead.id)
+          await deductWABalance(agent.id, TEMPLATE_COST, `Re-engagement (${tmpl.name}) — ${lead.name || lead.phone}`, tmpl.name, lead.id)
           await supabaseAdmin.from('messages').insert({
             lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
-            content: `[template: ${NURTURE_TEMPLATE}] re-engagement`, sent_by: 'bot', wa_message_id: typeof reqId === 'string' ? reqId : null,
+            content: `[template: ${tmpl.name}/${tmpl.language}]`, sent_by: 'bot', wa_message_id: typeof reqId === 'string' ? reqId : null,
           })
           await supabaseAdmin.from('leads').update({
             template_touches: (lead.template_touches || 0) + 1,
@@ -155,7 +167,7 @@ export async function GET(request: NextRequest) {
           }).eq('id', lead.id)
           await supabaseAdmin.from('activity_log').insert({
             agent_id: agent.id, lead_id: lead.id, type: 'template_sent',
-            title: 'Re-engagement message sent', description: decision.reason,
+            title: 'Re-engagement message sent', description: `${tmpl.name} (${tmpl.language}) · ${decision.reason}`,
           })
           results.templates++
         } catch (e) {

@@ -184,7 +184,10 @@ export async function POST(request: NextRequest) {
     const t = messageText.trim().toLowerCase()
     const isBareStop = /^(stop|unsubscribe|opt[\s-]?out|stop messaging|stop messages)\.?$/i.test(t)
     const isExplicitOptOut = /(do ?n.?t|stop|please stop|mat) (message|messaging|contact|text|texting)|unsubscribe me|message mat karo|message मत|मेसेज मत|मेसेज नको|मेसेज बंद/i.test(t)
-    if (isBareStop || isExplicitOptOut) {
+    // Exact text of the "Stop updates" quick-reply buttons on our templates (en/hi/mr).
+    const optOutButtons = ['stop updates', 'अपडेट बंद करें', 'अपडेट बंद करा']
+    const isButtonOptOut = optOutButtons.includes(t)
+    if (isBareStop || isExplicitOptOut || isButtonOptOut) {
       await supabaseAdmin.from('leads').update({
         opted_in: false, nurture_state: 'opted_out', bot_paused: true,
       }).eq('id', lead.id)
