@@ -133,19 +133,20 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
     const s = STEPS[step]
     if (!s?.target) { setRect(null); return }
 
-    let found = false
     const measure = () => {
       const el = document.querySelector(s.target!) as HTMLElement | null
-      if (!el) { if (!found) setRect(null); return }
+      // Target not mounted yet (we may have just navigated screens). Keep the
+      // PREVIOUS spotlight so the dimmer never flashes to centre — the CSS
+      // transition then glides smoothly to the new target once it appears.
+      if (!el) return
       const r = el.getBoundingClientRect()
       if (r.width === 0 && r.height === 0) return
-      found = true
       setRect({ top: r.top, left: r.left, width: r.width, height: r.height })
     }
 
     measure()
     // The target may live in a screen we just navigated to — retry while it mounts
-    const timers = [80, 180, 320, 550].map(ms => setTimeout(measure, ms))
+    const timers = [60, 140, 260, 420, 650, 900].map(ms => setTimeout(measure, ms))
     window.addEventListener('resize', measure)
     window.addEventListener('scroll', measure, true)
     return () => {
@@ -184,14 +185,24 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
     ? { top: rect.top - PAD, left: rect.left - PAD, w: rect.width + PAD * 2, h: rect.height + PAD * 2 }
     : { top: vh / 2, left: vw / 2, w: 0, h: 0 }
 
-  // Card placement: beside/below the spotlight, or centred for intro/outro.
+  // Card placement. Every position is clamped inside the viewport so the card
+  // can never render off-screen. Action steps (which open the app's own modal)
+  // pin the card to the bottom-centre as a stable instruction banner instead of
+  // chasing the highlighted button behind the modal.
   const cardW = hasTarget ? 320 : 420
+  const clampLeft = (x: number) => Math.min(Math.max(16, x), Math.max(16, vw - cardW - 16))
+  const clampTop = (y: number) => Math.min(Math.max(16, y), Math.max(16, vh - 240))
   let cardStyle: React.CSSProperties
   let arrow: React.ReactNode = null
-  if (hasTarget && rect) {
-    const placeRight = rect.left < vw / 2
+
+  if (isAction) {
+    // Bottom-centre banner — out of the way of the form modal, always on-screen.
+    cardStyle = { bottom: 24, left: clampLeft(vw / 2 - cardW / 2), textAlign: 'left' }
+  } else if (hasTarget && rect) {
+    const spaceRight = vw - (sp.left + sp.w)
+    const placeRight = spaceRight >= cardW + 28 // only go right if it actually fits
     if (placeRight) {
-      cardStyle = { top: Math.max(16, Math.min(sp.top, vh - 320)), left: sp.left + sp.w + 18 }
+      cardStyle = { top: clampTop(sp.top), left: clampLeft(sp.left + sp.w + 18) }
       arrow = (
         <div style={{
           position: 'fixed', top: rect.top + rect.height / 2 - 8,
@@ -202,19 +213,13 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
         }} />
       )
     } else {
-      cardStyle = { top: Math.min(sp.top + sp.h + 18, vh - 280), left: Math.min(Math.max(16, sp.left), vw - cardW - 16) }
-      arrow = (
-        <div style={{
-          position: 'fixed', top: sp.top + sp.h + 6,
-          left: rect.left + rect.width / 2 - 8, zIndex: zBase + 2,
-          width: 0, height: 0, borderLeft: '8px solid transparent', borderRight: '8px solid transparent',
-          borderBottom: '12px solid #fff', filter: 'drop-shadow(0 -2px 2px rgba(0,0,0,0.08))',
-          transition: 'top 0.35s cubic-bezier(.4,0,.2,1), left 0.35s cubic-bezier(.4,0,.2,1)'
-        }} />
-      )
+      // Below the target if there's room, else above it — always clamped.
+      const below = sp.top + sp.h + 18
+      const placeBelow = below + 240 < vh
+      cardStyle = { top: clampTop(placeBelow ? below : sp.top - 240), left: clampLeft(sp.left) }
     }
   } else {
-    cardStyle = { top: vh / 2 - 170, left: vw / 2 - cardW / 2, textAlign: 'center' }
+    cardStyle = { top: vh / 2 - 170, left: clampLeft(vw / 2 - cardW / 2), textAlign: 'center' }
   }
 
   return (

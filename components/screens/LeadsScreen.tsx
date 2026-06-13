@@ -153,7 +153,9 @@ export default function LeadsScreen({ agentId }: Props) {
       // Agent confirms the lead consented to WhatsApp contact (Meta compliance)
       opted_in: true,
       opt_in_source: 'manual_agent_confirmed',
-      opt_in_at: new Date().toISOString()
+      opt_in_at: new Date().toISOString(),
+      consent_confirmed: true,
+      consent_confirmed_at: new Date().toISOString()
     }
     try {
       const res = await fetch('/api/leads', {
@@ -430,10 +432,15 @@ export default function LeadsScreen({ agentId }: Props) {
                   <option>Manual</option><option>Website</option><option>Facebook Ads</option><option>Referral</option>
                 </select>
               </div>
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: '#6B6860', lineHeight: 1.4, cursor: 'pointer' }}>
-                <input type="checkbox" required checked={leadConsent} onChange={e => setLeadConsent(e.target.checked)} style={{ marginTop: 2, flexShrink: 0 }} />
-                <span>This lead has <strong>consented</strong> to receive WhatsApp messages from my business. (Required by WhatsApp policy.)</span>
-              </label>
+              <div style={{ background: '#FFF8E6', border: '1px solid #F0D98C', borderRadius: 10, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11.5, color: '#7A5200', lineHeight: 1.55, marginBottom: 10 }}>
+                  ⚠️ <strong>Important — please read.</strong> Only add a lead who has personally messaged you or clearly agreed to be contacted on WhatsApp. If you message someone without their consent and they report it, <strong>Meta can permanently block your WhatsApp number</strong> — this is enforced by Meta and is beyond Convorian&apos;s control. We cannot undo it.
+                </div>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: '#3D3B34', lineHeight: 1.45, cursor: 'pointer' }}>
+                  <input type="checkbox" required checked={leadConsent} onChange={e => setLeadConsent(e.target.checked)} style={{ marginTop: 2, flexShrink: 0 }} />
+                  <span>I confirm I have <strong>explicit consent / opt-in</strong> from this person to contact them on WhatsApp, and I take responsibility for it.</span>
+                </label>
+              </div>
             </div>
 
             <div style={{ padding: '16px 24px', background: '#FAFAFB', borderTop: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'flex-end', gap: 10, borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>

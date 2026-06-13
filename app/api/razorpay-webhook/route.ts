@@ -101,16 +101,37 @@ export async function POST(request: NextRequest) {
   }
 
   // Best-effort audit log (ignore if table/columns differ).
+  let chargeEventId: string | null = null
   try {
-    await supabaseAdmin.from('subscription_events').insert({
+    const { data: evRow } = await supabaseAdmin.from('subscription_events').insert({
       agent_id: agentId,
       razorpay_subscription_id: sub.id,
       event,
       payment_id: payment?.id || null,
       amount: payment?.amount ? payment.amount / 100 : null,
       raw: body
-    })
+    }).select('id').single()
+    chargeEventId = evRow?.id || null
   } catch { /* logging is non-critical */ }
+
+  // Email the agent their invoice copy on each successful monthly charge.
+  if (event === 'subscription.charged' && chargeEventId) {
+    try {
+      const { data: agent } = await supabaseAdmin.from('agents').select('name, email').eq('id', agentId).single()
+      if (agent?.email) {
+        const amt = payment?.amount ? payment.amount / 100 : 999
+        const { sendEmail } = await import('@/lib/email')
+        const receiptUrl = `https://convorian.in/api/subscription/receipt?agent_id=${agentId}&event_id=${chargeEventId}`
+        await sendEmail({
+          to: agent.email,
+          subject: `Payment receipt — ₹${amt} Convorian subscription`,
+          html: `<p>Hi ${agent.name || 'there'},</p><p>Your monthly Convorian subscription payment of <strong>₹${amt}</strong> was successful. Thank you!</p><p><a href="${receiptUrl}">View / download your receipt →</a></p><p>— Team Convorian</p>`,
+        })
+      }
+    } catch (mailErr: any) {
+      console.error('Subscription receipt email failed (non-critical):', mailErr?.message)
+    }
+  }
 
   return NextResponse.json({ status: 'ok' })
 }

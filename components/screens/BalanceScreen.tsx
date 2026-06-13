@@ -202,6 +202,25 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
 
   return (
     <div style={{ padding: '24px 28px', maxWidth: 580 }}>
+      {/* ── Plan selection (GPT-style cards) ───────────────── */}
+      <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>Choose your plan</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 28 }}>
+        {/* Monthly — the only purchasable plan today */}
+        <div style={{ position: 'relative', background: '#fff', border: '2px solid #4F46E5', borderRadius: 14, padding: '20px 18px' }}>
+          <span style={{ position: 'absolute', top: -10, left: 16, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', background: '#4F46E5', color: '#fff', padding: '3px 10px', borderRadius: 20 }}>Current</span>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B' }}>Monthly</div>
+          <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 28, color: '#15161B', lineHeight: 1.1, marginTop: 6 }}>₹999<span style={{ fontSize: 13, color: '#9E9B92' }}>/mo</span></div>
+          <div style={{ fontSize: 11.5, color: '#6B6860', marginTop: 8, lineHeight: 1.5 }}>Billed monthly · cancel anytime</div>
+        </div>
+        {/* Annual — coming soon, disabled */}
+        <div style={{ position: 'relative', background: '#FAFAFB', border: '1px solid rgba(26,25,22,0.12)', borderRadius: 14, padding: '20px 18px', opacity: 0.72 }}>
+          <span style={{ position: 'absolute', top: -10, left: 16, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', background: '#E8E5DF', color: '#6B6860', padding: '3px 10px', borderRadius: 20 }}>Coming soon</span>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B' }}>Annual <span style={{ fontSize: 10, fontWeight: 700, color: '#1B7A43', background: '#E7F6EC', padding: '1px 6px', borderRadius: 10, marginLeft: 4 }}>SAVE 20%</span></div>
+          <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 28, color: '#15161B', lineHeight: 1.1, marginTop: 6 }}>₹799<span style={{ fontSize: 13, color: '#9E9B92' }}>/mo</span></div>
+          <div style={{ fontSize: 11.5, color: '#6B6860', marginTop: 8, lineHeight: 1.5 }}>Billed yearly · launching soon</div>
+        </div>
+      </div>
+
       {/* ── Subscription / Plan ─────────────────────────── */}
       <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>Your plan</div>
       <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: 24, marginBottom: 28 }}>
@@ -340,9 +359,17 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
                 <div style={{ color: '#3D3B34', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isCredit ? 'Credits added' : (t.description || 'Message charge')}</div>
                 <div style={{ color: '#9E9B92', fontSize: 11, marginTop: 2 }}>{fmtDate(t.created_at)}</div>
               </div>
-              <span style={{ fontWeight: 600, whiteSpace: 'nowrap', color: isCredit ? '#1B7A43' : '#3D3B34' }}>
-                {isCredit ? '+' : '−'}₹{Number(t.amount).toLocaleString('en-IN')}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, whiteSpace: 'nowrap' }}>
+                {isCredit && (
+                  <a href={`/api/subscription/receipt?agent_id=${encodeURIComponent(agentId)}&txn_id=${encodeURIComponent(t.id)}`} target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 11, fontWeight: 500, color: '#4F46E5', textDecoration: 'none', border: '1px solid rgba(79,70,229,0.3)', borderRadius: 6, padding: '4px 9px' }}>
+                    Receipt
+                  </a>
+                )}
+                <span style={{ fontWeight: 600, color: isCredit ? '#1B7A43' : '#3D3B34' }}>
+                  {isCredit ? '+' : '−'}₹{Number(t.amount).toLocaleString('en-IN')}
+                </span>
+              </div>
             </div>
           )
         }) : (

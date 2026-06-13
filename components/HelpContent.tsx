@@ -27,8 +27,56 @@ function FaqItem({ item, isOpen, onToggle }: { item: QA; isOpen: boolean; onTogg
   )
 }
 
+function TicketForm() {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [subject, setSubject] = useState('')
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true); setErr(null)
+    try {
+      const res = await fetch('/api/support-ticket', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, subject, message, source: 'help_page' }),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error || 'Could not submit. Please try again.')
+      setDone(true)
+    } catch (e: any) { setErr(e.message) } finally { setBusy(false) }
+  }
+
+  const field: React.CSSProperties = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #D6D3F0', fontSize: 13.5, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }
+
+  if (done) return (
+    <div style={{ background: '#E7F6EC', border: '1px solid #B6E3C6', borderRadius: 10, padding: '16px 18px', fontSize: 14, color: '#1B7A43' }}>
+      ✓ Ticket raised — we&apos;ve emailed our team and will get back to you soon{email ? ` at ${email}` : ''}.
+    </div>
+  )
+
+  return (
+    <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {err && <div style={{ background: '#FDF0F0', color: '#8B1A1A', padding: '10px 12px', borderRadius: 8, fontSize: 13 }}>⚠️ {err}</div>}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <input style={{ ...field, flex: 1, minWidth: 140 }} placeholder="Your name" value={name} onChange={e => setName(e.target.value)} />
+        <input style={{ ...field, flex: 1, minWidth: 140 }} type="email" placeholder="Your email (for our reply)" value={email} onChange={e => setEmail(e.target.value)} />
+      </div>
+      <input style={field} placeholder="Subject" required value={subject} onChange={e => setSubject(e.target.value)} />
+      <textarea style={{ ...field, resize: 'vertical' }} rows={4} placeholder="How can we help?" required value={message} onChange={e => setMessage(e.target.value)} />
+      <button type="submit" disabled={busy} style={{ alignSelf: 'flex-start', padding: '10px 20px', borderRadius: 9, background: '#4F46E5', color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1, fontFamily: 'inherit' }}>
+        {busy ? 'Sending…' : 'Raise a ticket'}
+      </button>
+    </form>
+  )
+}
+
 export default function HelpContent() {
   const [open, setOpen] = useState<string | null>(null)
+  const [showTicket, setShowTicket] = useState(false)
   const waLink = supportWhatsappLink('Hi Convorian team, I need help with my account.')
 
   return (
@@ -67,7 +115,16 @@ export default function HelpContent() {
             style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 20px', borderRadius: 9, background: '#fff', border: '1px solid #D6D3F0', color: '#4F46E5', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>
             ✉️ {SUPPORT_EMAIL}
           </a>
+          <button onClick={() => setShowTicket(s => !s)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 20px', borderRadius: 9, background: '#fff', border: '1px solid #D6D3F0', color: '#4F46E5', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            🎫 Raise a ticket
+          </button>
         </div>
+        {showTicket && (
+          <div style={{ marginTop: 18, paddingTop: 18, borderTop: '1px solid #E0DEF8' }}>
+            <TicketForm />
+          </div>
+        )}
       </div>
     </div>
   )

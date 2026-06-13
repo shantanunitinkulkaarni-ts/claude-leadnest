@@ -27,6 +27,44 @@ export default function Topbar({ screen, agentId, isSuperadmin = false, onNaviga
   
   const notifRef = useRef<HTMLDivElement>(null)
   const profileRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLDivElement>(null)
+
+  // ── Global search (leads + properties) ──
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<{ leads: any[]; properties: any[] }>({ leads: [], properties: [] })
+  const [showResults, setShowResults] = useState(false)
+  const [searching, setSearching] = useState(false)
+
+  useEffect(() => {
+    if (!agentId) return
+    const q = query.trim().toLowerCase()
+    if (q.length < 2) { setResults({ leads: [], properties: [] }); return }
+    setSearching(true)
+    const t = setTimeout(async () => {
+      try {
+        const [lr, pr] = await Promise.all([
+          fetch('/api/leads?agent_id=' + agentId).then(r => r.json()),
+          fetch('/api/properties?agent_id=' + agentId).then(r => r.json()),
+        ])
+        const leads = (lr.data || []).filter((l: any) =>
+          (l.name || '').toLowerCase().includes(q) || (l.phone || '').toLowerCase().includes(q)
+        ).slice(0, 5)
+        const properties = (pr.data || []).filter((p: any) =>
+          (p.title || '').toLowerCase().includes(q) || (p.location || '').toLowerCase().includes(q) || (p.city || '').toLowerCase().includes(q)
+        ).slice(0, 5)
+        setResults({ leads, properties })
+      } catch { /* ignore */ } finally { setSearching(false) }
+    }, 250)
+    return () => clearTimeout(t)
+  }, [query, agentId])
+
+  const pickLead = (lead: any) => {
+    setShowResults(false); setQuery('')
+    onNavigate?.('inbox')
+    // InboxScreen listens and selects this lead.
+    setTimeout(() => window.dispatchEvent(new CustomEvent('convorian:open-lead', { detail: lead.id })), 60)
+  }
+  const pickProperty = () => { setShowResults(false); setQuery(''); onNavigate?.('properties') }
 
   // Close dropdowns if clicked outside
   useEffect(() => {
@@ -36,6 +74,9 @@ export default function Topbar({ screen, agentId, isSuperadmin = false, onNaviga
       }
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
         setShowProfile(false)
+      }
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowResults(false)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
@@ -86,9 +127,48 @@ export default function Topbar({ screen, agentId, isSuperadmin = false, onNaviga
         <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B' }}>{titles[screen]}</div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div className="hide-mobile" style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#F4F3EE', border: '1px solid rgba(26,25,22,0.13)', borderRadius: 8, padding: '0 12px', height: 34, width: 200 }}>
-          <span style={{ fontSize: 13, color: '#9E9B92' }}>🔍</span>
-          <input type="text" placeholder="Search leads..." style={{ border: 'none', background: 'transparent', fontSize: 12, color: '#15161B', width: '100%', outline: 'none', fontFamily: 'inherit' }} />
+        <div ref={searchRef} className="hide-mobile" style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: '#F4F3EE', border: '1px solid rgba(26,25,22,0.13)', borderRadius: 8, padding: '0 12px', height: 34, width: 220 }}>
+            <span style={{ fontSize: 13, color: '#9E9B92' }}>🔍</span>
+            <input
+              type="text"
+              placeholder="Search leads & properties..."
+              value={query}
+              onChange={e => { setQuery(e.target.value); setShowResults(true) }}
+              onFocus={() => setShowResults(true)}
+              style={{ border: 'none', background: 'transparent', fontSize: 12, color: '#15161B', width: '100%', outline: 'none', fontFamily: 'inherit' }}
+            />
+          </div>
+          {showResults && query.trim().length >= 2 && (
+            <div style={{ position: 'absolute', top: 40, left: 0, width: 320, background: '#fff', borderRadius: 12, border: '1px solid rgba(26,25,22,0.08)', boxShadow: '0 8px 32px rgba(0,0,0,0.10)', zIndex: 200, padding: 6, maxHeight: 380, overflowY: 'auto' }}>
+              {searching && results.leads.length === 0 && results.properties.length === 0 && (
+                <div style={{ fontSize: 12, color: '#9E9B92', padding: '12px', textAlign: 'center' }}>Searching…</div>
+              )}
+              {!searching && results.leads.length === 0 && results.properties.length === 0 && (
+                <div style={{ fontSize: 12, color: '#9E9B92', padding: '12px', textAlign: 'center' }}>No matches for “{query}”.</div>
+              )}
+              {results.leads.length > 0 && (
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#9E9B92', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '8px 10px 4px' }}>Leads</div>
+              )}
+              {results.leads.map(l => (
+                <button key={l.id} onClick={() => pickLead(l)} onMouseEnter={e => e.currentTarget.style.background = '#F4F3EE'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  style={{ width: '100%', textAlign: 'left', padding: '8px 10px', border: 'none', background: 'transparent', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <div style={{ fontSize: 13, color: '#15161B', fontWeight: 500 }}>{l.name || 'Unknown'}</div>
+                  <div style={{ fontSize: 11, color: '#9E9B92' }}>{l.phone}</div>
+                </button>
+              ))}
+              {results.properties.length > 0 && (
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#9E9B92', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '8px 10px 4px' }}>Properties</div>
+              )}
+              {results.properties.map(p => (
+                <button key={p.id} onClick={pickProperty} onMouseEnter={e => e.currentTarget.style.background = '#F4F3EE'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  style={{ width: '100%', textAlign: 'left', padding: '8px 10px', border: 'none', background: 'transparent', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <div style={{ fontSize: 13, color: '#15161B', fontWeight: 500 }}>{p.title}</div>
+                  <div style={{ fontSize: 11, color: '#9E9B92' }}>{p.location}{p.city ? `, ${p.city}` : ''}</div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         
         <div style={{ width: 1, height: 20, background: 'rgba(26,25,22,0.18)', margin: '0 4px' }} />

@@ -234,6 +234,21 @@ export default function InboxScreen({ agentId }: Props) {
     }
   }, [leads, selected])
 
+  // Global search → open a specific lead in the inbox.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent).detail
+      const match = leads.find(l => l.id === id)
+      if (match) { setSelected(match); setActiveTab('chat') }
+      else fetch('/api/leads?agent_id=' + agentId).then(r => r.json()).then(d => {
+        const m = (d.data || []).find((l: any) => l.id === id)
+        if (m) { setLeads(d.data); setSelected(m); setActiveTab('chat') }
+      }).catch(() => {})
+    }
+    window.addEventListener('convorian:open-lead', handler as EventListener)
+    return () => window.removeEventListener('convorian:open-lead', handler as EventListener)
+  }, [leads, agentId])
+
   // Auto-scroll on new messages…
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -392,6 +407,22 @@ export default function InboxScreen({ agentId }: Props) {
                 if (filter === 'cold') return l.temperature === 'cold' || (l.ai_score > 0 && l.ai_score < 4)
                 if (filter === 'unread') return true // placeholder for unread
                 return true
+              })
+              // Hottest first: rank by temperature, then AI score, then recency.
+              .slice()
+              .sort((a, b) => {
+                const rank = (l: any) => {
+                  const t = l.temperature
+                  if (t === 'hot' || l.ai_score >= 8) return 0
+                  if (t === 'warm' || l.ai_score >= 4) return 1
+                  if (t === 'cold') return 3
+                  return 2 // 'new'/unknown sits above cold
+                }
+                const r = rank(a) - rank(b)
+                if (r !== 0) return r
+                const s = (b.ai_score || 0) - (a.ai_score || 0)
+                if (s !== 0) return s
+                return new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()
               })
               .map(lead => {
               const t = tempColors[lead.temperature] || tempColors.new

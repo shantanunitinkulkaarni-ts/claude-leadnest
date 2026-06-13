@@ -87,8 +87,11 @@ export default function SupportChat({ agentId }: { agentId?: string } = {}) {
   }
 
   // End-of-chat feedback (replaces the old per-message thumbs — too noisy).
+  // Step 1: helpful? → Step 2: optional reason (No) / what you liked (Yes).
   const [showFeedback, setShowFeedback] = useState(false)
   const [feedbackSent, setFeedbackSent] = useState(false)
+  const [fbHelpful, setFbHelpful] = useState<boolean | null>(null)
+  const [fbNote, setFbNote] = useState('')
 
   const handleClose = () => {
     const hadConversation = messages.some(m => m.from === 'user')
@@ -100,18 +103,29 @@ export default function SupportChat({ agentId }: { agentId?: string } = {}) {
     setIsOpen(false)
   }
 
-  const submitFeedback = (helpful: boolean) => {
-    setFeedbackSent(true)
+  const postFeedback = (helpful: boolean, note?: string) => {
     const lastLogged = [...messages].reverse().find(m => m.logId)
     if (lastLogged?.logId) {
       // Fire-and-forget — feedback is a quality signal, not blocking.
       fetch('/api/support-feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ log_id: lastLogged.logId, helpful }),
+        body: JSON.stringify({ log_id: lastLogged.logId, helpful, note: note || undefined }),
       }).catch(() => {})
     }
-    setTimeout(() => { setShowFeedback(false); setIsOpen(false) }, 900)
+  }
+
+  // Step 1 — record rating, then ask the optional follow-up.
+  const rateFeedback = (helpful: boolean) => {
+    setFbHelpful(helpful)
+    postFeedback(helpful) // record immediately in case they skip step 2
+  }
+
+  // Step 2 — attach optional reason / liked note, then close.
+  const finishFeedback = (withNote: boolean) => {
+    if (withNote && fbNote.trim() && fbHelpful !== null) postFeedback(fbHelpful, fbNote.trim())
+    setFeedbackSent(true)
+    setTimeout(() => { setShowFeedback(false); setIsOpen(false); setFbHelpful(null); setFbNote('') }, 700)
   }
 
   const lastUser = [...messages].reverse().find(m => m.from === 'user')?.text || ''
@@ -151,20 +165,48 @@ export default function SupportChat({ agentId }: { agentId?: string } = {}) {
             {showFeedback && (
               <div style={{ background: '#fff', border: '1px solid #E0DEF8', borderRadius: 12, padding: '14px 16px', textAlign: 'center' }}>
                 {feedbackSent ? (
-                  <div style={{ fontSize: 13, color: '#1B7A43', fontWeight: 500 }}>Thank you for your feedback!</div>
-                ) : (
+                  <div style={{ fontSize: 13, color: '#1B7A43', fontWeight: 500 }}>Thank you for your feedback! 🙏</div>
+                ) : fbHelpful === null ? (
+                  // Step 1 — rating
                   <>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B', marginBottom: 10 }}>Before you go — was this conversation helpful?</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B', marginBottom: 10 }}>Before you go — was this helpful?</div>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                      <button onClick={() => submitFeedback(true)}
+                      <button onClick={() => rateFeedback(true)}
                         style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #D6D3F0', background: '#fff', color: '#1B7A43', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                        Yes, it helped
+                        👍 Yes
                       </button>
-                      <button onClick={() => submitFeedback(false)}
+                      <button onClick={() => rateFeedback(false)}
                         style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #D6D3F0', background: '#fff', color: '#C0392B', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                        Not really
+                        👎 Not really
                       </button>
                       <button onClick={() => { setShowFeedback(false); setIsOpen(false) }}
+                        style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'transparent', color: '#9E9B92', fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        Skip
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  // Step 2 — optional reason (No) / what you liked (Yes)
+                  <>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B', marginBottom: 4 }}>
+                      {fbHelpful ? 'Glad it helped! 🎉' : 'Sorry about that.'}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#6B6860', marginBottom: 10 }}>
+                      {fbHelpful ? 'What did you find most useful? (optional)' : 'What went wrong or what were you looking for? (optional)'}
+                    </div>
+                    <textarea
+                      value={fbNote}
+                      onChange={e => setFbNote(e.target.value)}
+                      rows={2}
+                      placeholder={fbHelpful ? 'e.g. quick clear answer on billing' : 'e.g. needed help cancelling, bot kept repeating'}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 8, border: '1px solid #DFDDD3', fontSize: 12.5, fontFamily: 'inherit', outline: 'none', resize: 'none', marginBottom: 8 }}
+                    />
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                      <button onClick={() => finishFeedback(true)}
+                        style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#4F46E5', color: '#fff', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                        Send
+                      </button>
+                      <button onClick={() => finishFeedback(false)}
                         style={{ padding: '8px 12px', borderRadius: 8, border: 'none', background: 'transparent', color: '#9E9B92', fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}>
                         Skip
                       </button>
