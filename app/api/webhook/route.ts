@@ -49,10 +49,28 @@ export async function POST(request: NextRequest) {
         incomingProvider = 'msg91'
         msg91IntegratedNumber = String(body.integratedNumber)
         fromPhone = body.customerNumber ? '+' + String(body.customerNumber).replace(/^\+/, '') : ''
-        messageText = body.text || ''
         waMessageId = body.uuid || ''
-        if (body.contentType && body.contentType !== 'text') return NextResponse.json({ status: 'ignored_non_text' })
-        if (!messageText || !fromPhone) return NextResponse.json({ status: 'no_text' })
+        // Extract the text from a plain message OR a quick-reply button tap OR an
+        // interactive reply — our templates use quick-reply buttons, which arrive
+        // as a different content type with the text NOT in `body.text`.
+        const pick = (...xs: any[]) => { for (const x of xs) if (typeof x === 'string' && x.trim()) return x; return '' }
+        messageText = pick(
+          body.text,
+          body.button?.text, body.button?.payload,
+          body.interactive?.button_reply?.title, body.interactive?.button_reply?.id,
+          body.interactive?.list_reply?.title, body.interactive?.list_reply?.id,
+          body.content?.text, typeof body.content === 'string' ? body.content : '',
+          body.message?.text, body.title,
+        )
+        const ct = body.contentType
+        // Only ignore genuinely unsupported media types — keep text/button/interactive.
+        if (ct && !['text', 'button', 'interactive', 'reply', 'quick_reply'].includes(ct) && !messageText) {
+          return NextResponse.json({ status: 'ignored_non_text' })
+        }
+        if (!messageText || !fromPhone) {
+          console.log('MSG91 inbound: could not extract text — raw payload:', JSON.stringify(body).slice(0, 600))
+          return NextResponse.json({ status: 'no_text' })
+        }
       } else if (body.object === 'whatsapp_business_account') {
         // ── Meta Cloud API inbound ──
         const value = body.entry?.[0]?.changes?.[0]?.value
