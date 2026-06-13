@@ -96,21 +96,14 @@ export default function AdminDashboard() {
     })
   }
 
-  const handleImpersonate = async (agencyId: string) => {
-    // To impersonate, we can overwrite the team_members record for this session, 
-    // OR we can just use localStorage to force a specific agentId if we want to build a switcher.
-    // For now, the safest and absolute authority way is to modify the superadmin's team_member record to point to this agency.
-    
-    if (!confirm('This will log you in as this agency. You can undo this by changing the agent_id in the DB. Continue?')) return
-    
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
-
-    await supabase
-      .from('team_members')
-      .update({ agent_id: agencyId })
-      .eq('auth_user_id', session.user.id)
-
+  const handleImpersonate = (agencyId: string, agencyName: string) => {
+    // Non-destructive impersonation: superadmins already bypass per-agency access
+    // checks server-side (lib/apiAuth requireAgentAccess), so we just tell the
+    // dashboard which agency to render via localStorage — no DB mutation, fully
+    // reversible, and works even for an admin account that has no agency itself.
+    if (!confirm(`View ${agencyName || 'this agency'}'s dashboard as them? You can exit back to admin anytime.`)) return
+    localStorage.setItem('convorian_impersonate_agent_id', agencyId)
+    localStorage.setItem('convorian_impersonate_agent_name', agencyName || '')
     router.push('/dashboard')
   }
 
@@ -162,7 +155,7 @@ export default function AdminDashboard() {
                     </div>
                   </td>
                   <td style={{ padding: '16px 20px' }}>
-                    <button onClick={() => handleImpersonate(agency.id)} style={{ fontSize: 12, padding: '6px 12px', background: '#FAFAFB', border: '1px solid rgba(26,25,22,0.18)', borderRadius: 6, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
+                    <button onClick={() => handleImpersonate(agency.id, agency.agency_name)} style={{ fontSize: 12, padding: '6px 12px', background: '#FAFAFB', border: '1px solid rgba(26,25,22,0.18)', borderRadius: 6, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>
                       Impersonate
                     </button>
                   </td>
