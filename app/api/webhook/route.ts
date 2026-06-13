@@ -249,6 +249,7 @@ export async function POST(request: NextRequest) {
     if (metadata.budget_max) leadUpdates.budget_max = metadata.budget_max
     if (metadata.timeline) leadUpdates.timeline = metadata.timeline
     if (metadata.name) leadUpdates.name = metadata.name
+    if (metadata.lang && ['en', 'hi', 'mr'].includes(metadata.lang)) leadUpdates.language = metadata.lang
     if (metadata.score >= 7) leadUpdates.status = 'qualified'
     else if (metadata.score >= 4) leadUpdates.status = 'contacted'
 

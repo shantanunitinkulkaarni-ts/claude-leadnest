@@ -78,10 +78,10 @@ export function decideOutreach(
 // Names + which languages are APPROVED. Update `approvedLangs` as MSG91 clears
 // each. The cron only sends templates listed here as approved.
 export const TEMPLATES = {
-  lead_new_match: { name: 'lead_new_match', approvedLangs: ['en', 'hi'] as string[] }, // mr pending
+  lead_new_match: { name: 'lead_new_match', approvedLangs: ['en', 'hi', 'mr'] as string[] },
   lead_visit_invite: { name: 'lead_visit_invite', approvedLangs: ['en'] as string[] },
   lead_final_touch: { name: 'lead_final_touch', approvedLangs: ['en'] as string[] },
-  // visit_reminder is sent from the appointment-reminder path, not here.
+  // visit_reminder (Utility, en) is sent from the appointment-reminder path.
 }
 
 function firstName(lead: any): string {
