@@ -16,7 +16,8 @@ export default function SettingsScreen({ agentId }: Props) {
   const [editSaving, setEditSaving] = useState(false)
 
   // PIN modal can guard several sensitive actions
-  const [pinPurpose, setPinPurpose] = useState<null | 'pause' | 'keepalive'>(null)
+  const [pinPurpose, setPinPurpose] = useState<null | 'pause' | 'keepalive' | 'outreach'>(null)
+  const [pendingIntensity, setPendingIntensity] = useState<string | null>(null)
   const [pinInput, setPinInput] = useState('')
   const [pinErr, setPinErr] = useState('')
   const [saveMsg, setSaveMsg] = useState('')
@@ -75,12 +76,30 @@ export default function SettingsScreen({ agentId }: Props) {
     localStorage.setItem('leadnest_lowbalance', String(next))
   }
 
+  // Change how persistently the bot re-engages quiet leads. This spends
+  // WhatsApp credits, so it's PIN-gated.
+  const requestIntensity = (level: string) => {
+    if (level === (d?.outreach_intensity || 'persistent')) return
+    setPendingIntensity(level); setPinPurpose('outreach'); setPinInput(''); setPinErr('')
+  }
+  const applyIntensity = async (level: string) => {
+    try {
+      await fetch('/api/agent?id=' + agentId, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outreach_intensity: level })
+      })
+      fetchAgent()
+    } catch { /* ignore */ }
+  }
+
   const handlePinSubmit = () => {
     if (pinInput !== '1234') { setPinErr('Incorrect PIN. Default is 1234.'); return }
     const purpose = pinPurpose
-    setPinPurpose(null); setPinInput(''); setPinErr('')
+    const lvl = pendingIntensity
+    setPinPurpose(null); setPinInput(''); setPinErr(''); setPendingIntensity(null)
     if (purpose === 'pause') executeToggle(false)
     else if (purpose === 'keepalive') { setKeepAlive(false); localStorage.setItem('leadnest_keepalive', 'false') }
+    else if (purpose === 'outreach' && lvl) applyIntensity(lvl)
   }
 
   const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s
@@ -204,6 +223,40 @@ export default function SettingsScreen({ agentId }: Props) {
         ))}
       </div>
 
+      {/* Follow-up outreach intensity */}
+      <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '20px 22px', marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B', marginBottom: 4 }}>Lead follow-up intensity</div>
+        <div style={{ fontSize: 11.5, color: '#9E9B92', marginBottom: 14, lineHeight: 1.5 }}>
+          How persistently the bot re-engages quiet leads after the free 24-hour window closes. These reminders are sent as paid WhatsApp template messages and use your messaging credits.
+        </div>
+        {(() => {
+          const current = d?.outreach_intensity || 'persistent'
+          const opts = [
+            { k: 'gentle', label: 'Gentle', desc: 'Up to 3 reminders · lowest spend' },
+            { k: 'balanced', label: 'Balanced', desc: 'Up to 5 reminders' },
+            { k: 'persistent', label: 'Persistent', desc: 'Up to 8 reminders · best conversion' },
+          ]
+          return (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+              {opts.map(o => {
+                const active = current === o.k
+                return (
+                  <div key={o.k} onClick={() => requestIntensity(o.k)} style={{ cursor: 'pointer', border: `1.5px solid ${active ? '#4F46E5' : 'rgba(26,25,22,0.14)'}`, background: active ? '#EEF0FE' : '#fff', borderRadius: 10, padding: '12px 12px' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: active ? '#4338CA' : '#15161B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {o.label}{o.k === 'persistent' && <span style={{ fontSize: 9, fontWeight: 700, color: '#1B7A43', background: '#E7F6EC', padding: '1px 5px', borderRadius: 8 }}>DEFAULT</span>}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: '#6B6860', marginTop: 4, lineHeight: 1.4 }}>{o.desc}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
+        <div style={{ fontSize: 11, color: '#7A5200', background: '#FEF9E7', border: '1px solid #F0D98C', borderRadius: 8, padding: '8px 12px', marginTop: 12, lineHeight: 1.5 }}>
+          💡 More persistent = more conversions but more credit spend. Each reminder costs a small amount from your balance. Changing this needs your PIN.
+        </div>
+      </div>
+
       {/* Subscription */}
       <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '20px 22px', marginBottom: 14 }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid rgba(26,25,22,0.08)' }}>Subscription</div>
@@ -225,17 +278,19 @@ export default function SettingsScreen({ agentId }: Props) {
       {pinPurpose && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(3px)' }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: '24px 30px', width: 320, boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
-            <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B', marginBottom: 6 }}>{pinPurpose === 'pause' ? 'Pause Bot' : 'Disable Keep-Alive'}</div>
+            <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B', marginBottom: 6 }}>{pinPurpose === 'pause' ? 'Pause Bot' : pinPurpose === 'outreach' ? 'Change follow-up intensity' : 'Disable Keep-Alive'}</div>
             <div style={{ fontSize: 12, color: '#9E9B92', marginBottom: 20 }}>
               {pinPurpose === 'pause'
                 ? 'Enter master PIN to pause the AI agent. Default: 1234.'
+                : pinPurpose === 'outreach'
+                ? `Set follow-up to "${pendingIntensity}". This affects how many paid reminder messages the bot sends and how much credit it uses. Enter master PIN to confirm. Default: 1234.`
                 : 'Disabling keep-alive may let WhatsApp windows expire and lose re-engagement. Enter master PIN to confirm. Default: 1234.'}
             </div>
             {pinErr && <div style={{ background: '#FDF0F0', color: '#8B1A1A', padding: '8px 12px', borderRadius: 8, fontSize: 12, marginBottom: 12 }}>⚠️ {pinErr}</div>}
             <input type="password" value={pinInput} onChange={e => setPinInput(e.target.value)} placeholder="Enter PIN" onKeyDown={e => e.key === 'Enter' && handlePinSubmit()} autoFocus style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', marginBottom: 16, outline: 'none', boxSizing: 'border-box' }} />
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => { setPinPurpose(null); setPinInput(''); setPinErr('') }} style={{ padding: '8px 16px', borderRadius: 8, background: '#F4F3EE', color: '#6B6860', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>Cancel</button>
-              <button onClick={handlePinSubmit} style={{ padding: '8px 16px', borderRadius: 8, background: '#C0392B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>{pinPurpose === 'pause' ? 'Pause Bot' : 'Disable'}</button>
+              <button onClick={handlePinSubmit} style={{ padding: '8px 16px', borderRadius: 8, background: pinPurpose === 'outreach' ? '#4F46E5' : '#C0392B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>{pinPurpose === 'pause' ? 'Pause Bot' : pinPurpose === 'outreach' ? 'Confirm' : 'Disable'}</button>
             </div>
           </div>
         </div>
