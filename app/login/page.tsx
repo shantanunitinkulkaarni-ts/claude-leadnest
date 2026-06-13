@@ -49,7 +49,11 @@ export default function LoginPage() {
       })
       if (error) throw error
       if (data.session) {
-        router.push('/dashboard')
+        // Superadmins (who may have no agency) go straight to /admin instead of
+        // being bounced to onboarding by the dashboard.
+        const { data: sa } = await supabase
+          .from('superadmins').select('auth_user_id').eq('auth_user_id', data.session.user.id).maybeSingle()
+        router.push(sa ? '/admin' : '/dashboard')
       } else {
         setError('Please verify your email before logging in.')
         setIsLoading(false)
