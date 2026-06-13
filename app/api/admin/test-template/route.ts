@@ -8,9 +8,15 @@ import { sendViaMsg91Template } from '@/lib/whatsapp'
 // named-variable format renders correctly before enabling broad sending.
 // Body: { integrated_number, to, template, language, values: {name:value} }
 export async function POST(request: NextRequest) {
-  const auth = await getAuthContext()
-  if ('error' in auth) return auth.error
-  if (!auth.isSuperadmin) return NextResponse.json({ error: 'Superadmin only' }, { status: 403 })
+  // Accept either a superadmin session OR the cron secret (so it can be fired
+  // server-side for the one-time MSG91 format verification).
+  const authHeader = request.headers.get('authorization') || ''
+  const viaSecret = !!process.env.CRON_SECRET && authHeader === `Bearer ${process.env.CRON_SECRET}`
+  if (!viaSecret) {
+    const auth = await getAuthContext()
+    if ('error' in auth) return auth.error
+    if (!auth.isSuperadmin) return NextResponse.json({ error: 'Superadmin only' }, { status: 403 })
+  }
 
   try {
     const body = await request.json()
