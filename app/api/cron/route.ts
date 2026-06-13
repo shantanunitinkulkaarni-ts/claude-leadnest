@@ -2,11 +2,15 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { sendWindowKeepalive, sendAppointmentReminder } from '@/lib/whatsapp'
+import { sendAppointmentReminder, sendToLead } from '@/lib/whatsapp'
+import { generateNudge } from '@/lib/gemini'
 import { runNurtureEmails } from '@/lib/nurture'
 
-// This route is called by Vercel Cron every 15 minutes
-// Add to vercel.json: { "crons": [{ "path": "/api/cron", "schedule": "*/15 * * * *" }] }
+export const maxDuration = 60
+
+// Called every 15 minutes. On Vercel Hobby (max 1 cron/day) the real driver is
+// the GitHub Action .github/workflows/nurture-cron.yml, which hits this route
+// with the CRON_SECRET. Idempotent — guarded by timestamps/counters per lead.
 
 export async function GET(request: NextRequest) {
   // Verify cron secret to prevent unauthorized calls
@@ -15,34 +19,85 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const results = { keepalive: 0, reminders: 0, errors: 0, nurture: { sent: 0, skipped: 0, errors: 0 } }
+  const results = { nudges: 0, reminders: 0, errors: 0, nurture: { sent: 0, skipped: 0, errors: 0 } }
 
   try {
-    // ── 1. WINDOW KEEP-ALIVE ──
-    // Find leads where window expires in 1 hour (60 min from now)
-    // and we haven't sent a keepalive in the last 2 hours
-    const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000).toISOString()
-    const twoHoursFromNow = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+    // ── 1. IN-WINDOW FOLLOW-UP NUDGES (3h / 10h / 23h) ──
+    // Re-engage leads who went quiet, while their free 24h window is still open.
+    // Bands: 1st nudge after 3h, 2nd after 10h, 3rd ("window save") after 23h.
+    // Counter resets to 0 on any inbound (handled in the webhook).
+    const now = Date.now()
+    const H = (n: number) => n * 60 * 60 * 1000
+    // IST quiet hours: only send 9 AM–8 PM IST so we never ping at night.
+    const istHour = new Date(now + 5.5 * H(1)).getUTCHours()
+    const withinQuietHours = istHour >= 9 && istHour < 20
 
-    const { data: keepaliveLeads } = await supabaseAdmin
-      .from('leads')
-      .select('*, agents(*)')
-      .lt('window_expires_at', twoHoursFromNow)
-      .gt('window_expires_at', oneHourFromNow) // window expires in 1-2 hours
-      .eq('bot_paused', false)
-      .not('status', 'in', '("closed_won","closed_lost")')
-      .or(`window_keepalive_sent_at.is.null,window_keepalive_sent_at.lt.${twoHoursAgo}`)
+    if (withinQuietHours) {
+      // Window still open (lead messaged in the last 24h), not closed/paused/opted-out.
+      const windowOpenAfter = new Date(now - H(24)).toISOString()
+      const { data: quietLeads } = await supabaseAdmin
+        .from('leads')
+        .select('*, agents(*)')
+        .gt('last_message_at', windowOpenAfter)
+        .eq('bot_paused', false)
+        .eq('opted_in', true)
+        .or('nurture_state.is.null,nurture_state.eq.active')
+        .not('status', 'in', '("closed_won","closed_lost")')
+        .lt('window_nudge_count', 3)
+        .limit(40)
 
-    for (const lead of (keepaliveLeads || []) as any[]) {
-      try {
-        if (lead.agents?.bot_active && lead.agents?.wa_phone_number_id) {
-          await sendWindowKeepalive(lead.agents, lead)
-          results.keepalive++
+      for (const lead of (quietLeads || []) as any[]) {
+        try {
+          const agent = lead.agents
+          if (!agent?.bot_active) continue
+
+          const lastMsgMs = lead.last_message_at ? new Date(lead.last_message_at).getTime() : 0
+          const elapsed = now - lastMsgMs
+          const count = lead.window_nudge_count || 0
+          const lastNudgeMs = lead.last_nudge_at ? new Date(lead.last_nudge_at).getTime() : 0
+
+          // Decide whether THIS lead is due for its next nudge.
+          let intensity: 'soft' | 'value' | 'window_save' | null = null
+          if (count === 0 && elapsed >= H(3) && elapsed < H(10)) intensity = 'soft'
+          else if (count === 1 && elapsed >= H(10) && elapsed < H(23)) intensity = 'value'
+          else if (count === 2 && elapsed >= H(23) && elapsed < H(24)) intensity = 'window_save'
+          if (!intensity) continue
+          // Never two nudges within 2h (safety vs clock skew / double runs).
+          if (lastNudgeMs && now - lastNudgeMs < H(2)) continue
+
+          // Only nudge if the LAST message was ours (lead hasn't already replied
+          // and is waiting on nothing). Cheap check on the most recent message.
+          const { data: lastMsg } = await supabaseAdmin
+            .from('messages').select('direction').eq('lead_id', lead.id)
+            .order('created_at', { ascending: false }).limit(1)
+          if (lastMsg?.[0]?.direction === 'inbound') continue // their turn, don't nudge
+
+          const text = await generateNudge(agent.id, lead.id, intensity)
+          if (!text) {
+            // Engine chose SKIP (nothing new to say) — still advance the counter
+            // so we don't re-evaluate this band forever.
+            await supabaseAdmin.from('leads').update({ window_nudge_count: count + 1, last_nudge_at: new Date().toISOString() }).eq('id', lead.id)
+            continue
+          }
+
+          const waId = await sendToLead(agent, lead, text)
+          await supabaseAdmin.from('messages').insert({
+            lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
+            content: text, sent_by: 'bot', wa_message_id: waId || null,
+          })
+          await supabaseAdmin.from('leads').update({
+            window_nudge_count: count + 1,
+            last_nudge_at: new Date().toISOString(),
+          }).eq('id', lead.id)
+          await supabaseAdmin.from('activity_log').insert({
+            agent_id: agent.id, lead_id: lead.id, type: 'nudge_sent',
+            title: 'Follow-up sent by AI', description: text.slice(0, 140),
+          })
+          results.nudges++
+        } catch (e) {
+          results.errors++
+          console.error('Nudge error for lead', lead.id, e)
         }
-      } catch (e) {
-        results.errors++
-        console.error('Keepalive error for lead', lead.id, e)
       }
     }
 
@@ -66,15 +121,23 @@ export async function GET(request: NextRequest) {
 
     for (const appt of (appointments || []) as any[]) {
       try {
-        if (appt.agents?.wa_phone_number_id && appt.leads?.phone) {
-          await sendAppointmentReminder(appt.agents, appt.leads, appt, appt.properties)
+        const ag = appt.agents
+        if (!ag || !appt.leads?.phone) continue
 
-          // Mark reminder sent
-          await supabaseAdmin
-            .from('appointments')
-            .update({ reminder_sent: true })
-            .eq('id', appt.id)
-
+        if (ag.msg91_integrated_number) {
+          // MSG91: no approved reminder template yet → free-text (works if the
+          // lead's 24h window is open; harmless no-op otherwise). Template
+          // upgrade tracked in HANDOFF.
+          const dt = new Date(appt.scheduled_at)
+          const dateStr = dt.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
+          const timeStr = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+          const msg = `Hi ${appt.leads.name || 'there'}! Reminder: your site visit${appt.properties?.title ? ` for ${appt.properties.title}` : ''} is on ${dateStr} at ${timeStr}. See you there! 🏠`
+          await sendToLead(ag, appt.leads, msg)
+          await supabaseAdmin.from('appointments').update({ reminder_sent: true }).eq('id', appt.id)
+          results.reminders++
+        } else if (ag.wa_phone_number_id) {
+          await sendAppointmentReminder(ag, appt.leads, appt, appt.properties)
+          await supabaseAdmin.from('appointments').update({ reminder_sent: true }).eq('id', appt.id)
           results.reminders++
         }
       } catch (e) {
@@ -87,32 +150,31 @@ export async function GET(request: NextRequest) {
     // Find appointments that happened today and need post-visit follow-up
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const now = new Date().toISOString()
+    const nowIso = new Date().toISOString()
 
     const { data: doneVisits } = await supabaseAdmin
       .from('appointments')
       .select('*, leads(*), agents(*)')
       .eq('status', 'upcoming') // still marked upcoming but time has passed
       .eq('post_visit_prompted', false)
-      .lt('scheduled_at', now) // in the past
+      .lt('scheduled_at', nowIso) // in the past
       .gte('scheduled_at', today.toISOString())
 
     for (const visit of (doneVisits || []) as any[]) {
       try {
-        if (visit.agents?.wa_phone_number_id && visit.agents?.wa_access_token) {
-          const { sendWhatsAppMessage } = await import('@/lib/whatsapp')
-          await sendWhatsAppMessage(
-            visit.agents.wa_phone_number_id,
-            visit.agents.wa_access_token,
-            visit.agents.phone, // send to AGENT not lead
-            `Site visit with ${visit.leads?.name || visit.leads?.phone} was today. How did it go?\n\nReply:\n1 - Interested, continue nurturing\n2 - Follow up in 7 days\n3 - Not interested, close lead`
-          )
-
-          await supabaseAdmin
-            .from('appointments')
-            .update({ post_visit_prompted: true, status: 'done' })
-            .eq('id', visit.id)
+        const ag = visit.agents
+        if (!ag) continue
+        // Notify the AGENT their visit happened (dashboard FeedbackGate is the
+        // primary capture; this WhatsApp ping is a best-effort nudge).
+        const msg = `Site visit with ${visit.leads?.name || visit.leads?.phone} was today. How did it go? Log the outcome in your Convorian dashboard so the AI can follow up and close.`
+        const agentAsRecipient = { phone: ag.phone }
+        if (ag.msg91_integrated_number || ag.wa_phone_number_id) {
+          await sendToLead(ag, agentAsRecipient, msg)
         }
+        await supabaseAdmin
+          .from('appointments')
+          .update({ post_visit_prompted: true, status: 'done' })
+          .eq('id', visit.id)
       } catch (e) {
         results.errors++
       }

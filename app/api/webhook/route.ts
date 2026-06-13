@@ -166,7 +166,36 @@ export async function POST(request: NextRequest) {
         title: 'New lead created', description: `First message from ${fromPhone}`
       })
     } else {
-      await supabaseAdmin.from('leads').update({ last_message_at: now, window_expires_at: windowExpiry }).eq('id', lead.id)
+      // Lead replied → window reopens AND the follow-up nudge counter resets,
+      // so the 3h/10h/23h sequence starts fresh from this message.
+      await supabaseAdmin.from('leads').update({
+        last_message_at: now, window_expires_at: windowExpiry,
+        window_nudge_count: 0, last_nudge_at: null,
+      }).eq('id', lead.id)
+    }
+
+    // ── Opt-out / STOP handling (ban-safety + respect) ──
+    // If the lead clearly asks to stop, never message them again. Honoring this
+    // protects the WhatsApp number's quality rating (and is just decent).
+    // Tightened to avoid false positives like "can I stop by your office?":
+    // a bare STOP/UNSUBSCRIBE (whole message) OR an explicit "don't message me".
+    const t = messageText.trim().toLowerCase()
+    const isBareStop = /^(stop|unsubscribe|opt[\s-]?out|stop messaging|stop messages)\.?$/i.test(t)
+    const isExplicitOptOut = /(do ?n.?t|stop|please stop|mat) (message|messaging|contact|text|texting)|unsubscribe me|message mat karo|message मत|मेसेज मत|मेसेज नको|मेसेज बंद/i.test(t)
+    if (isBareStop || isExplicitOptOut) {
+      await supabaseAdmin.from('leads').update({
+        opted_in: false, nurture_state: 'opted_out', bot_paused: true,
+      }).eq('id', lead.id)
+      await supabaseAdmin.from('activity_log').insert({
+        agent_id: agent.id, lead_id: lead.id, type: 'opted_out',
+        title: 'Lead opted out', description: 'Lead asked to stop messages — bot silenced for this lead.',
+      })
+      const bye = "You're all set — I won't message you again. If you ever need anything, just text here anytime. 🙏"
+      try {
+        if (incomingProvider === 'msg91') await sendViaMsg91(msg91IntegratedNumber, fromPhone, bye)
+        else await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, PROVIDER === 'twilio' ? `whatsapp:${fromPhone}` : fromPhone, bye)
+      } catch { /* best-effort */ }
+      return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'opted_out' })
     }
 
     // Atomic dedup: the unique index on inbound wa_message_id makes this insert

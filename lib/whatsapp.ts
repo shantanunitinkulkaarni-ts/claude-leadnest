@@ -166,6 +166,23 @@ export async function sendViaMsg91Template(
   }
 }
 
+// ─── Provider-aware free-text send to a lead ─────────────────────────────────
+// Picks the right channel for an agent automatically: MSG91 if the agent has an
+// integrated number (current primary BSP), else Meta Cloud API. Used by the
+// nurture cron + reminders so follow-ups work regardless of provider. Free-text
+// = only valid inside the lead's 24h window (caller must check).
+export async function sendToLead(agent: any, lead: any, message: string): Promise<string | null> {
+  const integrated = String(agent?.msg91_integrated_number || '').replace(/\D/g, '')
+  if (integrated) {
+    return sendViaMsg91(integrated, lead.phone, message)
+  }
+  if (agent?.wa_phone_number_id && agent?.wa_access_token) {
+    return sendViaMeta(agent.wa_phone_number_id, agent.wa_access_token, lead.phone, message)
+  }
+  console.warn('sendToLead: agent has no MSG91 or Meta credentials', agent?.id)
+  return null
+}
+
 // ─── Template message (Meta only — Twilio uses free-form for sandbox) ─────────
 export async function sendWhatsAppTemplate(
   phoneNumberId: string,
