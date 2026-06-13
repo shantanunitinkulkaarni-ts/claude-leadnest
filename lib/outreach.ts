@@ -22,7 +22,7 @@ const MS_DAY = 24 * 60 * 60 * 1000
 
 export type OutreachDecision =
   | { send: false; dormant?: boolean; reason: string }
-  | { send: true; reason: string; values: string[] }
+  | { send: true; reason: string }
 
 // Hot leads are chased sooner/closer; cold ones get longer gaps.
 function valueMultiplier(lead: any): number {
@@ -71,16 +71,57 @@ export function decideOutreach(
 
   if (!isGoodTime(nowMs, lead)) return { send: false, reason: 'outside_send_window' }
 
-  return { send: true, reason: `touch_${touches + 1}_${intensity}`, values: buildTemplateValues(lead, agent) }
+  return { send: true, reason: `touch_${touches + 1}_${intensity}` }
 }
 
-// Values that fill the approved template's body variables ({{1}}, {{2}}, …).
-// Default mapping = [first name, area]. Adjust to match the live template once
-// its structure is known (see MSG91_NURTURE_TEMPLATE).
-export function buildTemplateValues(lead: any, agent: any): string[] {
-  const firstName = (lead.name || '').trim().split(/\s+/)[0] || 'there'
-  const area = (Array.isArray(lead.preferred_areas) && lead.preferred_areas[0])
-    || (Array.isArray(agent?.areas) && agent.areas[0])
-    || 'your area'
-  return [firstName, area]
+// ─── Approved template suite (see TEMPLATE_SUITE.md) ─────────────────────────
+// Names + which languages are APPROVED. Update `approvedLangs` as MSG91 clears
+// each. The cron only sends templates listed here as approved.
+export const TEMPLATES = {
+  lead_new_match: { name: 'lead_new_match', approvedLangs: ['en', 'hi'] as string[] }, // mr pending
+  lead_visit_invite: { name: 'lead_visit_invite', approvedLangs: ['en'] as string[] },
+  lead_final_touch: { name: 'lead_final_touch', approvedLangs: ['en'] as string[] },
+  // visit_reminder is sent from the appointment-reminder path, not here.
+}
+
+function firstName(lead: any): string {
+  return (lead.name || '').trim().split(/\s+/)[0] || 'there'
+}
+function leadArea(lead: any, agent: any): string {
+  return (Array.isArray(lead.preferred_areas) && lead.preferred_areas[0])
+    || (Array.isArray(agent?.areas) && agent.areas[0]) || 'your area'
+}
+function propertyType(lead: any): string {
+  const intent = lead.intent === 'rent' ? 'rental' : 'home'
+  return lead.property_category ? `${lead.property_category}` : intent
+}
+
+// Pick WHICH approved template fits this lead's state, the language version,
+// and the named variable values. Returns null if nothing suitable/approved.
+// `lang` is the lead's detected chat language ('en' | 'hi' | 'mr').
+export function pickTemplate(
+  lead: any, agent: any, lang: string
+): { name: string; language: string; values: Record<string, string> } | null {
+  const agency = agent?.agency_name || 'your property advisor'
+  const isLastTouch = (lead.template_touches || 0) >= 2 // graceful sign-off on later touches
+  const qualified = lead.status === 'qualified' || (lead.ai_score || 0) >= 6
+
+  let key: keyof typeof TEMPLATES
+  let values: Record<string, string>
+  if (isLastTouch) {
+    key = 'lead_final_touch'
+    values = { customer_name: firstName(lead), agency_name: agency, area: leadArea(lead, agent) }
+  } else if (qualified) {
+    key = 'lead_visit_invite'
+    values = { customer_name: firstName(lead), agency_name: agency, property: `a ${propertyType(lead)} in ${leadArea(lead, agent)}` }
+  } else {
+    key = 'lead_new_match'
+    values = { customer_name: firstName(lead), agency_name: agency, area: leadArea(lead, agent), property_type: propertyType(lead) }
+  }
+
+  const cfg = TEMPLATES[key]
+  // Fall back to English if the chosen language variant isn't approved yet.
+  const language = cfg.approvedLangs.includes(lang) ? lang : 'en'
+  if (!cfg.approvedLangs.includes(language)) return null // not even English approved → skip
+  return { name: cfg.name, language, values }
 }

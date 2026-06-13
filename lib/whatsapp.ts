@@ -125,14 +125,17 @@ export async function sendViaMsg91(
 }
 
 // ─── MSG91 template message ───────────────────────────────────────────────────
-// Templates work OUTSIDE the 24h session window (needed for proactive alerts,
-// e.g. Convorian → agent "call this lead"). The template must be created and
-// approved in the MSG91 dashboard first. bodyValues fill {{1}}, {{2}}, … in order.
+// Templates work OUTSIDE the 24h session window (proactive re-engagement +
+// agent alerts). The template must be approved in MSG91 first.
+// `bodyValues` accepts either:
+//   - string[]  → positional, fills body_1, body_2, … (legacy / numbered templates)
+//   - Record<string,string> → named, keyed by the variable name ({{customer_name}}…)
+//     which is what MSG91 requires for named-variable templates.
 export async function sendViaMsg91Template(
   integratedNumber: string,
   toPhone: string,
   templateName: string,
-  bodyValues: string[],
+  bodyValues: string[] | Record<string, string>,
   languageCode = 'en'
 ): Promise<string | null> {
   try {
@@ -140,7 +143,11 @@ export async function sendViaMsg91Template(
     if (!authkey) { console.error('MSG91 template send: MSG91_AUTHKEY not set'); return null }
     const to = toPhone.replace(/^\+/, '')
     const components: Record<string, { type: string; value: string }> = {}
-    bodyValues.forEach((v, i) => { components[`body_${i + 1}`] = { type: 'text', value: v } })
+    if (Array.isArray(bodyValues)) {
+      bodyValues.forEach((v, i) => { components[`body_${i + 1}`] = { type: 'text', value: v } })
+    } else {
+      for (const [k, v] of Object.entries(bodyValues)) components[k] = { type: 'text', value: String(v) }
+    }
     const res = await axios.post(
       'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/',
       {
