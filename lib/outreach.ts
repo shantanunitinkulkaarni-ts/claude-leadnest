@@ -97,26 +97,30 @@ function propertyType(lead: any): string {
 }
 
 // Pick WHICH approved template fits this lead's state, the language version,
-// and the named variable values. Returns null if nothing suitable/approved.
-// `lang` is the lead's detected chat language ('en' | 'hi' | 'mr').
+// and the body variable values IN ORDER. Returns null if nothing approved.
+// MSG91 maps values positionally (body_1, body_2, …) → they MUST be in the same
+// order the variables appear in the template body. `lang` = 'en' | 'hi' | 'mr'.
 export function pickTemplate(
   lead: any, agent: any, lang: string
-): { name: string; language: string; values: Record<string, string> } | null {
+): { name: string; language: string; values: string[] } | null {
   const agency = agent?.agency_name || 'your property advisor'
   const isLastTouch = (lead.template_touches || 0) >= 2 // graceful sign-off on later touches
   const qualified = lead.status === 'qualified' || (lead.ai_score || 0) >= 6
 
   let key: keyof typeof TEMPLATES
-  let values: Record<string, string>
+  let values: string[]
   if (isLastTouch) {
+    // lead_final_touch: {{customer_name}} {{agency_name}} {{area}}
     key = 'lead_final_touch'
-    values = { customer_name: firstName(lead), agency_name: agency, area: leadArea(lead, agent) }
+    values = [firstName(lead), agency, leadArea(lead, agent)]
   } else if (qualified) {
+    // lead_visit_invite: {{customer_name}} {{agency_name}} {{property}}
     key = 'lead_visit_invite'
-    values = { customer_name: firstName(lead), agency_name: agency, property: `a ${propertyType(lead)} in ${leadArea(lead, agent)}` }
+    values = [firstName(lead), agency, `a ${propertyType(lead)} in ${leadArea(lead, agent)}`]
   } else {
+    // lead_new_match: {{customer_name}} {{agency_name}} {{area}} {{property_type}}
     key = 'lead_new_match'
-    values = { customer_name: firstName(lead), agency_name: agency, area: leadArea(lead, agent), property_type: propertyType(lead) }
+    values = [firstName(lead), agency, leadArea(lead, agent), propertyType(lead)]
   }
 
   const cfg = TEMPLATES[key]
