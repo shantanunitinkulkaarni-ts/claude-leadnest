@@ -86,7 +86,17 @@ export async function runNurtureEmails(): Promise<{ sent: number; skipped: numbe
         planStatus: agent.plan_status || 'active',
       }
 
-      const sendResult = await step.send(agent.email, agent.name, ctx)
+      // A send can either return {ok:false} or THROW (e.g. Resend rejects the
+      // recipient). Treat both as the same recoverable failure so the bounded
+      // retry below applies in either case (a throw used to hit the outer catch
+      // and loop forever with no marker written).
+      let sendResult: { ok: boolean }
+      try {
+        sendResult = await step.send(agent.email, agent.name, ctx)
+      } catch (sendErr: any) {
+        console.warn('[nurture] send threw for', step.key, agent.id, '-', sendErr?.message)
+        sendResult = { ok: false }
+      }
 
       if (sendResult.ok) {
         // Record success + clear any failure markers for this step.
