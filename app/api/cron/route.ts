@@ -207,14 +207,15 @@ export async function GET(request: NextRequest) {
           const timeStr = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
           if (TEMPLATES_LIVE) {
             // Approved `visit_reminder` Utility template — delivers even outside
-            // the 24h window. Named variables, white-label (agency name).
-            const values = {
-              customer_name: (appt.leads.name || '').trim().split(/\s+/)[0] || 'there',
-              agency_name: ag.agency_name || 'your property advisor',
-              property: appt.properties?.title || 'your booked visit',
-              visit_date: dateStr,
-              visit_time: timeStr,
-            }
+            // the 24h window. Values positional, in template order:
+            // {{customer_name}} {{agency_name}} {{property}} {{visit_date}} {{visit_time}}
+            const values = [
+              (appt.leads.name || '').trim().split(/\s+/)[0] || 'there',
+              ag.agency_name || 'your property advisor',
+              appt.properties?.title || 'your booked visit',
+              dateStr,
+              timeStr,
+            ]
             const rid = await sendViaMsg91Template(ag.msg91_integrated_number, appt.leads.phone, 'visit_reminder', values, 'en')
             if (rid) { await supabaseAdmin.from('appointments').update({ reminder_sent: true }).eq('id', appt.id); results.reminders++ }
             else results.errors++
