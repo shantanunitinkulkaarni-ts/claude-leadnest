@@ -166,11 +166,13 @@ export async function POST(request: NextRequest) {
         title: 'New lead created', description: `First message from ${fromPhone}`
       })
     } else {
-      // Lead replied → window reopens AND the follow-up nudge counter resets,
-      // so the 3h/10h/23h sequence starts fresh from this message.
+      // Lead replied → window reopens AND both follow-up lifecycles reset:
+      // the free 3h/10h/23h nudges and the paid template re-engagement. A reply
+      // also revives a lead we'd marked 'dormant'.
       await supabaseAdmin.from('leads').update({
         last_message_at: now, window_expires_at: windowExpiry,
         window_nudge_count: 0, last_nudge_at: null,
+        template_touches: 0, last_template_at: null, nurture_state: 'active',
       }).eq('id', lead.id)
     }
 
