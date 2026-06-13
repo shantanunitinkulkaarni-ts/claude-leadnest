@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { sendAppointmentReminder, sendToLead, sendViaMsg91Template, deductWABalance } from '@/lib/whatsapp'
 import { generateNudge } from '@/lib/gemini'
 import { runNurtureEmails } from '@/lib/nurture'
-import { decideOutreach, pickTemplate } from '@/lib/outreach'
+import { decideOutreach, pickTemplate, renderTemplate } from '@/lib/outreach'
 
 export const maxDuration = 60
 
@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
           await deductWABalance(agent.id, TEMPLATE_COST, `Re-engagement (${tmpl.name}) — ${lead.name || lead.phone}`, tmpl.name, lead.id)
           await supabaseAdmin.from('messages').insert({
             lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
-            content: `[template: ${tmpl.name}/${tmpl.language}]`, sent_by: 'bot', wa_message_id: typeof reqId === 'string' ? reqId : null,
+            content: renderTemplate(tmpl.name, tmpl.language, tmpl.values), sent_by: 'bot', wa_message_id: typeof reqId === 'string' ? reqId : null,
           })
           await supabaseAdmin.from('leads').update({
             template_touches: (lead.template_touches || 0) + 1,
@@ -217,8 +217,14 @@ export async function GET(request: NextRequest) {
               { name: 'visit_time', value: timeStr },
             ]
             const rid = await sendViaMsg91Template(ag.msg91_integrated_number, appt.leads.phone, 'visit_reminder', values, 'en')
-            if (rid) { await supabaseAdmin.from('appointments').update({ reminder_sent: true }).eq('id', appt.id); results.reminders++ }
-            else results.errors++
+            if (rid) {
+              await supabaseAdmin.from('appointments').update({ reminder_sent: true }).eq('id', appt.id)
+              await supabaseAdmin.from('messages').insert({
+                lead_id: appt.lead_id, agent_id: ag.id, direction: 'outbound',
+                content: renderTemplate('visit_reminder', 'en', values), sent_by: 'bot', wa_message_id: typeof rid === 'string' ? rid : null,
+              })
+              results.reminders++
+            } else results.errors++
           } else {
             // Pre-go-live fallback: free-text (only delivers inside the 24h window).
             const msg = `Hi ${appt.leads.name || 'there'}! Reminder: your site visit${appt.properties?.title ? ` for ${appt.properties.title}` : ''} is on ${dateStr} at ${timeStr}. See you there! 🏠`

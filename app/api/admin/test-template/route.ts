@@ -3,6 +3,8 @@ export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthContext } from '@/lib/apiAuth'
 import { sendViaMsg91Template } from '@/lib/whatsapp'
+import { supabaseAdmin } from '@/lib/supabase'
+import { renderTemplate } from '@/lib/outreach'
 
 // Superadmin-only: fire ONE template to a chosen number to verify the MSG91
 // named-variable format renders correctly before enabling broad sending.
@@ -29,6 +31,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'integrated_number, to and template are required' }, { status: 400 })
     }
     const reqId = await sendViaMsg91Template(integrated, to, template, values, language)
+
+    // Best-effort: log the rendered message into the matching lead's inbox so it
+    // shows up like a real send (values must be {name,value}[] to render).
+    if (reqId && Array.isArray(values)) {
+      try {
+        const { data: agent } = await supabaseAdmin.from('agents').select('id').eq('msg91_integrated_number', integrated).maybeSingle()
+        if (agent) {
+          const { data: lead } = await supabaseAdmin.from('leads').select('id')
+            .eq('agent_id', agent.id).or(`phone.eq.+${to},phone.eq.${to}`)
+            .order('created_at', { ascending: false }).limit(1).maybeSingle()
+          if (lead) {
+            await supabaseAdmin.from('messages').insert({
+              lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
+              content: renderTemplate(template, language, values as any), sent_by: 'bot',
+              wa_message_id: typeof reqId === 'string' ? reqId : null,
+            })
+          }
+        }
+      } catch { /* logging is non-critical for a test */ }
+    }
+
     return NextResponse.json({ ok: !!reqId, requestId: reqId })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })

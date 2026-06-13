@@ -84,6 +84,33 @@ export const TEMPLATES = {
   // visit_reminder (Utility, en) is sent from the appointment-reminder path.
 }
 
+// Body text of each approved template (must match what was approved in MSG91),
+// used to render the REAL message for the agent's Inbox — so they see exactly
+// what the lead received, not a placeholder.
+const TEMPLATE_BODIES: Record<string, Record<string, string>> = {
+  lead_new_match: {
+    en: "Hi {{customer_name}}, it's {{agency_name}}. A property matching your search just came up in {{area}} - a {{property_type}} within your budget. Would you like me to share the details?",
+    hi: 'नमस्ते {{customer_name}}, {{agency_name}} की ओर से। {{area}} में आपकी पसंद से मिलती-जुलती एक नई प्रॉपर्टी उपलब्ध हुई है - आपके बजट में {{property_type}}। क्या मैं आपको इसकी जानकारी भेजूँ?',
+    mr: 'नमस्कार {{customer_name}}, {{agency_name}} कडून. {{area}} मध्ये तुमच्या आवडीशी जुळणारी एक नवीन प्रॉपर्टी उपलब्ध झाली आहे - तुमच्या बजेटमध्ये {{property_type}}. मी तुम्हाला त्याची माहिती पाठवू का?',
+  },
+  lead_visit_invite: {
+    en: "Hi {{customer_name}}, it's {{agency_name}}. Would you like to see {{property}} in person? I can arrange a quick site visit this week at a time that suits you - morning or evening.",
+  },
+  lead_final_touch: {
+    en: "Hi {{customer_name}}, it's {{agency_name}}. I don't want to crowd your inbox, so I'll ease off for now. Whenever you'd like to pick your home search in {{area}} back up, I'm just one message away. Shall I keep you posted on new options?",
+  },
+  visit_reminder: {
+    en: 'Hi {{customer_name}}, a reminder from {{agency_name}} about your site visit:\nProperty: {{property}}\nWhen: {{visit_date}} at {{visit_time}}\nReply here if you\'d like to reschedule - see you soon!',
+  },
+}
+
+// Fill a template's body with the {name,value} pairs → the actual sent message.
+export function renderTemplate(name: string, language: string, values: { name: string; value: string }[]): string {
+  let body = TEMPLATE_BODIES[name]?.[language] || TEMPLATE_BODIES[name]?.en || ''
+  for (const v of values) body = body.split(`{{${v.name}}}`).join(v.value)
+  return body || `[${name}]`
+}
+
 function firstName(lead: any): string {
   return (lead.name || '').trim().split(/\s+/)[0] || 'there'
 }
