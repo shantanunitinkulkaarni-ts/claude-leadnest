@@ -32,22 +32,46 @@ export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams
   const agentId = params.get('agent_id')
   const eventId = params.get('event_id')
-  if (!agentId || !eventId) {
-    return new NextResponse('agent_id and event_id required', { status: 400 })
+  const txnId = params.get('txn_id') // wallet/credits top-up receipt
+  if (!agentId || (!eventId && !txnId)) {
+    return new NextResponse('agent_id and event_id (or txn_id) required', { status: 400 })
   }
 
   try {
     const access = await requireAgentAccess(agentId)
     if ('error' in access) return access.error
 
-    const { data: ev, error: evErr } = await supabaseAdmin
-      .from('subscription_events')
-      .select('id, created_at, amount, payment_id, agent_id')
-      .eq('id', eventId)
-      .eq('agent_id', agentId) // scope to the authorised agent
-      .maybeSingle()
-    if (evErr) throw evErr
-    if (!ev) return new NextResponse('Receipt not found', { status: 404 })
+    // ev = the charge being receipted. Subscription events and credit top-ups
+    // share the same receipt layout; only the line-item label differs.
+    let ev: { created_at: string; amount: number; payment_id: string | null } | null = null
+    let lineLabel = 'Convorian — Monthly Subscription'
+    let lineSub = 'AI WhatsApp assistant · 1 month'
+    let payVia = 'Paid via UPI Autopay (Razorpay).'
+
+    if (txnId) {
+      const { data: txn, error: txnErr } = await supabaseAdmin
+        .from('wa_transactions')
+        .select('id, created_at, amount, description, type, agent_id')
+        .eq('id', txnId).eq('agent_id', agentId).eq('type', 'credit')
+        .maybeSingle()
+      if (txnErr) throw txnErr
+      if (!txn) return new NextResponse('Receipt not found', { status: 404 })
+      const pid = (txn.description || '').match(/pay_[A-Za-z0-9]+/)?.[0] || null
+      ev = { created_at: txn.created_at, amount: Number(txn.amount), payment_id: pid }
+      lineLabel = 'Convorian — Messaging Credits Top-up'
+      lineSub = 'Prepaid WhatsApp messaging credits'
+      payVia = 'Paid via Razorpay.'
+    } else {
+      const { data: e, error: evErr } = await supabaseAdmin
+        .from('subscription_events')
+        .select('id, created_at, amount, payment_id, agent_id')
+        .eq('id', eventId)
+        .eq('agent_id', agentId) // scope to the authorised agent
+        .maybeSingle()
+      if (evErr) throw evErr
+      if (!e) return new NextResponse('Receipt not found', { status: 404 })
+      ev = { created_at: e.created_at, amount: e.amount != null ? Number(e.amount) : 999, payment_id: e.payment_id }
+    }
 
     const { data: agent } = await supabaseAdmin
       .from('agents')
@@ -56,7 +80,7 @@ export async function GET(request: NextRequest) {
       .single()
 
     const amount = ev.amount != null ? Number(ev.amount) : 999
-    const receiptNo = 'CVN-' + String(ev.payment_id || ev.id).replace(/^pay_/, '').slice(-12).toUpperCase()
+    const receiptNo = 'CVN-' + String(ev.payment_id || eventId || txnId).replace(/^pay_/, '').slice(-12).toUpperCase()
     const billedTo = [agent?.agency_name, agent?.name].filter(Boolean).join(' · ') || agent?.email || '—'
     const location = [agent?.city, agent?.state].filter(Boolean).join(', ')
 
@@ -134,7 +158,7 @@ export async function GET(request: NextRequest) {
         </thead>
         <tbody>
           <tr>
-            <td>Convorian — Monthly Subscription<span class="desc-sub">AI WhatsApp assistant · 1 month</span></td>
+            <td>${esc(lineLabel)}<span class="desc-sub">${esc(lineSub)}</span></td>
             <td class="r">${esc(fmtINR(amount))}</td>
           </tr>
         </tbody>
@@ -148,7 +172,7 @@ export async function GET(request: NextRequest) {
       </div>
 
       <div class="note">
-        Paid via UPI Autopay (Razorpay). This is a payment receipt, not a tax invoice — Convorian is
+        ${esc(payVia)} This is a payment receipt, not a tax invoice — Convorian is
         operated as a sole proprietorship and is not registered for GST, so no GST has been charged.
         Please retain this receipt for your records.
       </div>

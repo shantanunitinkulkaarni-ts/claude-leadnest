@@ -67,11 +67,25 @@ export function detectStage(lead: any, messageCount: number): ConversationStage 
 export function buildEnginePrompt(ctx: any, stage: ConversationStage, messageCount: number): string {
   const { agent, lead, properties } = ctx
 
+  const possessionLabel: Record<string, string> = {
+    ready_to_move: 'Ready to move', under_construction: 'Under construction',
+    new_launch: 'New launch', resale: 'Resale',
+  }
   const propertiesList = properties.map((p: any) => {
     const price = p.type === 'rental'
-      ? `₹${(p.rent_per_month || 0).toLocaleString('en-IN')}/month`
+      ? `₹${(p.rent_per_month || p.price || 0).toLocaleString('en-IN')}/month${p.deposit ? ` (deposit ₹${Number(p.deposit).toLocaleString('en-IN')})` : ''}`
       : `₹${((p.price || 0) / 100000).toFixed(0)}L`
-    return `ID:${p.id} | ${p.title} | ${p.bhk || p.category} | ${p.location} | ${price} | ${p.size_sqft || '?'} sqft | ${(p.features || []).join(', ')} | ${p.description || ''}`
+    const mediaUrls = (p.features || []).filter((f: string) => typeof f === 'string' && f.startsWith('media:')).map((f: string) => f.slice(6))
+    const amenities = (p.features || []).filter((f: string) => typeof f === 'string' && !f.startsWith('media:'))
+    const poss = p.possession_status ? (possessionLabel[p.possession_status] || p.possession_status) + (p.possession_date ? ` by ${p.possession_date}` : '') : ''
+    const parts = [
+      `ID:${p.id}`, p.title, p.bhk || p.category, p.location, price,
+      `${p.size_sqft || '?'} sqft`, poss, amenities.join(', '), p.description || '',
+      p.extra_info ? `HIGHLIGHTS: ${p.extra_info}` : '',
+      mediaUrls.length ? `MEDIA AVAILABLE: ${mediaUrls.length} file(s)` : '',
+      (p.project_website && p.website_ai_consent) ? `PROJECT SITE (agent-approved, you may reference its public info): ${p.project_website}` : '',
+    ].filter(Boolean)
+    return parts.join(' | ')
   }).join('\n')
 
   const stageInstructions: Record<ConversationStage, string> = {
@@ -208,7 +222,7 @@ OFFICE HOURS: ${agent.office_open} to ${agent.office_close}
 PROPERTY INVENTORY (complete and authoritative — every price/size/detail you ever quote MUST come from here, in ANY stage of the conversation):
 ${propertiesList || 'No active properties right now — never invent one; say new options are coming in and you\'ll share details as soon as they land.'}
 TONE: ${toneMap[agent.bot_tone] || toneMap.friendly}
-LANGUAGES THIS AGENCY SUPPORTS: ${(agent.languages || ['English']).join(', ')}
+LANGUAGES THIS AGENCY SUPPORTS: ${(agent.languages && agent.languages.length ? agent.languages : ['English', 'Hindi', 'Marathi']).join(', ')} (you are fully fluent in English, Hindi and Marathi regardless)
 
 LEAD PROFILE:
 - Name: ${lead.name || 'Unknown'}
@@ -225,17 +239,27 @@ LEAD PROFILE:
 
 ${stageInstructions[stage]}
 
-LANGUAGE RULES:
+LANGUAGE RULES (English, हिंदी, मराठी are all first-class — you are fully fluent in each):
 - DEFAULT TO ENGLISH. Greetings like "hi"/"hello" carry no language signal — reply in English.
-- You may reply in any language the lead uses, but you primarily serve the languages listed in "LANGUAGES THIS AGENCY SUPPORTS" above — lean on those.
-- EARLY IN THE CHAT (first or second reply), if the agency supports more than one language, gently offer a choice: e.g. "By the way, I can chat in English or हिंदी — whichever is easier for you." Then follow their lead.
-- ALWAYS MIRROR THE LEAD'S LANGUAGE. The moment they write in Hindi or Hinglish — even one clearly Hindi sentence like "mujhe baner mein 2bhk chahiye" — reply in that SAME language (Hindi script → Hindi; Hindi-in-Latin-letters → Hinglish). That is a clear signal; switch immediately, don't stay in English.
-- IF THE LEAD SEEMS TO BE STRUGGLING or replies in broken/confused language, politely offer to switch: "Would you be more comfortable in Hindi?" — make it easy and warm.
+- ALWAYS MIRROR THE LEAD'S LANGUAGE, immediately, from their very first clear signal:
+  • Hindi script (मुझे बानेर में 2bhk चाहिए) → reply in natural Hindi (Devanagari).
+  • Hinglish / Hindi-in-Latin-letters ("mujhe baner mein 2bhk chahiye") → reply in Hinglish.
+  • Marathi script (मला बाणेरमध्ये 2bhk घर हवंय) → reply in natural, grammatical Marathi (Devanagari).
+  • Marathi-in-Latin-letters ("mala baner madhe 2bhk ghar pahije") → reply in Latin-script Marathi.
+- Your Hindi and Marathi must be PERFECT — fluent, warm, grammatically correct, the way a polished local agent speaks. Never robotic or translated-sounding. Marathi is mandatory in Maharashtra (Pune/Mumbai) — treat it as a native tongue, not a fallback.
+- Hindi/Marathi distinction: Marathi uses आहे/आहात, मला, हवंय, का; Hindi uses है/हैं, मुझे, चाहिए, क्या. Read carefully and answer in the SAME one they used — never mix Hindi into a Marathi reply or vice-versa.
+- EARLY IN THE CHAT (first or second reply), if the agency supports more than one language, gently offer a choice: e.g. "By the way, I can chat in English, हिंदी or मराठी — whichever is easiest for you." Then follow their lead.
+- IF THE LEAD SEEMS TO BE STRUGGLING in English, politely offer to switch: "तुम्हाला मराठीत बोलणं सोपं जाईल का?" / "क्या हिंदी में बात करना आसान रहेगा?" — make it easy and warm.
 - Never switch languages mid-conversation unless they do (or accept your offer).
 
 HONESTY — NEVER claim to do something you cannot actually do:
 - You CANNOT send photos, floor plans, brochures, files, or emails. NEVER say "I've sent..." / "sharing now" / "check your email". If asked, say they aren't available in chat and offer to have the team arrange them or invite a visit.
-- You CANNOT personally call anyone. If they ask to be called or want to talk to a person: do NOT agree to call yourself. Say "I'll have our team call you" — confirm you've passed the request on, and that the team will reach out shortly. (The system alerts the agent.)
+- You CANNOT personally call anyone. If they ask to be called: say "I'll have ${agent.name || 'our agent'} call you" — confirm you've passed the request on. (The system alerts the agent.)
+- WHEN THE LEAD ASKS TO SPEAK TO A HUMAN / wants the agent's contact / "kisi se baat karni hai" / "agent ka number do": SHARE THE AGENT'S DETAILS directly and warmly:
+  • Name: ${agent.name || 'our property advisor'}${agent.agency_name ? ` (${agent.agency_name})` : ''}
+  • Phone: ${agent.phone || 'will be shared by the team'}
+  • Available: ${agent.office_open || '09:00'} to ${agent.office_close || '19:00'}
+  Give the name and number plainly (e.g. "You can reach ${agent.name || 'our advisor'} directly on ${agent.phone || '—'}, available ${agent.office_open || '9 AM'}–${agent.office_close || '7 PM'}."). Only share the phone number if it is shown above (not "—"); if missing, say the team will share it shortly. Then continue helping.
 - NEVER invent an office address, exact location, phone number, or Maps link. If you don't have it, say the team will share the exact location when confirming the visit.
 - If you don't know something: "Let me check with the team and get back to you."
 

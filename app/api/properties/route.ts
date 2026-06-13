@@ -4,8 +4,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { pickFields, requireAgentAccess, requirePropertyAccess } from '@/lib/apiAuth'
 
-const CREATE_FIELDS = ['agent_id', 'title', 'location', 'city', 'price', 'rent_per_month', 'type', 'category', 'bhk', 'size_sqft', 'description', 'features', 'status']
-const UPDATE_FIELDS = ['title', 'location', 'city', 'price', 'rent_per_month', 'type', 'category', 'bhk', 'size_sqft', 'description', 'features', 'status']
+const EXTRA = ['possession_date', 'possession_status', 'deposit', 'project_website', 'website_ai_consent', 'extra_info']
+const CREATE_FIELDS = ['agent_id', 'title', 'location', 'city', 'price', 'rent_per_month', 'type', 'category', 'bhk', 'size_sqft', 'description', 'features', 'status', ...EXTRA]
+const UPDATE_FIELDS = ['title', 'location', 'city', 'price', 'rent_per_month', 'type', 'category', 'bhk', 'size_sqft', 'description', 'features', 'status', ...EXTRA]
 
 export async function GET(request: NextRequest) {
   const agentId = request.nextUrl.searchParams.get('agent_id')

@@ -200,24 +200,26 @@ export default function AppointmentsScreen({ agentId }: { agentId: string }) {
     const isUpcomingActive = !isPast && a.status !== 'cancelled' && a.status !== 'done' && a.status !== 'no_show'
 
     return (
-      <div key={a.id} style={{ background: needsFeedback ? '#FFFAEB' : '#fff', border: `1px solid ${needsFeedback ? '#F6C000' : 'rgba(26,25,22,0.08)'}`, borderRadius: 14, padding: '16px 18px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 14 }}>
-        <div style={{ textAlign: 'center', minWidth: 48, background: '#F4F3EE', borderRadius: 9, padding: 8, border: '1px solid rgba(26,25,22,0.08)' }}>
-          <div style={{ fontSize: 22, fontWeight: 500, color: '#15161B', lineHeight: 1 }}>{d.getDate()}</div>
-          <div style={{ fontSize: 10, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{d.toLocaleString('default', { month: 'short' })}</div>
+      <div key={a.id} style={{ background: needsFeedback ? '#FFFAEB' : '#fff', border: `1px solid ${needsFeedback ? '#F6C000' : 'rgba(26,25,22,0.08)'}`, borderRadius: 14, padding: '16px 18px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+        <div style={{ textAlign: 'center', width: 52, minWidth: 52, background: '#F4F3EE', borderRadius: 9, padding: '8px 0', border: '1px solid rgba(26,25,22,0.08)', flexShrink: 0 }}>
+          <div style={{ fontSize: 22, fontWeight: 600, color: '#15161B', lineHeight: 1 }}>{d.getDate()}</div>
+          <div style={{ fontSize: 10, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 }}>{d.toLocaleString('default', { month: 'short' })}</div>
         </div>
-        
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 500, color: '#15161B', display: 'flex', alignItems: 'center', gap: 6 }}>
+
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#15161B', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             {a.leads?.name || 'Unknown Lead'}
             {needsFeedback && <span style={{ fontSize: 10, background: '#FFECB3', color: '#B7770D', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>Needs Feedback</span>}
           </div>
-          <div style={{ fontSize: 12, color: '#6B6860', marginTop: 2 }}>{a.properties?.title || 'General Visit'}</div>
-          <div style={{ fontSize: 12, color: '#9E9B92', marginTop: 4 }}>
-            🕐 {d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · 📞 {a.leads?.phone}
+          <div style={{ fontSize: 12, color: '#6B6860', marginTop: 3 }}>{a.properties?.title || 'General Visit'}</div>
+          <div style={{ fontSize: 12, color: '#9E9B92', marginTop: 4, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span>{d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
+            <span>·</span>
+            <span>{a.leads?.phone}</span>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {needsFeedback ? (
             <button
               onClick={() => setShowFeedbackModal(a)}
@@ -353,11 +355,11 @@ export default function AppointmentsScreen({ agentId }: { agentId: string }) {
                       { id: 'not_interested', label: '❌ Not Interested' },
                       { id: 'no_show', label: '🚫 No-Show' }
                     ].map(r => (
-                      <button 
+                      <button
                         key={r.id}
                         type="button"
                         onClick={() => setSelectedResult(r.id)}
-                        style={{ padding: '12px 10px', borderRadius: 8, border: `1px solid ${selectedResult === r.id ? '#1A5FA5' : 'rgba(26,25,22,0.18)'}`, background: selectedResult === r.id ? '#EEF4FC' : '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: selectedResult === r.id ? '#1A5FA5' : '#6B6860', transition: 'all 0.15s' }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, padding: '10px 12px', borderRadius: 8, border: `1px solid ${selectedResult === r.id ? '#1A5FA5' : 'rgba(26,25,22,0.18)'}`, background: selectedResult === r.id ? '#EEF4FC' : '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: selectedResult === r.id ? '#1A5FA5' : '#6B6860', transition: 'all 0.15s', fontFamily: 'inherit' }}
                       >
                         {r.label}
                       </button>

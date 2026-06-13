@@ -30,6 +30,13 @@ export default function PropertiesScreen({ agentId }: Props) {
   const [sizeSqft, setSizeSqft] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState('active')
+  // New (June 13 batch 2)
+  const [possessionStatus, setPossessionStatus] = useState('ready_to_move')
+  const [possessionDate, setPossessionDate] = useState('')
+  const [deposit, setDeposit] = useState('')
+  const [projectWebsite, setProjectWebsite] = useState('')
+  const [websiteAiConsent, setWebsiteAiConsent] = useState(false)
+  const [extraInfo, setExtraInfo] = useState('')
   
   // Media State
   const [files, setFiles] = useState<File[]>([])
@@ -86,6 +93,7 @@ export default function PropertiesScreen({ agentId }: Props) {
     setIsEditing(false)
     setEditingId(null)
     setTitle(''); setLocation(''); setPrice(''); setSizeSqft(''); setDescription(''); setFiles([]); setExistingMedia([])
+    setPossessionStatus('ready_to_move'); setPossessionDate(''); setDeposit(''); setProjectWebsite(''); setWebsiteAiConsent(false); setExtraInfo('')
     setPriceWarning(null); setHasConfirmedWarning(false)
     setShowModal(true)
   }
@@ -103,7 +111,13 @@ export default function PropertiesScreen({ agentId }: Props) {
     setSizeSqft(p.size_sqft?.toString() || '')
     setDescription(p.description || '')
     setStatus(p.status || 'active')
-    
+    setPossessionStatus(p.possession_status || 'ready_to_move')
+    setPossessionDate(p.possession_date || '')
+    setDeposit(p.deposit?.toString() || '')
+    setProjectWebsite(p.project_website || '')
+    setWebsiteAiConsent(!!p.website_ai_consent)
+    setExtraInfo(p.extra_info || '')
+
     // Extract media
     const mediaUrls = p.features?.filter((f: string) => f.startsWith('media:')) || []
     setExistingMedia(mediaUrls)
@@ -166,8 +180,14 @@ export default function PropertiesScreen({ agentId }: Props) {
       bhk,
       size_sqft: parseInt(sizeSqft) || 0,
       description,
-      features: finalMedia, 
-      status: status
+      features: finalMedia,
+      status: status,
+      possession_status: possessionStatus,
+      possession_date: possessionStatus === 'ready_to_move' ? null : (possessionDate || null),
+      deposit: type.toLowerCase() === 'rental' ? (parseInt(deposit.replace(/[^0-9]/g, '')) || null) : null,
+      project_website: projectWebsite.trim() || null,
+      website_ai_consent: !!(projectWebsite.trim() && websiteAiConsent),
+      extra_info: extraInfo.trim() || null,
     }
     
     try {
@@ -494,16 +514,63 @@ export default function PropertiesScreen({ agentId }: Props) {
                 </div>
               </div>
 
+              {/* Possession + (rental) deposit */}
+              <div style={{ display: 'grid', gridTemplateColumns: possessionStatus === 'ready_to_move' ? '1fr 1fr' : '1fr 1fr 1fr', gap: 16 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Possession</label>
+                  <select value={possessionStatus} onChange={e => setPossessionStatus(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none', background: '#fff' }}>
+                    <option value="ready_to_move">Ready to move</option>
+                    <option value="under_construction">Under construction</option>
+                    <option value="new_launch">New launch</option>
+                    <option value="resale">Resale</option>
+                  </select>
+                </div>
+                {possessionStatus !== 'ready_to_move' && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Possession by</label>
+                    <input type="date" value={possessionDate} onChange={e => setPossessionDate(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                  </div>
+                )}
+                {type.toLowerCase() === 'rental' && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Deposit (₹)</label>
+                    <input value={deposit} onChange={e => setDeposit(e.target.value)} placeholder="e.g. 100000" style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Exhaustive Description</label>
                 <textarea required value={description} onChange={e => setDescription(e.target.value)} placeholder="Detail the amenities, facing, floor level, furnishing status..." rows={3} style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }} />
+              </div>
+
+              {/* Anything else the bot should know — locality highlights */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Other highlights <span style={{ color: '#9E9B92', fontWeight: 400 }}>(optional — anything special the AI should mention)</span></label>
+                <textarea value={extraInfo} onChange={e => setExtraInfo(e.target.value)} placeholder="e.g. 5 min from Jupiter Hospital · heart of the city · top school nearby · gated community" rows={2} style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }} />
+              </div>
+
+              {/* Project website + AI consent */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Project website <span style={{ color: '#9E9B92', fontWeight: 400 }}>(optional)</span></label>
+                <input value={projectWebsite} onChange={e => setProjectWebsite(e.target.value)} placeholder="e.g. https://lodhatowers.com" style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                {projectWebsite.trim() && (
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10, cursor: 'pointer', background: '#F4F8FD', border: '1px solid rgba(26,95,165,0.15)', borderRadius: 8, padding: '10px 12px' }}>
+                    <input type="checkbox" checked={websiteAiConsent} onChange={e => setWebsiteAiConsent(e.target.checked)} style={{ marginTop: 2, transform: 'scale(1.1)' }} />
+                    <span style={{ fontSize: 11.5, color: '#3D3B34', lineHeight: 1.5 }}>
+                      I allow Convorian&apos;s AI to read this website and use its public information (amenities, possession, floor plans, photos) when answering leads about this property. I understand suggestions may be based on details published on that site.
+                    </span>
+                  </label>
+                )}
               </div>
 
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Attachments (Photos, Floor Plans)</label>
                 <div className="file-drop" onClick={() => fileInputRef.current?.click()} style={{ border: '1px dashed rgba(26,25,22,0.2)', borderRadius: 8, padding: '24px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s', background: '#fff' }}>
                   <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*,video/*,application/pdf" />
-                  <div style={{ fontSize: 24, marginBottom: 8 }}>📸</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8, color: '#9E9B92' }}>
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                  </div>
                   <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B' }}>Click or drag files here</div>
                   <div style={{ fontSize: 11, color: '#9E9B92', marginTop: 4 }}>JPEG, PNG, MP4, PDF</div>
                 </div>

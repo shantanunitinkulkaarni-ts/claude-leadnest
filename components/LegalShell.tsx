@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import SmartBackLink from './SmartBackLink'
 
 // Shared chrome (header + footer) for legal pages — keeps Convorian branding
 // consistent and gives Meta reviewers clear navigation + contact info.
@@ -9,10 +10,11 @@ export default function LegalShell({ children }: { children: React.ReactNode }) 
       <header style={{ borderBottom: '1px solid #E8E5DF', background: '#fff' }}>
         <div style={{ maxWidth: 820, margin: '0 auto', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#4F46E5,#7C3AED)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#fff' }}>🏠</div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icon.webp" alt="Convorian" width={28} height={28} style={{ borderRadius: 8 }} />
             <span style={{ fontSize: 16, fontWeight: 700, color: '#15161B', letterSpacing: '-0.01em' }}>Convorian</span>
           </Link>
-          <Link href="/" style={{ fontSize: 13, color: '#4F46E5', fontWeight: 600, textDecoration: 'none' }}>← Back to home</Link>
+          <SmartBackLink style={{ fontSize: 13, color: '#4F46E5', fontWeight: 600, textDecoration: 'none' }} />
         </div>
       </header>
 

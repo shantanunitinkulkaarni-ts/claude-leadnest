@@ -51,14 +51,33 @@ export async function POST(request: NextRequest) {
     await supabaseAdmin.from('agents').update({ wa_balance: newBal }).eq('id', agent_id)
 
     // 4. Log the transaction (best-effort — don't fail the top-up if logging errors)
+    let txnId: string | null = null
     try {
-      await supabaseAdmin.from('wa_transactions').insert({
+      const { data: txn } = await supabaseAdmin.from('wa_transactions').insert({
         agent_id,
         type: 'credit',
         amount: rupees,
-        description: `WhatsApp balance top-up · Razorpay ${razorpay_payment_id}`
-      })
+        description: `WhatsApp balance top-up · Razorpay ${razorpay_payment_id}`,
+        balance_after: newBal,
+      }).select('id').single()
+      txnId = txn?.id || null
     } catch { /* table/columns may differ — ignore */ }
+
+    // 5. Email the user a receipt copy (best-effort).
+    try {
+      const { data: agent } = await supabaseAdmin.from('agents').select('name, email').eq('id', agent_id).single()
+      if (agent?.email) {
+        const { sendEmail } = await import('@/lib/email')
+        const receiptUrl = txnId ? `https://convorian.in/api/subscription/receipt?agent_id=${agent_id}&txn_id=${txnId}` : 'https://convorian.in'
+        await sendEmail({
+          to: agent.email,
+          subject: `Payment receipt — ₹${rupees} added to your Convorian credits`,
+          html: `<p>Hi ${agent.name || 'there'},</p><p>We've received your payment of <strong>₹${rupees}</strong>. It has been added to your messaging credits (new balance: ₹${newBal}).</p><p><a href="${receiptUrl}">View / download your receipt →</a></p><p>— Team Convorian</p>`,
+        })
+      }
+    } catch (mailErr: any) {
+      console.error('Top-up receipt email failed (non-critical):', mailErr?.message)
+    }
 
     return NextResponse.json({ success: true, wa_balance: newBal })
   } catch (e: any) {
