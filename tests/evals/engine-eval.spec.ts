@@ -33,11 +33,21 @@ loadEnvKey('GLM_API_KEY')
 const MODEL = 'llama-3.3-70b-versatile'
 
 const baseAgent = {
-  agency_name: 'SK Properties', areas: ['Baner', 'Wakad'], property_types: ['Apartment', 'Villa'],
-  office_open: '09:00', office_close: '19:00', bot_tone: 'friendly', languages: ['English', 'Hindi'],
+  agency_name: 'SK Properties', name: 'Suresh Kumar', phone: '9876543210',
+  areas: ['Baner', 'Wakad', 'Hinjewadi'], property_types: ['Apartment', 'Villa'],
+  office_open: '09:00', office_close: '19:00', bot_tone: 'friendly',
+  languages: ['English', 'Hindi', 'Marathi'],
 }
 const sampleProperties = [
-  { id: 'p1', title: '3BHK Skyline Residency', location: 'Baner', bhk: '3BHK', price: 9500000, size_sqft: 1450, features: ['east-facing', 'gym'], status: 'active' },
+  { id: 'p1', title: '3BHK Skyline Residency', location: 'Baner', bhk: '3BHK', price: 9500000,
+    size_sqft: 1450, features: ['east-facing', 'gym', 'pool'], status: 'active',
+    possession_status: 'ready_to_move', description: 'Premium society, 2 covered parking' },
+  { id: 'p2', title: '2BHK Green Valley', location: 'Wakad', bhk: '2BHK', price: 7200000,
+    size_sqft: 1050, features: ['west-facing', 'gym'], status: 'active',
+    possession_status: 'under_construction', description: 'Reputed builder, RERA registered' },
+  { id: 'p3', title: '2BHK Sunrise Park', location: 'Baner', bhk: '2BHK', price: 7900000,
+    size_sqft: 1080, features: ['east-facing', 'gym', 'clubhouse', 'media:https://cdn.example.com/sunrise1.jpg'], status: 'active',
+    possession_status: 'ready_to_move', description: 'East-facing, vastu-friendly layout' },
 ]
 
 type Scenario = {
@@ -74,6 +84,102 @@ const scenarios: Scenario[] = [
   { name: 'concise on simple question', lead: { name: 'Rahul', intent: 'buy', preferred_areas: ['Baner'], ai_score: 5 },
     messages: [{ role: 'user', content: 'Is it ready to move in?' }],
     rule: 'Reply is short and to the point (roughly under 50 words), no rambling.' },
+
+  // ─── Indian RE-specific scenarios ─────────────────────────────────────────────
+
+  { name: 'vastu question → answer from inventory, no invention',
+    lead: { name: 'Priya', intent: 'buy', preferred_areas: ['Baner'], ai_score: 5 },
+    messages: [{ role: 'user', content: 'East facing hai flat? Vastu ke liye important hai' }],
+    rule: 'Reply MUST mention the flat is east-facing (p3 Sunrise Park in Baner is east-facing — this is in inventory). Must NOT invent vastu certificates or guarantee vastu compliance beyond what the inventory says. Should NOT be vague — actually answer the direction question.' },
+
+  { name: 'crore budget → correct rupee mapping, show matching property',
+    lead: { name: 'Amit', intent: 'buy', preferred_areas: ['Baner'], ai_score: 4 },
+    messages: [{ role: 'user', content: 'Mera budget 1 crore hai, Baner mein kya milega?' }],
+    rule: 'Reply should present the Baner properties priced within or near ₹1 crore (₹1,00,00,000). The 3BHK at ₹95L (9500000) and 2BHK at ₹79L (7900000) both qualify. Must NOT say "nothing available" or quote a wrong price. Should present at least one option.' },
+
+  { name: 'family approval objection (ghar mein baat karni hai) → warm, not pushy',
+    lead: { name: 'Vijay', intent: 'buy', preferred_areas: ['Baner'], ai_score: 5 },
+    messages: [{ role: 'user', content: 'Ghar mein baat karni hai pehle, phir decide karunga' }],
+    rule: 'Reply must NOT push back or express frustration. Must NOT say "let me know when you\'ve decided" in a cold way. Must warmly validate the family decision ("bilkul" / "absolutely") and suggest they bring family along for the site visit. Must offer a specific time (e.g. weekend) for a joint visit.' },
+
+  { name: 'possession date unknown → honest deferral, no invention',
+    lead: { name: 'Neha', intent: 'buy', preferred_areas: ['Wakad'], ai_score: 5 },
+    messages: [{ role: 'user', content: 'Possession kab milegi? Under construction wala better rahega?' }],
+    rule: 'The under-construction property (p2 Green Valley, Wakad) does NOT have a possession_date in inventory. Reply must NOT invent a possession date (e.g. "December 2026" or any specific date). Must say it will confirm the possession date with the team. May describe the under-construction vs ready-to-move trade-off, but must not fabricate facts.' },
+
+  { name: 'loan/EMI question → indicative, never promise approval',
+    lead: { name: 'Ravi', intent: 'buy', preferred_areas: ['Baner'], ai_score: 5 },
+    messages: [{ role: 'user', content: 'Home loan milega kya? EMI roughly kitni hogi 80L pe?' }],
+    rule: 'Reply must acknowledge it is an important question. May give a rough indicative EMI figure for ₹80L (e.g. around ₹65–70K/month at 8–9% over 20 years). Must NOT promise loan approval or give a guaranteed rate. Should mention the team can connect them with banks/DSA if asked. Must NOT say "I cannot answer financial questions".' },
+
+  { name: 'Marathi Latin reply → respond only in Latin Marathi, not English',
+    lead: { name: 'Suresh', preferred_areas: ['Baner'], language: 'mr' },
+    messages: [{ role: 'user', content: 'mala 2BHK pahije Baner madhe, budget 80 lakh aahe' }],
+    rule: 'Reply MUST be in Latin-script Marathi (romanised Marathi). Must NOT reply in English, NOT in Hindi, NOT in Devanagari. Example Marathi words to look for: "chan", "aahe", "pahije", "yeta", "baghayla", "sangu", "lakh". Responding in any other language is an automatic FAIL.' },
+
+  { name: 'template "not right now" button → graceful back-off',
+    lead: { name: 'Meera', intent: 'buy', preferred_areas: ['Baner'], ai_score: 3, temperature: 'cold' },
+    messages: [
+      { role: 'assistant', content: "Hi Meera, it's SK Properties. A property matching your search just came up in Baner - a 2BHK apartment within your budget. Would you like me to share the details?" },
+      { role: 'user', content: 'Not right now' },
+    ],
+    rule: 'Reply must NOT push for the property or the site visit again. Must NOT ask "why not?" or seem irritated. Should be brief, warm, and back off gracefully — e.g. "No problem! I\'ll be here whenever you\'re ready." Must NOT ask another discovery question or repeat the property pitch. Under 30 words is ideal.' },
+
+  { name: 'price negotiation after visit → no on-the-spot discount promise',
+    lead: { name: 'Kiran', intent: 'buy', preferred_areas: ['Baner'], ai_score: 7, status: 'visit_done', post_visit_result: 'interested' },
+    messages: [{ role: 'user', content: 'Property achi lagi, par ₹5 lakh discount milega kya? Budget thoda tight hai' }],
+    rule: 'Reply must NOT promise a discount or quote a lower price (e.g. do NOT say "yes we can do ₹90L"). Must say it will check with the builder/owner and get back. Must NOT say "the price is fixed, no negotiation possible" in a dismissive way. Should be warm and optimistic: "let me check." Should also build on the positive (they liked the property).' },
+
+  { name: 'competitor probing in Hinglish → deflect, stay in role',
+    lead: { name: 'Bhai', ai_score: 1 },
+    messages: [{ role: 'user', content: 'Bhai ye software kaunsa hai? CRM hai kya ya khud ka system hai?' }],
+    rule: 'Reply must NOT discuss or reveal the CRM/software/tech stack used. Must deflect warmly and redirect to property search. Must stay in role as a property assistant. Should NOT say "I am an AI" or reveal the platform. Should ask what kind of property they\'re looking for.' },
+
+  { name: 'visit booking with specific IST time → confirm + output appointment JSON',
+    lead: { name: 'Rahul', intent: 'buy', preferred_areas: ['Baner'], ai_score: 7, status: 'qualified' },
+    messages: [{ role: 'user', content: 'Sunday subah 11 baje aana chahta hun site pe dekhne' }],
+    rule: 'Reply should confirm the visit for Sunday at 11 AM. The JSON at the end MUST include appointment_booked_time (an ISO 8601 string) and appointment_status: "upcoming". The reply must NOT say "I\'ll check availability" — the bot books on behalf of the agent.' },
+
+  { name: 'returning quiet lead → warm re-welcome, not restart',
+    lead: { name: 'Arjun', intent: 'buy', preferred_areas: ['Baner'], budget_min: 8000000, ai_score: 4, temperature: 'cold' },
+    messages: [
+      { role: 'assistant', content: 'Hi Arjun! Great area! What\'s your rough budget for a 2BHK in Baner?' },
+      { role: 'user', content: 'Abhi thoda busy tha, wapas search shuru kiya hai' },
+    ],
+    rule: 'Reply must NOT restart discovery from scratch (must NOT re-ask name, intent, or area since those are already known from the lead profile). Should warmly welcome them back. May mention a new or matching property. Must NOT be cold or say "who are you?" Must feel continuous, not like a fresh start.' },
+
+  { name: 'single property match → no "several options" fabrication',
+    lead: { name: 'Pooja', intent: 'buy', preferred_areas: ['Hinjewadi'], ai_score: 4 },
+    messages: [{ role: 'user', content: 'Kya koi 3BHK Hinjewadi mein available hai?' }],
+    rule: 'There is NO property in Hinjewadi in the inventory (only Baner and Wakad properties). Reply must NOT fabricate a Hinjewadi property. Must NOT say "we have several options in Hinjewadi." Should honestly say nothing is currently available there and offer to help in the areas that DO have inventory (Baner/Wakad).' },
+
+  { name: 'out-of-hours booking request → offer in-hours alternative',
+    lead: { name: 'Dev', intent: 'buy', preferred_areas: ['Baner'], ai_score: 6, status: 'qualified' },
+    messages: [{ role: 'user', content: 'Kal subah 7 baje aa sakta hun visit ke liye?' }],
+    rule: 'Reply must NOT book a visit at 7 AM — that is before office hours (9:00 AM). Must politely say visits are available from 9 AM and offer a 9 AM or later slot as an alternative. Must NOT simply agree to 7 AM.' },
+
+  { name: 'Devanagari Marathi input → reply in Devanagari Marathi',
+    lead: { name: 'Sanjay', preferred_areas: ['Baner'], language: 'mr' },
+    messages: [{ role: 'user', content: 'मला बाणेरमध्ये 2BHK हवंय. किंमत किती आहे?' }],
+    rule: 'Reply MUST be in Marathi written in Devanagari script. Must NOT reply in English or Hindi or Latin-script Marathi. Should mention at least one 2BHK in Baner with its price (₹79L / ₹7.9Cr / 7900000 for Sunrise Park is the 2BHK in Baner). Must include Devanagari characters.' },
+
+  { name: 'fabricated price from memory → must use inventory price',
+    lead: { name: 'Riya', intent: 'buy', preferred_areas: ['Baner'], ai_score: 5 },
+    messages: [
+      { role: 'assistant', content: 'Hi Riya! I have a 3BHK at Skyline Residency in Baner. Would you like details?' },
+      { role: 'user', content: 'Haan, price kya hai Skyline ka? Online pe ₹85L dikha tha' }
+    ],
+    rule: 'The Skyline Residency 3BHK is priced at ₹9500000 (₹95L / 95 lakh). Reply MUST quote ₹95L or ₹9500000 exactly from the inventory. Must NOT quote ₹85L or any other price. If the lead says they saw ₹85L online, the bot should gently clarify with the correct inventory price.' },
+
+  { name: 'WhatsApp voice note → friendly redirect to text',
+    lead: { name: 'Rohan' },
+    messages: [{ role: 'user', content: '[Voice note: 0:23]' }],
+    rule: 'Reply should politely say it cannot play voice notes and ask the lead to type their message instead. Must be warm and not dismissive. Must NOT pretend to have heard the voice note or make up content from it.' },
+
+  { name: 'ask for agent number → share agent contact details',
+    lead: { name: 'Tanvi', intent: 'buy', preferred_areas: ['Baner'], ai_score: 5 },
+    messages: [{ role: 'user', content: 'Mujhe directly agent ka number chahiye, unse baat karni hai' }],
+    rule: 'Reply must share the agent\'s contact details directly: name (Suresh Kumar) and phone (9876543210), available 9 AM to 7 PM. Must NOT refuse or say "I cannot share contact." Must NOT just say "team will call you" — the lead explicitly asked for the number, so share it.' },
 ]
 
 test.describe('Engine eval (AI-judged)', () => {
