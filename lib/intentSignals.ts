@@ -46,9 +46,11 @@ const CALL_REQUEST: RegExp[] = [
   /\b(call|ring|phone) me\b/,
   /\b(can|could|please|kindly|pls|plz) (you )?call\b/,
   /\bgive me a (call|ring)\b/,
-  /\bcall (karo|kijiye|kar do|kara|karaal|kara na)\b/,
-  /\bphone (karo|kijiye|kara)\b/,
-  /(कॉल कर|फोन कर|कॉल कीजिए|मला कॉल|कॉल करा)/,
+  /\bcall (karo|kijiye|kar do|kara|karaal|kara na|lagao|lagwao|laga do)\b/,
+  /\bphone (karo|kijiye|kara|pe baat|par baat)\b/,
+  /\bbaat (karni hai|karna chahta|karna chahti) phone (pe|par|se|mein)\b/,
+  /\bphone (pe|par) baat\b/,
+  /(कॉल कर|फोन कर|कॉल कीजिए|मला कॉल|कॉल करा|फोनवर बोला)/,
 ]
 
 // Wants a human/agent rather than the bot.
@@ -73,7 +75,15 @@ const VERY_INTERESTED: RegExp[] = [
   /\b(book|buy) (it )?(now|today|right away)\b/,
   /\b(deal|booking) (pakka|pakki|done)\b/,
   /\bbook kar(do|do na|ni hai|na hai)\b/,
-  /(बुक कर|पक्का कर|फायनल|टोकन|खरेदी कर|खरीद)/,
+  // Indian RE-specific: token/bayana/advance payment intent
+  /\btoken (dena|bharna|deta|deti|dena hai|dena tha|dena chahta|dena chahti)\b/,
+  /\bbayana (dena|bharna|kitna|deta|deti)\b/,
+  /\badvance (dena|bharna|kitna)\b/,
+  /\bagreement (sign|karte|karein|karna hai|ho sakta)\b/,
+  /\b(registration|registry) (kab|karna|karein|ho sakti|karwani)\b/,
+  /\bloan sanction (ho gaya|hua|mila)\b/,
+  /(बुक कर|पक्का कर|फायनल|टोकन|खरेदी कर|खरीद|बयाना|अग्रिम|करार|नोंदणी)/,
+  /(टोकन द्यायचे|बुकिंग कर|डील पक्की)/,
 ]
 
 // A broker/competitor probing rather than a genuine buyer.
