@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { extractEvents } from '@/lib/deliveryStatus'
 
 // ─── MSG91 / Meta delivery-status callback ───────────────────────────────────
 // Configure this URL as the WhatsApp "delivery report" / status webhook in the
@@ -12,51 +13,9 @@ import { supabaseAdmin } from '@/lib/supabase'
 // quality/limit, closed 24h window). Without this handler those failures are
 // invisible — the Inbox shows the message as sent and nobody knows it bounced.
 //
-// MSG91's status payload shape varies by account/version, so we parse defensively:
-// log the FULL body (so the first real callback reveals the exact shape), then
-// best-effort match the message row by its provider id and stamp the status.
-
-// Map the many status spellings providers use → our small canonical set.
-function normalizeStatus(raw: any): string | null {
-  const s = String(raw ?? '').toLowerCase().trim()
-  if (!s) return null
-  if (/(^|_)deliver/.test(s) || s === 'dlvrd') return 'delivered'
-  if (/read|seen/.test(s)) return 'read'
-  if (/fail|undeliver|reject|error|bounce/.test(s)) return 'failed'
-  if (/sent|submit|accept|queue/.test(s)) return 'sent'
-  return s // keep unknown statuses verbatim so we can learn the shape
-}
-
-// Pull the first non-empty value across the many field names providers use.
-function pick(obj: any, keys: string[]): string {
-  for (const k of keys) {
-    const v = obj?.[k]
-    if (typeof v === 'string' && v.trim()) return v.trim()
-    if (typeof v === 'number') return String(v)
-  }
-  return ''
-}
-
-type StatusEvent = { id: string; status: string | null; error: string }
-
-// Flatten the payload into individual {id,status,error} events. MSG91 may send a
-// single object, a `data: [...]` array, or nested report structures.
-function extractEvents(body: any): StatusEvent[] {
-  const events: StatusEvent[] = []
-  const candidates: any[] = []
-  if (Array.isArray(body)) candidates.push(...body)
-  else if (Array.isArray(body?.data)) candidates.push(...body.data)
-  else if (Array.isArray(body?.reports)) candidates.push(...body.reports)
-  else if (body && typeof body === 'object') candidates.push(body)
-
-  for (const c of candidates) {
-    const id = pick(c, ['requestId', 'request_id', 'messageId', 'message_id', 'msgId', 'msg_id', 'id', 'uuid'])
-    const status = normalizeStatus(pick(c, ['status', 'eventType', 'event', 'deliveryStatus', 'state']))
-    const error = pick(c, ['error', 'errorMessage', 'error_message', 'reason', 'failureReason', 'errorCode', 'error_code'])
-    if (id || status) events.push({ id, status, error })
-  }
-  return events
-}
+// MSG91's status payload shape varies by account/version, so parsing is delegated
+// to lib/deliveryStatus (pure + unit-tested). Here we log the FULL body (so the
+// first real callback reveals the exact shape) and stamp the matching row.
 
 async function handle(body: any) {
   // Full payload so the FIRST real callback reveals the exact provider shape.
