@@ -30,12 +30,15 @@
 - **Mobile:** Sidebar is now a collapsible drawer with hamburger. Dashboard usable on phones.
 - **Demo account** (Razorpay + Meta reviewers): demo@convorian.in / ConvorianDemo@2026 (has the WhatsApp test number + sample data).
 - **Invoices/receipts (June 11):** Balance screen now has a "Billing history" list (`/api/subscription/invoices`) with per-payment branded printable receipts (`/api/subscription/receipt`, Print→Save-as-PDF, no PDF lib). Backed by existing `subscription_events`; no migration. Labelled payment receipt, not tax invoice (no GST). LIVE.
-- **June 14 batch 2 — PARTIALLY DONE (landing page false claims fixed, NOT yet committed/PRed):**
+- **June 14 batch 2 — SHIPPED (PR #68, merged + deployed):**
   - "Join 50+ agents" (false, pre-launch) → removed; replaced with honest copy
   - "Real numbers from real agents" → "Projected outcomes at scale"
   - "✓ Free for 14 days" → "✓ Free for 30 days"
-  - WhatsApp CTA button now uses `NEXT_PUBLIC_SUPPORT_WHATSAPP` env var — hides if unset (no dead placeholder link)
-  - ⚠️ **These edits are UNSTAGED in `app/page.tsx`** — git branch `fix/launch-readiness-batch` was created but staging was interrupted. Next session: stage + commit + PR.
+  - WhatsApp CTA button now uses `NEXT_PUBLIC_SUPPORT_WHATSAPP` env var — hides if unset (no dead placeholder link). **`NEXT_PUBLIC_SUPPORT_WHATSAPP=917559197426` set in Vercel ✅** — button is live.
+  - SEO foundation: full metadata in `layout.tsx` (Twitter card, canonical, icons, JSON-LD structured data, expanded keywords) + `app/opengraph-image.tsx`
+  - `force-dynamic` added to agent + upload routes; register route hardcodes trial plan
+  - Webhook: parses stringified button JSON; sends friendly "text only" nudge for non-text media
+  - GitHub Actions updated to Node.js 24 (`FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true`) across ci/db-backup/deploy workflows — ahead of June 16 forced migration
 - **June 14 batch 1 — SHIPPED (button replies, honest onboarding, inbox template text):**
   - **MSG91 button-reply parsing — FIXED & CONFIRMED LIVE:** Quick-reply button taps (e.g. "Yes, share details") arrive with `contentType:"button"` and `text:""`. Parser now reads every plausible subfield (`button` as string, `.text`, `.payload`, `.title`, `.value`, `buttonText`, `button_text`, `interactive.button_reply.title`, etc.). Confirmed by founder — bot now replies to button taps. Code: `app/api/webhook/route.ts`.
   - **Onboarding screen rewritten (honest):** Step 3 ("Connect WhatsApp") no longer fakes a "Connected" flash. Copy now says "Our team activates it for you — usually within 24 hours." Agent sees "Submitted ✓" and a tip warning them not to use the same number in the WhatsApp app. Step 4 (done screen) says "We'll email you when your WhatsApp is live" and suggests adding properties in the meantime.
@@ -65,8 +68,9 @@
 - [x] **Sentry MCP** — ACTIVE. OAuth done, tools live. Org `covorian` (EU region `de.sentry.io`). Checked: only 1 sample test error, no real production errors. Say "check my Sentry errors" anytime.
 - [x] **CTO queue (1) Invoice/receipt screen** — DONE & LIVE (June 11).
 - [x] **CTO queue (2) Help/FAQ page + support chat** — DONE & LIVE (June 11). Full ticketing/support team is a later phase (founder's call).
-- [ ] **NEXT UP: Commit all June 14 batch changes to git.** A LOT of production changes are deployed on Vercel but NOT in git. Branch `fix/launch-readiness-batch` exists — next session: `git add` all modified files + commit + push + open PR + merge. Files: `app/api/agent/route.ts`, `app/api/auth/register/route.ts`, `app/api/demo-chat/route.ts`, `app/api/properties/upload/route.ts`, `app/api/webhook/route.ts`, `app/layout.tsx`, `app/page.tsx`, `app/robots.ts`, `lib/whatsapp.ts`, `tests/api/validation.spec.ts`, `app/opengraph-image.tsx`, `tests/unit/outreach-template.spec.ts`, `tests/unit/webhook-parsing.spec.ts`.
-- [ ] **NEXT UP (CTO queue): (3) SEO foundation.** Also pending: clean WhatsApp business number (founder) — once the SIM arrives, set `NEXT_PUBLIC_SUPPORT_WHATSAPP` in Vercel (digits only, e.g. 9198xxxxxxxx) to flip the support-chat WhatsApp button live.
+- [x] **June 14 batch committed + merged (PR #68) ✅** — SEO foundation (JSON-LD, Twitter card, canonical, opengraph image), honest landing copy, trial defaults, force-dynamic fixes, webhook button-reply + media nudge, GitHub Actions Node.js 24 opt-in.
+- [x] **`NEXT_PUBLIC_SUPPORT_WHATSAPP=917559197426` set in Vercel ✅** — WhatsApp button live on landing page CTA + support chat widget.
+- [ ] **NEXT UP (CTO queue): (3) deeper SEO** — per-page metadata for /login /onboarding etc; dynamic sitemap.
 
 **Founder tasks:**
 - Supabase → Auth → URL config: Site URL `https://convorian.in`; Redirect URLs add `/reset-password`, `/**`, `localhost:3003/**`
