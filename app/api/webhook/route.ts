@@ -8,7 +8,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { generateBotReply } from '@/lib/gemini'
 import { sendWhatsAppMessage, sendViaMsg91 } from '@/lib/whatsapp'
 import { shouldBotReply } from '@/lib/botGating'
-import * as chrono from 'chrono-node'
+import { resolveAppointmentTime, formatIST } from '@/lib/appointment'
 
 const PROVIDER = process.env.WHATSAPP_PROVIDER || 'meta'
 
@@ -308,31 +308,32 @@ export async function POST(request: NextRequest) {
          })
        }
     } else {
-      // 2. Ultimate fallback: If Gemini stubbornly omits appointment_booked_time from JSON,
-      if (!metadata.appointment_booked_time && /(confirm|lock in|schedule|set|book|confirmed|updat|reschedul|chang)[\s\S]*?(visit|appointment|viewing|tomorrow|today|at\s+\d+|on\s+\d+)/i.test(reply)) {
-         console.log('APPT-DEBUG: Regex fallback triggered — extracting time from reply text using chrono-node')
-         const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
-         const parsedResults = chrono.parse(reply, nowIST, { forwardDate: true });
-         
-         if (parsedResults && parsedResults.length > 0) {
-             const comp = parsedResults[0].start;
-             
-             if (!comp.isCertain('hour')) {
-                 console.log('APPT-DEBUG: Chrono found a date but no explicit time, ignoring to avoid aggressive booking.')
-             } else {
-                 const year = comp.get('year') || nowIST.getUTCFullYear();
-                 const month = comp.get('month') ? (comp.get('month') as number) - 1 : nowIST.getUTCMonth();
-                 const day = comp.get('day') || nowIST.getUTCDate();
-                 const hours = comp.get('hour') || 0;
-                 const minutes = comp.get('minute') || 0;
-
-                 const istMs = Date.UTC(year, month, day, hours, minutes, 0) - (5.5 * 60 * 60 * 1000);
-                 metadata.appointment_booked_time = new Date(istMs).toISOString();
-                 console.log('APPT-DEBUG: Chrono extracted appointment time (IST->UTC):', metadata.appointment_booked_time)
-             }
-         } else {
-             console.log('APPT-DEBUG: Regex matched but chrono could not find a date in reply')
-         }
+      // Robustly resolve a real, IST-correct visit time (lib/appointment).
+      // Replaces (a) the old chrono-only-when-the-model-omitted-it fallback and
+      // (b) the now+24h fabrication that booked "tomorrow at the current time"
+      // whenever the model's time was unparseable (the 6:58 PM bug). The resolver
+      // tries the model's structured time, then natural language in the model
+      // field, then the reply text the lead actually saw — and NEVER guesses.
+      const bookingIntentRe = /(confirm|lock in|schedule|set|book|confirmed|updat|reschedul|chang)[\s\S]*?(visit|appointment|viewing|tomorrow|today|at\s+\d+|on\s+\d+)/i
+      const apptIntent = !!metadata.appointment_booked_time || bookingIntentRe.test(reply)
+      if (apptIntent) {
+        const resolved = resolveAppointmentTime({
+          llmTime: metadata.appointment_booked_time,
+          replyText: reply,
+          nowMs: Date.now(),
+        })
+        if (resolved.ok) {
+          metadata.appointment_booked_time = resolved.iso
+          console.log(`APPT: resolved ${resolved.iso} (IST ${formatIST(resolved.iso)}) via ${resolved.source}`)
+        } else {
+          // No trustworthy time — NEVER fabricate one. If the reply implied a
+          // booking, ask the lead to confirm the exact day/time instead.
+          console.log('APPT: no trustworthy time —', resolved.reason)
+          if (bookingIntentRe.test(reply)) {
+            reply = "Happy to set that up! Could you confirm the exact day and time that works for your visit? For example: “tomorrow at 11:30 AM” or “Saturday at 5 PM”."
+          }
+          metadata.appointment_booked_time = null
+        }
       }
 
       console.log('APPT-DEBUG: metadata.appointment_booked_time =', metadata.appointment_booked_time || 'NOT SET')
@@ -361,13 +362,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (metadata.appointment_booked_time) {
-      let parsedDate = new Date(metadata.appointment_booked_time);
-      if (isNaN(parsedDate.getTime())) {
-         parsedDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
-         console.log('APPT-DEBUG: Date was unparseable, using fallback:', parsedDate.toISOString())
-      }
-
+    const parsedDate = metadata.appointment_booked_time ? new Date(metadata.appointment_booked_time) : null
+    if (parsedDate && !isNaN(parsedDate.getTime())) {
       leadUpdates.status = 'visit_booked'
       
       let safePropertyId = null;
@@ -461,7 +457,7 @@ export async function POST(request: NextRequest) {
         await supabaseAdmin.from('activity_log').insert({
           agent_id: agent.id, lead_id: lead.id, type: 'visit_booked',
           title: existingAppts && existingAppts.length > 0 ? 'Site visit rescheduled by AI' : 'Site visit booked by AI',
-          description: `Scheduled for ${parsedDate.toLocaleString('en-IN')}`
+          description: `Scheduled for ${formatIST(parsedDate.toISOString())} IST`
         })
       }
     } // end of Book/Reschedule Logic
