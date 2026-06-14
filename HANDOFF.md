@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: June 14, 2026 (session 5)*
+*Last updated: June 15, 2026 (session 6)*
 
 > ⚠️ **PARALLEL WORK (June 14 s3):** Another agent (Kiro) is fixing frontend/auth
 > bugs. DO NOT TOUCH (Kiro's lane): a `route.ts` + 3 `page.tsx` (exact paths
@@ -48,7 +48,8 @@
   - **Expanded KNOWLEDGE_GAP detection**: 7 new patterns including "get back to you", "check about this and update", "have our team confirm", "main confirm kar ke batata hun" etc. — catches more of the bot's actual deferral phrases.
   - **Property details format upgraded** (`PROPERTY DETAILS FORMAT` in prompt): possession status, ALL amenities, sqft, and HIGHLIGHTS are now in the format — not just "1-2 key highlights". Plus "aur batao" / "tell me more" instruction added to presentation stage.
   - **6 new eval scenarios** (25 → 31 total): template button "Yes, share details" → shows actual inventory property; template "Haan batao" → matches right BHK/area; "aur batao sab kuch" → full property brief; post-visit hot lead → deal-conversion mode; Marathi "amenities kay aahet?" → comprehensive Latin Marathi reply.
-  - **9 new unit tests** (316 → 325 total). All passing. CI green. PR #84 ready to merge + deploy.
+  - **20 new unit tests** (316 → 336 total) incl. 11 new `detectReplyKnowledgeGap` tests covering all 7 new deferral patterns + team reach-out. All passing. CI green.
+  - **PR #84 MERGED & DEPLOYED ✅** — live at https://convorian.in (June 15 session 6).
   - **NOTE**: `window_nudge_count: 0` reset on inbound already existed in the early lead update (line 211 of webhook) — the cron comment was accurate. Added redundant reset in `leadUpdates` (harmless/idempotent).
 - **June 14 SESSION 4 — Indian RE prompt training, eval expansion, bug fixes (ALL SHIPPED):**
   - **PR #79 MERGED & DEPLOYED ✅ — Property photo sending (gated):** Bot can send up to 4 property images per request when lead asks for photos. Gated by `MSG91_MEDIA_LIVE=false` (flip after founder tests endpoint). New: `lib/media.ts` (`extractPropertyMedia`, `wantsPhotos`), `sendViaMsg91Media` in `lib/whatsapp.ts`, `/api/admin/test-media` verification endpoint, 16 unit tests. Prompt updated: honest about photo capability based on env var.
