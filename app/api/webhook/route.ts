@@ -325,6 +325,10 @@ export async function POST(request: NextRequest) {
     if (metadata.timeline) leadUpdates.timeline = metadata.timeline
     if (metadata.name) leadUpdates.name = metadata.name
     if (metadata.lang && ['en', 'hi', 'mr'].includes(metadata.lang)) leadUpdates.language = metadata.lang
+    if (metadata.matched_property_id) {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(metadata.matched_property_id)
+      if (isUUID) leadUpdates.matched_property_id = metadata.matched_property_id
+    }
     if (metadata.score >= 7) leadUpdates.status = 'qualified'
     else if (metadata.score >= 4) leadUpdates.status = 'contacted'
 
@@ -355,12 +359,13 @@ export async function POST(request: NextRequest) {
       // whenever the model's time was unparseable (the 6:58 PM bug). The resolver
       // tries the model's structured time, then natural language in the model
       // field, then the reply text the lead actually saw — and NEVER guesses.
-      const bookingIntentRe = /(confirm|lock in|schedule|set|book|confirmed|updat|reschedul|chang)[\s\S]*?(visit|appointment|viewing|tomorrow|today|at\s+\d+|on\s+\d+)/i
-      const apptIntent = !!metadata.appointment_booked_time || bookingIntentRe.test(reply)
+      const bookingIntentRe = /(confirm|lock in|schedule|set|book|confirmed|updat|reschedul|chang|perfect|done|pakka|great|sounds good|works)[\s\S]*?(visit|appointment|viewing|tomorrow|today|at\s+\d+|on\s+\d+|sunday|monday|tuesday|wednesday|thursday|friday|saturday|\d+\s*(am|pm))/i
+      const inboundVisitRe = /(visit|site visit|dekhna|aana|aata|come|tomorrow|kal)\s.*(at\s+\d+|\d+\s*(am|pm)|baje|subah|sham|dopahar)/i
+      const apptIntent = !!metadata.appointment_booked_time || bookingIntentRe.test(reply) || (inboundVisitRe.test(messageText) && bookingIntentRe.test(reply))
       if (apptIntent) {
         const resolved = resolveAppointmentTime({
           llmTime: metadata.appointment_booked_time,
-          replyText: reply,
+          replyText: reply + ' ' + messageText,
           nowMs: Date.now(),
         })
         if (resolved.ok) {
@@ -377,7 +382,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      console.log('APPT-DEBUG: metadata.appointment_booked_time =', metadata.appointment_booked_time || 'NOT SET')
+      console.log(`APPT-DEBUG: metadata.appointment_booked_time=${metadata.appointment_booked_time || 'NOT SET'} bookingIntentRe=${bookingIntentRe.test(reply)} inboundVisitRe=${inboundVisitRe.test(messageText)}`)
 
     // HARD GUARD: never accept a visit outside the agent's office hours — the
     // model is told the hours but occasionally agrees anyway (e.g. "8pm is
@@ -550,9 +555,10 @@ export async function POST(request: NextRequest) {
       if (process.env.MSG91_MEDIA_LIVE === 'true' && wantsPhotos(messageText)) {
         const isUUID = (s: any) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
         let prop: any = null
-        if (isUUID(metadata.matched_property_id)) {
+        const propId = metadata.matched_property_id || lead.matched_property_id
+        if (isUUID(propId)) {
           const { data } = await supabaseAdmin.from('properties')
-            .select('id,title,features').eq('id', metadata.matched_property_id).eq('agent_id', agent.id).maybeSingle()
+            .select('id,title,features').eq('id', propId).eq('agent_id', agent.id).maybeSingle()
           prop = data
         }
         if (!prop) {
