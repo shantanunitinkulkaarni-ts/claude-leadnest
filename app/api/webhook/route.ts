@@ -603,6 +603,7 @@ export async function POST(request: NextRequest) {
           const content = buildAlertContent(sig, {
             leadName: lead.name || metadata.name, leadPhone: lead.phone,
             agentName: agent.name, lastMessage: messageText,
+            botReply: sig === 'knowledge_gap' ? reply : null,
           })
           await sendHighPriorityAlert(agent, {
             subject: content.subject, html: content.html,

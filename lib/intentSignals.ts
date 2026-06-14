@@ -158,10 +158,17 @@ const KNOWLEDGE_GAP: RegExp[] = [
   /\bi('?ll| will) (check|confirm|find out|get back|ask)\b.*\b(team|agent|back to you)\b/,
   /\blet me (check|confirm|find out|get)\b/,
   /\b(check|confirm) (this )?with (the |our )?team\b/,
-  /\bteam will (share|get back|confirm|let you know|update you)\b/,
+  /\bteam will (share|get back|confirm|let you know|update you|reach out|contact|call)\b/,
   /\bi (don'?t|do not) have (that|this|the) (info|information|detail|details)\b/,
   /\bnot (available|sure) (right now|at the moment|currently)\b/,
   /\b(don'?t|do not) have (the )?(exact|floor plan|possession date|details)\b/,
+  /\bget back to you\b/,
+  /\bcheck (on|about) this and (update|get back|let you know|confirm)\b/,
+  /\bhave (our |the )?team (share|send|confirm|provide|get back)\b/,
+  /\bconfirm (this |that )?(with|from) (the |our )?(team|builder|owner)\b/,
+  /\b(unable|not able) to (confirm|share|provide) (the )?(exact|possession|floor|rera)\b/,
+  /\bwill (update|let you know|confirm|share) (shortly|asap|soon|once i (check|confirm))\b/,
+  /\bmain confirm kar ke (aapko|tumhala) (batata|sangto|update karun)\b/,
 ]
 
 export function detectReplyKnowledgeGap(reply: string): boolean {

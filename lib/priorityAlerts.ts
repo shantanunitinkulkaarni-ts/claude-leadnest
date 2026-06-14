@@ -16,11 +16,12 @@ const esc = (s: string) => String(s || '').replace(/[<>]/g, '')
 
 export function buildAlertContent(
   sig: PrioritySignal,
-  opts: { leadName?: string | null; leadPhone: string; agentName?: string | null; lastMessage?: string | null }
+  opts: { leadName?: string | null; leadPhone: string; agentName?: string | null; lastMessage?: string | null; botReply?: string | null }
 ): AlertContent {
   const name = esc(opts.leadName || 'A lead')
   const phone = esc(opts.leadPhone)
   const msg = esc((opts.lastMessage || '').slice(0, 200))
+  const bot = esc((opts.botReply || '').slice(0, 200))
   const hi = `Hi ${esc(opts.agentName || '')},`.replace('Hi ,', 'Hi,')
 
   // Per-signal: headline emoji + reason + recommended action.
@@ -63,16 +64,26 @@ export function buildAlertContent(
   }
   const spec = specs[sig]
 
-  const reasonLine = msg ? `${spec.reason} They said: “${msg}”` : spec.reason
+  const reasonLine = msg ? `${spec.reason} They said: "${msg}"` : spec.reason
+
+  // For knowledge_gap, also show what the bot deferred — agent needs to know
+  // WHAT info is missing (possession date? floor plan? RERA?) so they can fill it.
+  const botReplyLine = sig === 'knowledge_gap' && bot
+    ? `Bot replied: "${bot}"`
+    : null
+
   const subject = `${spec.emoji} ${name} — ${labelShort(sig)} (${phone})`
   const html =
     `<p>${hi}</p>` +
     `<p><strong>${spec.emoji} ${reasonLine}</strong></p>` +
+    (botReplyLine ? `<p style="color:#555;font-size:13px;background:#f5f5f5;padding:8px;border-left:3px solid #ccc">${botReplyLine}</p>` : '') +
     `<p>${spec.action}</p>` +
     `<p style="color:#666;font-size:13px">Lead: ${name} · ${phone}</p>`
   const whatsappText =
-    `${spec.emoji} Convorian alert\n\n${reasonLine}\n\n👉 ${spec.action}`
-  const templateValues = [name, phone, `${reasonLine} ${spec.action}`.slice(0, 200)]
+    `${spec.emoji} Convorian alert\n\n${reasonLine}` +
+    (botReplyLine ? `\n\n${botReplyLine}` : '') +
+    `\n\n👉 ${spec.action}`
+  const templateValues = [name, phone, `${reasonLine}${botReplyLine ? ` ${botReplyLine}` : ''} ${spec.action}`.slice(0, 200)]
 
   return { subject, html, whatsappText, templateValues }
 }
