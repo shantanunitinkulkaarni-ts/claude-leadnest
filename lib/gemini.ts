@@ -577,6 +577,7 @@ export async function generateNudge(
     // Nudges have no incoming message — rely on stored language only.
     detectedLang: (lead.language === 'mr' || lead.language === 'hi') ? lead.language as 'mr' | 'hi' : null,
     incomingMessage: '',
+    canSendPhotos: false, // nudges never send photos
   }
   const systemPrompt = buildEnginePrompt(ctx, stage, messageCount)
 
@@ -601,15 +602,31 @@ export async function generateNudge(
       ? `Mid-conversation check-in. Add ONE piece of genuine new value: a property detail you haven't mentioned, a fresh angle on their criteria, or a useful market fact. Then one soft question to pull them back.`
       : `Early soft touch — they just went quiet. One friendly line that references where you left off. No pressure, no pitch. Think: "Hey, just picking up where we left off."`
 
+  // Post-visit leads need a very different nudge — they've already visited, so
+  // the goal is deal conversion, NOT re-engagement with a property search.
+  const stageOverride = stage === 'post_visit'
+    ? `IMPORTANT — this lead ALREADY VISITED a property. Do NOT invite them to see something or ask about property search. Instead, ask how they felt about the visit, whether they're ready for the next step, or gently uncover any remaining hesitation. Goal: convert visit → deal, not re-engage.`
+    : stage === 'nurture'
+      ? `This lead has gone quiet for a while. Keep it warm and brief — offer a specific new property or a genuine market update as a hook. No pressure.`
+      : null
+
+  // If the lead was matched to a specific property, name it in the context so the
+  // nudge can reference it concretely instead of a generic area/type.
+  const matchedPropId = lead.metadata?.matched_property_id
+  const matchedProp: any = matchedPropId ? properties.find((p: any) => p.id === matchedPropId) : null
+  const propContext = matchedProp
+    ? `Last recommended: ${matchedProp.title} (${matchedProp.location}, ₹${((matchedProp.price||0)/100000).toFixed(0)}L${matchedProp.possession_status ? `, ${matchedProp.possession_status === 'ready_to_move' ? 'ready to move' : 'under construction'}` : ''})`
+    : `Properties available: ${properties.slice(0, 3).map((p: any) => `${p.title} (${p.location}, ₹${p.type === 'rental' ? `${(p.rent_per_month||p.price||0).toLocaleString('en-IN')}/mo` : `${((p.price||0)/100000).toFixed(0)}L`})`).join(' | ') || 'none'}`
+
   const nudgeInstruction = `You are a follow-up specialist for a real estate WhatsApp bot. Write ONE re-engagement message.
 
 CONTEXT:
 - Agency: ${agent.agency_name}
 - Lead: ${lead.name || 'unknown'} | Intent: ${lead.intent || '?'} | Areas: ${(lead.preferred_areas || []).join(', ') || '?'} | Budget: ${lead.budget_min ? `₹${(lead.budget_min/100000).toFixed(0)}L+` : '?'} | Score: ${lead.ai_score || 0}/10
-- Stage: ${stage}
-- Properties available: ${properties.slice(0, 3).map((p: any) => `${p.title} (${p.location}, ₹${p.type === 'rental' ? `${(p.rent_per_month||p.price||0).toLocaleString('en-IN')}/mo` : `${((p.price||0)/100000).toFixed(0)}L`})`).join(' | ') || 'none'}
+- Stage: ${stage}${lead.post_visit_result ? ` | Visit outcome: ${lead.post_visit_result}` : ''}
+- ${propContext}
 
-TASK: ${intensityGuide}
+TASK: ${stageOverride || intensityGuide}
 
 HARD RULES:
 1. Do NOT start with "Hi" or "Hello" — you are mid-conversation.
