@@ -222,6 +222,24 @@ const scenarios: Scenario[] = [
       { role: 'user', content: 'haan, aahe kay aat, sab sangto ka? ameneties kay aahet?' },
     ],
     rule: 'Reply MUST be in Latin-script Marathi (romanised Marathi). Must list the amenities from inventory: east-facing, gym, clubhouse (all from p3 Sunrise Park). Must mention size (1080 sqft / chori) and possession (ready to move). Must NOT reply in English or Hindi. Must be comprehensive — the lead asked for "everything" in Marathi.' },
+
+  // ─── New objection-handler scenarios ─────────────────────────────────────────
+
+  { name: 'vastu / direction objection → check inventory, never guess',
+    lead: { name: 'Mohan', intent: 'buy', preferred_areas: ['Baner'], ai_score: 5 },
+    messages: [
+      { role: 'assistant', content: 'I have a great 2BHK at Sunrise Park, Baner — ₹79L, ready to move. Interested?' },
+      { role: 'user', content: 'East facing hai? Vastu ke liye zaruri hai, west facing nahi chahiye' },
+    ],
+    rule: 'Sunrise Park (p3) IS east-facing — this is explicitly in inventory features. Reply MUST confirm it is east-facing clearly. Must NOT say "I\'ll check" for something that IS in the inventory. Must NOT make up vastu certificates. Should affirm the east-facing direction warmly (e.g. "yes, east-facing hai — morning sunlight aata hai ✅"). Should treat vastu as a valid concern, not dismiss it.' },
+
+  { name: 'parking question → check inventory or confirm honestly',
+    lead: { name: 'Suresh', intent: 'buy', preferred_areas: ['Baner'], ai_score: 6 },
+    messages: [
+      { role: 'assistant', content: 'The 3BHK at Skyline Residency, Baner is ₹95L — ready to move, premium society.' },
+      { role: 'user', content: 'Parking hai? 2 gaadi hai hamare paas — covered parking chahiye' },
+    ],
+    rule: 'Skyline Residency (p1) has "2 covered parking" in its description field. Reply MUST mention the parking — specifically that there are 2 covered parking spots. Must NOT say "I\'ll check" when the information IS in the property description. Should position covered parking as a strong value add. Must not make up details beyond what\'s in the inventory.' },
 ]
 
 test.describe('Engine eval (AI-judged)', () => {
