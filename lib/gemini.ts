@@ -189,7 +189,25 @@ If lost — be gracious, offer to help in future, ask for referrals.`
     concise: 'Short and direct. Maximum 2-3 sentences per message. No fluff.'
   }
 
-  return `You are the Convorian Conversion Engine — a highly sophisticated AI sales assistant for ${agent.agency_name}, a real estate agency in India.
+  // ── Hard language directive (injected BEFORE the main prompt so it wins) ──
+  // The LLM's own language-detection is unreliable for Latin-script Marathi.
+  // We pre-detect server-side and turn it into a mandatory instruction.
+  const detectedLang = ctx.detectedLang as 'en' | 'hi' | 'mr' | null | undefined
+  const storedLang  = ctx.lead?.language as string | null | undefined
+  const activeLang  = detectedLang || storedLang   // detected wins; stored is fallback
+  const langDirective = (() => {
+    if (activeLang === 'mr') {
+      const script = detectedLang === 'mr' && !/[ऀ-ॿ]/.test(ctx.incomingMessage || '') ? 'Latin-script (romanized)' : 'Devanagari'
+      return `⚠️ MANDATORY LANGUAGE RULE — override everything else:\nThis lead is writing in MARATHI (${script}). You MUST reply in ${script === 'Latin-script (romanized)' ? 'Latin-script Marathi (romanized Marathi, NOT Devanagari, NOT English, NOT Hindi)' : 'Marathi in Devanagari script'}. Do NOT fall back to English under any circumstances. Even if their latest message is a short "ok" or "yes", maintain Marathi. A Marathi speaker who gets an English reply feels ignored — this kills the deal.\n`
+    }
+    if (activeLang === 'hi') {
+      const script = detectedLang === 'hi' && !/[ऀ-ॿ]/.test(ctx.incomingMessage || '') ? 'Latin-script (Hinglish/romanized)' : 'Devanagari'
+      return `⚠️ MANDATORY LANGUAGE RULE — override everything else:\nThis lead is writing in HINDI (${script}). You MUST reply in ${script === 'Latin-script (Hinglish/romanized)' ? 'Hinglish (Hindi in Latin script / romanized Hindi)' : 'Hindi in Devanagari script'}. Do NOT switch to English.\n`
+    }
+    return ''
+  })()
+
+  return `${langDirective}You are the Convorian Conversion Engine — a highly sophisticated AI sales assistant for ${agent.agency_name}, a real estate agency in India.
 
 You are NOT a generic chatbot. You are trained in real estate sales psychology and your goal is to convert leads into site visits and ultimately into transactions. Every message should move the lead one step closer — but a great salesperson knows that sometimes the right move is to slow down, listen, or give space. You play the long game.
 
@@ -229,28 +247,32 @@ LEAD PROFILE:
 - Phone: ${lead.phone}
 - Intent: ${lead.intent || 'Not captured'}
 - Areas: ${(lead.preferred_areas || []).join(', ') || 'Not captured'}
-- Budget: ${lead.budget_min ? `₹${lead.budget_min/100000}L - ₹${(lead.budget_max||0)/100000}L` : 'Not captured'}
+- Budget: ${lead.budget_min ? `₹${(lead.budget_min/100000).toFixed(lead.budget_min % 100000 === 0 ? 0 : 1)}L${lead.budget_max ? ` – ₹${(lead.budget_max/100000).toFixed(lead.budget_max % 100000 === 0 ? 0 : 1)}L` : ''}` : 'Not captured'}
 - Timeline: ${lead.timeline || 'Not captured'}
 - Current score: ${lead.ai_score || 0}/10
 - Message count: ${messageCount}
 - Temperature: ${lead.temperature || 'new'}
+- Language on record: ${lead.language === 'mr' ? 'Marathi' : lead.language === 'hi' ? 'Hindi' : lead.language === 'en' ? 'English' : 'Not yet detected'} — maintain this unless they clearly switch
 - Post-visit outcome: ${lead.post_visit_result || 'No visit completed yet'}
 - Agent's private notes / visit feedback: ${lead.notes || 'None'}
 
 ${stageInstructions[stage]}
 
 LANGUAGE RULES (English, हिंदी, मराठी are all first-class — you are fully fluent in each):
-- DEFAULT TO ENGLISH. Greetings like "hi"/"hello" carry no language signal — reply in English.
+- DEFAULT TO ENGLISH only when there is no language signal at all (e.g. bare "hi"/"hello" with no prior language on record). If a language is already on record (see LEAD PROFILE above), maintain it — do NOT reset to English for a short reply like "ok", "yes", "thanks", "sure".
 - ALWAYS MIRROR THE LEAD'S LANGUAGE, immediately, from their very first clear signal:
   • Hindi script (मुझे बानेर में 2bhk चाहिए) → reply in natural Hindi (Devanagari).
   • Hinglish / Hindi-in-Latin-letters ("mujhe baner mein 2bhk chahiye") → reply in Hinglish.
   • Marathi script (मला बाणेरमध्ये 2bhk घर हवंय) → reply in natural, grammatical Marathi (Devanagari).
-  • Marathi-in-Latin-letters ("mala baner madhe 2bhk ghar pahije") → reply in Latin-script Marathi.
+  • Marathi-in-Latin-letters ("mala baner madhe 2bhk ghar pahije") → reply ONLY in Latin-script Marathi — NOT English, NOT Hindi, NOT Devanagari.
+- KEY MARATHI-IN-LATIN SIGNALS (if you see any of these, the lead is writing Marathi in English letters):
+  pahije / hava / havi / aahe / ahe / mala / amhi / nako / tumhi / tula / sangto / sangte / yeto / yete / kasa / kashi / naahi / aplya / baghto
+  → Reply in the SAME Latin-script Marathi style. Example reply: "Ho, Baner madhe changli property ahe — kiti budget ahe tumcha?"
 - Your Hindi and Marathi must be PERFECT — fluent, warm, grammatically correct, the way a polished local agent speaks. Never robotic or translated-sounding. Marathi is mandatory in Maharashtra (Pune/Mumbai) — treat it as a native tongue, not a fallback.
-- Hindi/Marathi distinction: Marathi uses आहे/आहात, मला, हवंय, का; Hindi uses है/हैं, मुझे, चाहिए, क्या. Read carefully and answer in the SAME one they used — never mix Hindi into a Marathi reply or vice-versa.
+- Hindi/Marathi distinction: Marathi uses आहे/आहात, मला, हवंय, का / aahe, mala, pahije, nako; Hindi uses है/हैं, मुझे, चाहिए, क्या / hai, mujhe, chahiye. Never mix Hindi into a Marathi reply or vice-versa.
 - EARLY IN THE CHAT (first or second reply), if the agency supports more than one language, gently offer a choice: e.g. "By the way, I can chat in English, हिंदी or मराठी — whichever is easiest for you." Then follow their lead.
 - IF THE LEAD SEEMS TO BE STRUGGLING in English, politely offer to switch: "तुम्हाला मराठीत बोलणं सोपं जाईल का?" / "क्या हिंदी में बात करना आसान रहेगा?" — make it easy and warm.
-- Never switch languages mid-conversation unless they do (or accept your offer).
+- Never switch languages mid-conversation unless they explicitly do so.
 
 HONESTY — NEVER claim to do something you cannot actually do:
 - You CANNOT send photos, floor plans, brochures, files, or emails. NEVER say "I've sent..." / "sharing now" / "check your email". If asked, say they aren't available in chat and offer to have the team arrange them or invite a visit.
@@ -304,6 +326,85 @@ function isOfficeHours(openTime: string, closeTime: string): boolean {
   return cur >= openH * 60 + openM && cur <= closeH * 60 + closeM
 }
 
+// ─── Server-side language detector ───────────────────────────────────────────
+// Runs BEFORE the LLM so we can inject a hard language directive into the
+// prompt. The LLM's own `lang` JSON field is still used to persist the result,
+// but we don't rely on it for the current turn. This fixes the Marathi-in-
+// Latin-letters soft spot: GLM-4.5-Flash sometimes replies English when a lead
+// writes "mala flat pahije" because it can't confidently identify romanized
+// Marathi. We detect it here and make the directive mandatory.
+//
+// Priority order: current message signals > stored lead.language > null
+export function detectMessageLanguage(
+  text: string,
+  storedLang?: string | null
+): 'en' | 'hi' | 'mr' | null {
+  const hasDevanagari = /[ऀ-ॿ]/.test(text)
+
+  if (hasDevanagari) {
+    // \b does not work with Devanagari (Unicode non-word chars) — use plain chars.
+    // Marathi-specific morphemes: आहे, मला, हवंय, पाहिजे, नको, आम्ही, etc.
+    if (/आहे|आहात|नाही|हवंय|हवी|हवा|पाहिजे|नको|मला|आम्ही|तुम्ही|घ्या|सांग|बघ|येतो|येते/.test(text)) return 'mr'
+    // Hindi-specific morphemes: है, हैं, था, मुझे, चाहिए, क्या, नहीं, etc.
+    if (/है|हैं|था|थे|मुझे|चाहिए|क्या|नहीं|करना|करें/.test(text)) return 'hi'
+    // Devanagari present but ambiguous → trust stored language
+    return (storedLang === 'mr' || storedLang === 'hi') ? storedLang as 'hi' | 'mr' : null
+  }
+
+  const lower = text.toLowerCase()
+
+  // ── Marathi-in-Latin markers (words with NO Hindi equivalent / distinct form)
+  const marathiLatin: RegExp[] = [
+    /\bpahije\b/,                      // पाहिजे — want/need (Hindi: chahiye)
+    /\bhava\b|\bhavi\b/,               // हवा/हवी — want (Hindi: chahiye/chahti)
+    /\baahe\b|\bahe\b/,                // आहे — is/am/are (Hindi: hai)
+    /\bnaahi\b/,                       // नाही — not (distinct Marathi spelling vs Hindi "nahi")
+    /\bmala\b/,                        // मला — to me / I want (Hindi: mujhe)
+    /\bamhi\b|\baamhi\b/,              // आम्ही — we (Hindi: hum)
+    /\bnako\b/,                        // नको — don't want (no Hindi equivalent)
+    /\btumhi\b/,                       // तुम्ही — you (respectful) (Hindi: aap)
+    /\btula\b/,                        // तुला — to you (Hindi: tumhe/tujhe)
+    /\bsangto\b|\bsangte\b/,          // सांगतो/सांगते — tells/says
+    /\byeto\b|\byete\b/,               // येतो/येते — comes
+    /\bkasa\b|\bkashi\b|\bkase\b/,    // कसा/कशी/कसे — how (Marathi form)
+    /\bkonach[ai]\b/,                  // कोणाचा/ची — whose
+    /\bghyaych/,                       // घ्यायचं — to take/get
+    /\bpahaych|\bpahach/,              // पाहायचं — to see/visit
+    /\btyach[ai]\b|\btyanch[ai]\b/,   // त्याची/त्यांची — his/their (Marathi genitive)
+    /\baplya\b|\bapla\b|\bapli\b/,    // आपला/आपली — our/your (Marathi)
+    /\bkadhich\b|\bkadhich\b/,        // कधीच — never/ever (Marathi adverb)
+    /\bbaghto\b|\bbaghte\b|\bbaghtoy\b/, // बघतो — looks/sees
+  ]
+  if (marathiLatin.some(r => r.test(lower))) return 'mr'
+
+  // ── Hindi-in-Latin markers (words with NO Marathi equivalent / distinct form)
+  const hindiLatin: RegExp[] = [
+    /\bchahiye\b|\bchahie\b/,          // चाहिए
+    /\bmujhe\b|\bmujhko\b/,            // मुझे
+    /\bhain\b/,                        // हैं (plural है)
+    /\baapko\b/,                       // आपको
+    /\btumhara\b|\btumhari\b|\btumhe\b/, // तुम्हारा / तुम्हें
+    /\bbilkul\b/,                      // बिल्कुल
+    /\btheek\s*hai\b|\btheek\b/,       // ठीक है
+    /\byaar\b/,                        // यार
+    /\bhaan\b/,                        // हाँ
+    /\bzaroor\b/,                      // ज़रूर
+    /\bkaro\b|\bkarein\b/,             // करो/करें
+    /\bkya\s+hai\b|\bkya\s+hua\b/,    // क्या है / क्या हुआ
+    /\bnahi\s+hai\b|\bnahi\s+tha\b/,  // नहीं है / था (Hindi negation pattern)
+    /\bbahut\b/,                       // बहुत
+    /\bjaldi\b/,                       // जल्दी
+  ]
+  if (hindiLatin.some(r => r.test(lower))) return 'hi'
+
+  // Nothing conclusive in the current message → trust the stored language
+  // (lead may send "ok" or "sure" mid-Marathi-conversation — we must not
+  // reset to English just because the current message is ambiguous)
+  if (storedLang === 'mr' || storedLang === 'hi') return storedLang as 'hi' | 'mr'
+
+  return null
+}
+
 export async function generateBotReply(
   agentId: string,
   leadId: string,
@@ -329,6 +430,10 @@ export async function generateBotReply(
   const messageCount = recentMessages.length
   const stage = detectStage(lead, messageCount)
 
+  // Server-side language detection — runs before the LLM so we can inject a
+  // hard directive. Uses the current message + stored lead.language as fallback.
+  const detectedLang = detectMessageLanguage(incomingMessage, lead.language)
+
   const ctx = {
     agent,
     lead,
@@ -337,7 +442,9 @@ export async function generateBotReply(
     isOfficeHours: isOfficeHours(agent.office_open, agent.office_close),
     // 3+ AI reschedules → a human is coordinating the final time; the bot must
     // stop touching the appointment (mirrors the webhook's hard guard).
-    reschedulingLocked: (rescheduleRes.count ?? 0) >= 3
+    reschedulingLocked: (rescheduleRes.count ?? 0) >= 3,
+    detectedLang,
+    incomingMessage,
   }
 
   const systemPrompt = buildEnginePrompt(ctx, stage, messageCount)
@@ -395,6 +502,9 @@ export async function generateNudge(
     currentTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
     isOfficeHours: isOfficeHours(agent.office_open, agent.office_close),
     reschedulingLocked: false,
+    // Nudges have no incoming message — rely on stored language only.
+    detectedLang: (lead.language === 'mr' || lead.language === 'hi') ? lead.language as 'mr' | 'hi' : null,
+    incomingMessage: '',
   }
   const systemPrompt = buildEnginePrompt(ctx, stage, messageCount)
 
