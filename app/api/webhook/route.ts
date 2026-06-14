@@ -315,7 +315,7 @@ export async function POST(request: NextRequest) {
     console.log(`Webhook Timing: engine took ${Date.now() - tEngine}ms`)
     console.log(`Webhook Debug: Engine replied with: "${reply}" and metadata:`, metadata)
 
-    const leadUpdates: any = { updated_at: now }
+    const leadUpdates: any = { updated_at: now, window_nudge_count: 0 }
     if (metadata.score) leadUpdates.ai_score = metadata.score
     if (metadata.temperature) leadUpdates.temperature = metadata.temperature
     if (metadata.intent) leadUpdates.intent = metadata.intent
