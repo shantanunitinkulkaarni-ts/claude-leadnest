@@ -614,13 +614,19 @@ HARD RULES:
 6. Output ONLY the message text. No JSON. No quotes. No preamble.
 
 EXAMPLE NUDGE (en, value intensity, presentation stage):
-"By the way — that Baner 2BHK I mentioned has been getting a lot of interest this week. Would hate for you to miss it. Worth a quick look this weekend?"
+"By the way — that Baner 2BHK I mentioned has been getting good interest this week. Worth a quick look this weekend before it goes?"
 
-EXAMPLE NUDGE (mr, soft intensity):
-"Hi! Tumchi flat search kashi challiye? Kadhi baghaychay ka properties?"
+EXAMPLE NUDGE (hi/Hinglish, soft intensity, presentation stage):
+"Baan mein property search kaisa chal raha hai? Koi naya option aaya hai jo aapki requirement se match karta hai — share karun?"
+
+EXAMPLE NUDGE (mr, soft intensity, discovery stage):
+"Flat search madhye kaahi update aahe ka? Baner madhe changli property aali ahe — details pathvau ka?"
+
+EXAMPLE NUDGE (en, post_visit stage, value intensity):
+"Just checking in after your visit — what did you think overall? Even a quick gut reaction helps me find you something even better if needed."
 
 EXAMPLE NUDGE (window_save, en):
-"One last thing before I sign off today — would Saturday morning or Sunday afternoon work for a quick visit? No pressure, just wanted to check 😊"`
+"One last thing before I sign off — would Saturday morning or Sunday at 11 work for a quick visit? Just one tap to confirm 😊"`
 
   const text = await callEngineLLM(systemPrompt, chatHistory, nudgeInstruction)
   const cleaned = (text || '').trim().replace(/^["']|["']$/g, '').trim()
