@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: June 14, 2026*
+*Last updated: June 14, 2026 (session 2)*
 
 > **This is the single source of truth.** Every new chat: read this first, then update it (Done / Pending / Plan) at the end of the session. Deep business plan lives in `files/CONVORIAN_LAUNCH_BLUEPRINT.md`; user memory at `C:\Users\rahul\.claude\projects\C--LN\memory\`.
 >
@@ -30,6 +30,13 @@
 - **Mobile:** Sidebar is now a collapsible drawer with hamburger. Dashboard usable on phones.
 - **Demo account** (Razorpay + Meta reviewers): demo@convorian.in / ConvorianDemo@2026 (has the WhatsApp test number + sample data).
 - **Invoices/receipts (June 11):** Balance screen now has a "Billing history" list (`/api/subscription/invoices`) with per-payment branded printable receipts (`/api/subscription/receipt`, Print→Save-as-PDF, no PDF lib). Backed by existing `subscription_events`; no migration. Labelled payment receipt, not tax invoice (no GST). LIVE.
+- **June 14 bot improvements — PR #72 open (branch `feat/bot-stage-fewshot`, CI pending):**
+  - **Marathi/Hindi language detection OVERHAULED (PR #70 already merged ✅):** server-side `detectMessageLanguage()` runs BEFORE the LLM — detects Devanagari script, Latin-script Marathi (pahije/aahe/nako/mala/tumhi etc.), Latin-script Hindi (chahiye/mujhe/theek hai etc.). Critical bug fixed: `\b` word boundaries do NOT work with Devanagari in JS (Devanagari chars aren't `\w`), so Devanagari patterns no longer use `\b`. Root cause also fixed: `lead.language` was stored to DB but NEVER read back into the next turn's system prompt, so LLM re-detected from scratch every message. Now: hard `MANDATORY LANGUAGE DIRECTIVE` injected at top of system prompt + `lang` shown in LEAD PROFILE. 30-unit tests in `tests/unit/language-detection.spec.ts`.
+  - **Stage detection FIXED:** bot was stuck in discovery loop for 15+ messages. Fix: `visit_booked` checked first (prevents re-asking discovery when visit is set); forced jump to `presentation` after 5 messages if ANY lead criteria exists (`intent || preferred_areas || budget_min`); `cold + messageCount > 6` → `nurture`. No longer interrogates indefinitely.
+  - **History depth 8→12** for `generateBotReply` and `generateNudge` (DB fetch 10→14). More context without bloating much.
+  - **Dedicated nudge prompt** for `generateNudge()` — focused on "re-engage a quiet lead" with intensity guides (soft/value/window_save) + examples. Previously used the same engine prompt as real replies.
+  - **Few-shot examples TRIMMED (perf fix for the Shantanu-lead delay):** old examples included multi-line property cards = ~800 extra tokens for Marathi presentation stage, pushing prompt to 2800+ tokens and triggering GLM's 3s hedge on every consecutive message (double API call). Replaced with 1 compact one-liner per stage + 1 language example ≈ 150 tokens total. Also added `[engine] stage=X lang=Y prompt≈Ntok` log to every `generateBotReply` call — visible in Vercel logs for future diagnosis.
+  - **PR #72 link:** https://github.com/shantanunitinkulkaarni-ts/claude-leadnest/pull/72 — needs CI green + founder merge.
 - **June 14 batch 2 — SHIPPED (PR #68, merged + deployed):**
   - "Join 50+ agents" (false, pre-launch) → removed; replaced with honest copy
   - "Real numbers from real agents" → "Projected outcomes at scale"
@@ -70,6 +77,7 @@
 - [x] **CTO queue (2) Help/FAQ page + support chat** — DONE & LIVE (June 11). Full ticketing/support team is a later phase (founder's call).
 - [x] **June 14 batch committed + merged (PR #68) ✅** — SEO foundation (JSON-LD, Twitter card, canonical, opengraph image), honest landing copy, trial defaults, force-dynamic fixes, webhook button-reply + media nudge, GitHub Actions Node.js 24 opt-in.
 - [x] **`NEXT_PUBLIC_SUPPORT_WHATSAPP=917559197426` set in Vercel ✅** — WhatsApp button live on landing page CTA + support chat widget.
+- [ ] **IMMEDIATE: merge PR #72** (https://github.com/shantanunitinkulkaarni-ts/claude-leadnest/pull/72) — bot stage + language + nudge + delay fix. CI should be green. After merge, deploy (`vercel deploy --prod --yes`) and confirm Vercel logs show `[engine] stage=... lang=... prompt≈...tok` — token count should be ~500-700 for presentation stage (was 2500-2800 before).
 - [ ] **NEXT UP (CTO queue): (3) deeper SEO** — per-page metadata for /login /onboarding etc; dynamic sitemap.
 
 **Founder tasks:**

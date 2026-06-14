@@ -77,136 +77,38 @@ export function detectStage(lead: any, messageCount: number): ConversationStage 
 }
 
 // ─── Few-shot example conversations ──────────────────────────────────────────
-// Synthetic but realistic examples that show the model the exact tone, brevity,
-// and sales instincts we want. 1-2 relevant examples per call — enough to prime
-// the model without bloating the prompt. Written to match WhatsApp style.
-// When real winning conversations accumulate (👍-rated), swap in the top ones.
-function buildFewShotExamples(stage: ConversationStage, lang?: string): string {
-  // Always show one example of the ideal tone for this stage.
-  // For non-English leads, show an example in their language.
-  const examples: Partial<Record<ConversationStage, string>> = {
-    greeting: `
-EXAMPLE (ideal greeting — warm, one question, not salesy):
-Lead: Hi
-You: Hi! Welcome to Sunshine Realty 😊 Are you looking to buy or rent?
-{"score":1,"temperature":"new","stage":"greeting"}
----`,
-
-    discovery: `
-EXAMPLE (discovery — curious, one question at a time, mirrors their energy):
-Lead: Looking for a 2bhk flat in Baner
-You: Great choice — Baner has some lovely options! What's your budget range, roughly?
-{"score":3,"temperature":"new","intent":"buy","areas":["Baner"],"stage":"discovery"}
----
-EXAMPLE (Hinglish discovery — match their register):
-Lead: bhai 2bhk chahiye baner mein, reasonable budget
-You: Perfect bhai! Baner mein acche options hain. Budget kitna soch rahe ho roughly — 60-70L range?
-{"score":3,"temperature":"new","intent":"buy","areas":["Baner"],"stage":"discovery"}
----`,
-
-    presentation: `
-EXAMPLE (presentation — one property, sensory, ends with a question):
-Lead: budget around 80 lakhs, 2bhk baner
-You: Perfect — I have exactly what you're looking for:
-
-🏡 *Prestige Oak Park*
-📍 Baner, near highway
-🛏️ 2 BHK · 1050 sqft · 💰 ₹79L
-✨ East-facing, modular kitchen, society pool
-
-A family from Wakad just loved this one last week. Would you want to see it this weekend?
-{"score":5,"temperature":"warm","intent":"buy","areas":["Baner"],"budget_max":8000000,"stage":"presentation"}
----`,
-
-    qualification: `
-EXAMPLE (qualification — light touch on budget, not interrogation):
-Lead: I'm interested but not sure about timeline
-You: Totally fine! Are you thinking of moving in the next few months, or more exploratory for now? Helps me prioritise what to show you.
-{"score":4,"temperature":"warm","stage":"qualification"}
----`,
-
-    commitment: `
-EXAMPLE (commitment — assumptive, two-option close, makes it easy):
-Lead: yes I'd like to see it
-You: Wonderful! Which works better — Saturday morning or Sunday around 11? I'll send the exact address once confirmed 📍
-{"score":7,"temperature":"warm","stage":"commitment"}
----
-EXAMPLE (post-agreement — confirm warmly, express excitement):
-Lead: Sunday 11 works
-You: Perfect! See you Sunday at 11 AM. I'll share the Google Maps pin shortly. Really glad you're taking a look — I think you'll love it 😊
-{"score":8,"temperature":"hot","appointment_booked_time":"2026-06-15T11:00:00+05:30","appointment_status":"upcoming","stage":"commitment"}
----`,
-
-    objection: `
-EXAMPLE (objection — validate first, never argue, redirect):
-Lead: It's a bit expensive
-You: Totally understand — budget matters. What range feels comfortable for you? I might have something closer that still ticks the boxes.
-{"score":4,"temperature":"warm","stage":"objection"}
----`,
-
-    post_visit: `
-EXAMPLE (post-visit — personal, builds on visit, moves toward next step):
-Lead: it was okay but kitchen felt small
-You: Glad you went! Kitchen space is important — totally valid point. Were you happy with the location and overall layout? If those worked, a kitchen can often be customised. And what would your next step look like?
-{"score":6,"temperature":"warm","stage":"post_visit"}
----`,
-
-    nurture: `
-EXAMPLE (nurture — adds value, no pressure, plants a seed):
-Lead: (no reply in 5 days)
-You: Hi Priya! A new 2BHK just came in near Baner main road — matches what you described. Want me to send the details?
-{"score":3,"temperature":"cold","stage":"nurture"}
----`,
+// ONE tight example per call — enough to prime tone without bloating the prompt.
+// No multi-line property cards in examples (those live in the inventory section).
+// Synthetic now; swap for real 👍-rated conversations when volume justifies.
+// IMPORTANT: keep these short — GLM free tier slows noticeably above ~2500 tokens.
+function buildFewShotExamples(stage: ConversationStage, lang?: string | null): string {
+  const stageExamples: Partial<Record<ConversationStage, string>> = {
+    greeting:     `Lead: Hi\nYou: Hi! Welcome 😊 Are you looking to buy or rent?\n{"score":1,"temperature":"new"}`,
+    discovery:    `Lead: looking for 2bhk in baner\nYou: Great area! What's your rough budget?\n{"score":3,"temperature":"new","intent":"buy","areas":["Baner"]}`,
+    qualification:`Lead: interested but timeline not sure\nYou: No rush! Moving in 3 months or more exploratory for now?\n{"score":4,"temperature":"warm"}`,
+    presentation: `Lead: budget 80L, 2bhk baner\nYou: Perfect — I have a 2BHK at ₹79L in Baner, east-facing, great society. Would you want to see it this weekend?\n{"score":5,"temperature":"warm","intent":"buy","areas":["Baner"],"budget_max":8000000}`,
+    objection:    `Lead: it's expensive\nYou: Totally understand. What budget would feel right? I might have something closer.\n{"score":4,"temperature":"warm"}`,
+    commitment:   `Lead: yes I'd like to see it\nYou: Great! Saturday morning or Sunday at 11 — which works better? I'll send the address once confirmed 📍\n{"score":7,"temperature":"warm"}`,
+    post_visit:   `Lead: it was ok but felt small\nYou: Good to hear! Was the location and layout fine otherwise? If so, sizing can often be worked around — what's your next step?\n{"score":6,"temperature":"warm"}`,
+    nurture:      `Lead: (quiet for 4 days)\nYou: Hi! A new option just came in that matches what you told me — want me to share the details?\n{"score":3,"temperature":"cold"}`,
   }
 
-  // Language-specific examples (Marathi / Hindi) — shown when lead's language is known
-  const marathiExample = lang === 'mr' ? `
-EXAMPLE (Marathi Latin — match their exact register, stay in Marathi):
-Lead: mala 2bhk pahije baner madhe, budget 70-80 lakh aahe
-You: Chan! Baner madhe tumchya budget madhe changle options ahet. He property bagha:
+  // One language-specific example when lead's language is known — pick based on
+  // detected script. Only one (not both Latin + Devanagari) to keep tokens low.
+  const langExample: Record<string, string> = {
+    mr: `Lead: mala 2bhk pahije baner madhe\nYou: Chan! Budget kadhi aahe?\n{"score":3,"temperature":"new","intent":"buy","areas":["Baner"],"lang":"mr"}`,
+    'mr-dev': `Lead: मला बाणेरमध्ये 2bhk हवंय\nYou: छान! बजेट किती आहे?\n{"score":3,"temperature":"new","intent":"buy","lang":"mr"}`,
+    hi: `Lead: mujhe baner mein 2bhk chahiye\nYou: Perfect! Budget roughly kitna soch rahe ho?\n{"score":3,"temperature":"new","intent":"buy","areas":["Baner"],"lang":"hi"}`,
+  }
 
-🏡 *Green Valley*
-📍 Baner
-🛏️ 2 BHK · 980 sqft · 💰 ₹76L
-✨ Corner flat, ready to move
+  const stageEx = stageExamples[stage]
+  const langKey = lang === 'mr' ? 'mr' : lang === 'hi' ? 'hi' : null
+  const langEx = langKey ? langExample[langKey] : null
 
-Tumhala weekend la bhaychay ka site la?
-{"score":5,"temperature":"warm","intent":"buy","areas":["Baner"],"budget_min":7000000,"budget_max":8000000,"lang":"mr","stage":"presentation"}
----
-EXAMPLE (Marathi Devanagari — natural, warm, short):
-Lead: मला बाणेरमध्ये 2bhk हवंय, बजेट ७० लाख आहे
-You: छान निवड! बाणेरमध्ये तुमच्या बजेटमध्ये उत्तम पर्याय आहेत. हे पाहा:
+  const parts = [stageEx, langEx].filter(Boolean)
+  if (!parts.length) return ''
 
-🏡 *सनराइज अपार्टमेंट*
-📍 बाणेर, मेन रोडजवळ
-🛏️ 2 BHK · 1000 sqft · 💰 ₹68L
-✨ रेडी टू मूव्ह, पूर्वाभिमुख
-
-वीकेंडला साइट बघायला येणार का?
-{"score":5,"temperature":"warm","intent":"buy","areas":["बाणेर"],"budget_max":7000000,"lang":"mr","stage":"presentation"}
----` : ''
-
-  const hindiExample = lang === 'hi' ? `
-EXAMPLE (Hinglish — natural Hindi-English mix, match their vibe):
-Lead: mujhe 2bhk chahiye baner mein, budget 75 lakh hai
-You: Perfect! Baner mein ek accha option hai tumhare liye:
-
-🏡 *Lakeview Heights*
-📍 Baner, Pune
-🛏️ 2 BHK · 1020 sqft · 💰 ₹74L
-✨ Brand new building, gym + kids play area
-
-Weekend ko site visit karoge? Saturday ya Sunday — jo convenient ho 😊
-{"score":5,"temperature":"warm","intent":"buy","areas":["Baner"],"budget_max":7500000,"lang":"hi","stage":"presentation"}
----` : ''
-
-  const stageExample = examples[stage] || ''
-  const combined = (stageExample + marathiExample + hindiExample).trim()
-  if (!combined) return ''
-
-  return `\nEXAMPLE CONVERSATIONS (study the tone, brevity, and sales approach — apply the same style):
-${combined}
-`
+  return `\nEXAMPLES (tone + brevity to match):\n${parts.join('\n---\n')}\n`
 }
 
 export function buildEnginePrompt(ctx: any, stage: ConversationStage, messageCount: number): string {
@@ -594,6 +496,7 @@ export async function generateBotReply(
   }
 
   const systemPrompt = buildEnginePrompt(ctx, stage, messageCount)
+  console.log(`[engine] stage=${stage} lang=${detectedLang} prompt≈${Math.round(systemPrompt.length / 4)}tok`)
 
   // Build conversation history — exclude the LAST message (the one we just inserted).
   // 12 messages gives ~3-4 rounds of context without meaningfully bloating the prompt.
