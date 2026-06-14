@@ -153,15 +153,8 @@ export async function sendViaMsg91Media(
         integrated_number: integratedNumber,
         content_type: 'image',
         recipient_number: to,
-        type: 'image',
-        url: mediaUrl,
+        attachment_url: mediaUrl,
         ...(caption ? { caption } : {}),
-        payload: {
-          to,
-          type: 'image',
-          image: { link: mediaUrl, ...(caption ? { caption } : {}) },
-          messaging_product: 'whatsapp',
-        },
       },
       { headers: { authkey, 'Content-Type': 'application/json' } }
     )
