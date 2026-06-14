@@ -54,11 +54,13 @@ export async function POST(request: NextRequest) {
         // interactive reply — our templates use quick-reply buttons, which arrive
         // as a different content type with the text NOT in `body.text`.
         const pick = (...xs: any[]) => { for (const x of xs) if (typeof x === 'string' && x.trim()) return x; return '' }
-        const btn = body.button
+        // body.button may arrive as a JSON string e.g. '{"payload":"Yes...","text":"Yes..."}'
+        let btn = body.button
+        if (typeof btn === 'string') { try { btn = JSON.parse(btn) } catch { /* leave as string */ } }
         messageText = pick(
           body.text,
-          typeof btn === 'string' ? btn : '',
           btn?.text, btn?.payload, btn?.title, btn?.value,
+          typeof body.button === 'string' && !body.button.startsWith('{') ? body.button : '',
           body.buttonText, body.button_text, body.payload, body.buttonPayload,
           body.interactive?.button_reply?.title, body.interactive?.button_reply?.id,
           body.interactive?.list_reply?.title, body.interactive?.list_reply?.id,
@@ -68,6 +70,10 @@ export async function POST(request: NextRequest) {
         const ct = body.contentType
         // Only ignore genuinely unsupported media types — keep text/button/interactive.
         if (ct && !['text', 'button', 'interactive', 'reply', 'quick_reply'].includes(ct) && !messageText) {
+          // Send a friendly nudge so the lead isn't ghosted (e.g. they sent a voice note or photo).
+          if (fromPhone && msg91IntegratedNumber) {
+            try { await sendViaMsg91(msg91IntegratedNumber, fromPhone, "I can only read text messages — could you type your question? I'm happy to help! 😊") } catch { /* best-effort */ }
+          }
           return NextResponse.json({ status: 'ignored_non_text' })
         }
         if (!messageText || !fromPhone) {

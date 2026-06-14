@@ -1,8 +1,10 @@
+export const dynamic = "force-dynamic"
+
 import { NextResponse } from 'next/server'
 import { glmChat, glmKey } from '@/lib/llm'
 import { createClient } from '@supabase/supabase-js'
 
-export const maxDuration = 30; // max Vercel function timeout
+export const maxDuration = 30
 
 export async function POST(req: Request) {
   try {

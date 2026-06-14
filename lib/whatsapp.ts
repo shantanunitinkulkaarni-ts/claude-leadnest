@@ -147,7 +147,8 @@ export async function sendViaMsg91Template(
     const components: Record<string, any> = {}
     bodyValues.forEach((v, i) => {
       if (typeof v === 'string') {
-        components[`body_${i + 1}`] = { type: 'text', value: v }
+        // Numbered templates use {{1}}, {{2}}… — parameter_name must match the var name
+        components[`body_${i + 1}`] = { type: 'text', value: v, parameter_name: String(i + 1) }
       } else {
         components[`body_${i + 1}`] = { type: 'text', value: v.value, parameter_name: v.name }
       }
@@ -169,8 +170,8 @@ export async function sendViaMsg91Template(
       },
       { headers: { authkey, 'Content-Type': 'application/json' } }
     )
-    console.log('MSG91 template send OK:', JSON.stringify(res.data).slice(0, 300))
-    return res.data?.data?.[0]?.requestId || res.data?.requestId || 'sent'
+    console.log('MSG91 template send OK:', JSON.stringify(res.data).slice(0, 500))
+    return res.data?.data?.[0]?.requestId || res.data?.requestId || res.data?.request_id || 'sent'
   } catch (err: any) {
     console.error('MSG91 template send ERROR:', JSON.stringify(err?.response?.data || err?.message).slice(0, 500))
     return null
