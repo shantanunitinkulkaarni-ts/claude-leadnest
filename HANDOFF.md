@@ -1,6 +1,14 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: June 14, 2026 (session 2)*
+*Last updated: June 14, 2026 (session 3)*
+
+> ⚠️ **PARALLEL WORK (June 14 s3):** Another agent (Kiro) is fixing frontend/auth
+> bugs. DO NOT TOUCH (Kiro's lane): a `route.ts` + 3 `page.tsx` (exact paths
+> unconfirmed — treat login/onboarding/dashboard/auth pages as off-limits),
+> `SettingsScreen.tsx`, `LeadsScreen.tsx`, `OverviewScreen.tsx`,
+> `InboxScreen.tsx`, `lib/supabase.ts`. Coordinate before touching `lib/apiAuth.ts`.
+> This session's work stayed in bot/webhook/cron + `lib/{whatsapp,outreach,llm,gemini}.ts`
+> + `app/api/` — no overlap with Kiro.
 
 > **This is the single source of truth.** Every new chat: read this first, then update it (Done / Pending / Plan) at the end of the session. Deep business plan lives in `files/CONVORIAN_LAUNCH_BLUEPRINT.md`; user memory at `C:\Users\rahul\.claude\projects\C--LN\memory\`.
 >
@@ -30,7 +38,16 @@
 - **Mobile:** Sidebar is now a collapsible drawer with hamburger. Dashboard usable on phones.
 - **Demo account** (Razorpay + Meta reviewers): demo@convorian.in / ConvorianDemo@2026 (has the WhatsApp test number + sample data).
 - **Invoices/receipts (June 11):** Balance screen now has a "Billing history" list (`/api/subscription/invoices`) with per-payment branded printable receipts (`/api/subscription/receipt`, Print→Save-as-PDF, no PDF lib). Backed by existing `subscription_events`; no migration. Labelled payment receipt, not tax invoice (no GST). LIVE.
-- **June 14 bot improvements — PR #72 open (branch `feat/bot-stage-fewshot`, CI pending):**
+- **June 14 SESSION 3 — top-down bot audit + fixes (ALL SHIPPED & DEPLOYED):**
+  - **PR #72 MERGED ✅** (bot stage/lang/nudge + few-shot trim — details below).
+  - **PR #73 MERGED ✅ — three audit fixes:**
+    - 🔴 **Delivery blindness fixed:** MSG91's `2xx + requestId` only means ACCEPTED, not delivered — Meta can reject afterward (bad params, paused template, quality/limit, closed window) and the message silently vanishes (this was the "template sent but no msg" mystery). New `/api/webhook/status` handler receives MSG91 delivery reports, logs full payload, `console.error`s every FAILED, stamps `delivery_status`/`delivery_error` on the message row. **Migration `delivery_status_migration.sql` APPLIED to prod ✅ (founder ran it June 14 s3).** ⏳ **FOUNDER:** set the delivery-report webhook URL in MSG91 dashboard → `https://convorian.in/api/webhook/status` (without it MSG91 never reports failures).
+    - 🔴 **Silent credit loss fixed:** `deductWABalance` + `sendWindowKeepalive` used the ANON Supabase client → blocked by RLS server-side (no logged-in user) → balance never deducted, no `wa_transactions` logged. Switched to `supabaseAdmin`. (Explains why some top-ups/charges never showed.)
+    - 🟠 **Template source-of-truth:** `outreach.ts` `TEMPLATE_BODIES` is now canonical; `templateVars()` derives names+order from the body. `lead_new_match` = **4 NAMED vars** `customer_name, agency_name, area, property_type` (NOT the 3 numbered in the stale `TEMPLATE_SUITE.md`, now marked superseded). `/api/admin/test-template` auto-builds correct sample values when `values` omitted. **A manual test send with the WRONG (numbered-3) format is what failed to deliver earlier; the named-4 send delivered ✅.**
+  - **PR #74 MERGED ✅ — foolproof GLM retry scheduler:** Live incident — a lead's 3rd rapid message hit `timeout of 20000ms exceeded` → canned "Thank you for reaching out" fallback. Root cause: old hedge waited 20s × 2 attempts, gave up at ~23s, wasting ~37s of the 60s webhook budget. New `runWithHedging` (pure, testable, in `lib/llm.ts`): per-attempt timeout 20s→**12s** (stalls rarely recover → kill & retry fresh), up to **6 attempts / max 2 concurrent** until an overall **deadline** (engine 40s; web chats demo+support pass **18s** so spinners don't hang). Foolproof: settle-once, all timers cleared, per-attempt timeout enforced in-scheduler, late results ignored, bounded by attempts AND deadline. **9 unit tests** in `tests/unit/llm-hedging.spec.ts` (88 total green).
+  - **Diagnostic added (webhook):** every MSG91 inbound now logs `contentType=… uuid=present|EMPTY textLen=…` — to confirm whether button taps carry a stable `uuid`. ⏳ **OPEN (my lane, next):** if button taps arrive with EMPTY uuid, the atomic dedup (keyed on `wa_message_id`) can't catch webhook retries of them → latent double-reply risk. Faster replies (PR #74) reduce retries, but harden once the log confirms the gap.
+  - **⏳ DEFERRED (founder decision):** LLM paid fallback (Bedrock + Claude API) — wait for AWS credits, then add as fallback when GLM stalls. Until then PR #74's retry makes GLM-only far more resilient.
+- **June 14 bot improvements — PR #72 MERGED ✅ (was branch `feat/bot-stage-fewshot`):**
   - **Marathi/Hindi language detection OVERHAULED (PR #70 already merged ✅):** server-side `detectMessageLanguage()` runs BEFORE the LLM — detects Devanagari script, Latin-script Marathi (pahije/aahe/nako/mala/tumhi etc.), Latin-script Hindi (chahiye/mujhe/theek hai etc.). Critical bug fixed: `\b` word boundaries do NOT work with Devanagari in JS (Devanagari chars aren't `\w`), so Devanagari patterns no longer use `\b`. Root cause also fixed: `lead.language` was stored to DB but NEVER read back into the next turn's system prompt, so LLM re-detected from scratch every message. Now: hard `MANDATORY LANGUAGE DIRECTIVE` injected at top of system prompt + `lang` shown in LEAD PROFILE. 30-unit tests in `tests/unit/language-detection.spec.ts`.
   - **Stage detection FIXED:** bot was stuck in discovery loop for 15+ messages. Fix: `visit_booked` checked first (prevents re-asking discovery when visit is set); forced jump to `presentation` after 5 messages if ANY lead criteria exists (`intent || preferred_areas || budget_min`); `cold + messageCount > 6` → `nurture`. No longer interrogates indefinitely.
   - **History depth 8→12** for `generateBotReply` and `generateNudge` (DB fetch 10→14). More context without bloating much.

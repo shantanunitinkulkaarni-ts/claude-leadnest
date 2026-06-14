@@ -81,6 +81,12 @@ export async function POST(request: NextRequest) {
           console.log('MSG91 inbound: could not extract text — FULL payload:', JSON.stringify(body))
           return NextResponse.json({ status: 'no_text' })
         }
+        // Diagnostic: does this inbound carry a stable id (body.uuid)? The atomic
+        // dedup that stops webhook-retry double-replies is keyed on wa_message_id
+        // (=body.uuid). If button taps arrive with an EMPTY uuid, their retries
+        // can't be deduped — this log tells us whether that gap is real before we
+        // harden it. Safe to remove once confirmed.
+        console.log(`MSG91 inbound: contentType=${body.contentType || '?'} uuid=${body.uuid ? 'present' : 'EMPTY'} textLen=${messageText.length}`)
       } else if (body.object === 'whatsapp_business_account') {
         // ── Meta Cloud API inbound ──
         const value = body.entry?.[0]?.changes?.[0]?.value
