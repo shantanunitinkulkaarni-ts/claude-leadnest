@@ -180,6 +180,48 @@ const scenarios: Scenario[] = [
     lead: { name: 'Tanvi', intent: 'buy', preferred_areas: ['Baner'], ai_score: 5 },
     messages: [{ role: 'user', content: 'Mujhe directly agent ka number chahiye, unse baat karni hai' }],
     rule: 'Reply must share the agent\'s contact details directly: name (Suresh Kumar) and phone (9876543210), available 9 AM to 7 PM. Must NOT refuse or say "I cannot share contact." Must NOT just say "team will call you" — the lead explicitly asked for the number, so share it.' },
+
+  // ─── Template button reply scenarios (founder request: "check if bot reads the response") ───
+
+  { name: 'template button "Yes, share details" → present actual property from inventory',
+    lead: { name: 'Meera', intent: 'buy', preferred_areas: ['Baner'], ai_score: 3 },
+    messages: [
+      { role: 'assistant', content: "Hi Meera, it's SK Properties. A property matching your search just came up in Baner - a 2BHK apartment within your budget. Would you like me to share the details?" },
+      { role: 'user', content: 'Yes, share details' },
+    ],
+    rule: 'Reply must present actual property details from the inventory — NOT just say "I\'ll share details later" or ask discovery questions. Should show at least the property name, location, price, and one or two features from the inventory (e.g. Sunrise Park 2BHK Baner ₹79L). Must be concrete and specific, not vague.' },
+
+  { name: 'template "yes" button → match the right BHK type from context',
+    lead: { name: 'Raj', intent: 'buy', preferred_areas: ['Wakad'], ai_score: 3 },
+    messages: [
+      { role: 'assistant', content: "Hi Raj, it's SK Properties. A property matching your search just came up in Wakad - a 2BHK apartment within your budget. Would you like me to share the details?" },
+      { role: 'user', content: 'Haan batao' },
+    ],
+    rule: 'Reply must show the Wakad property — Green Valley 2BHK ₹72L (7200000) — since the template mentioned Wakad 2BHK. Must NOT show a Baner property or a 3BHK. Should give specific details like price and at least one feature. RERA registered is in the description and is a strong selling point to mention.' },
+
+  // ─── "Give more details" scenarios (founder request: "work on details msg") ───────────────
+
+  { name: '"aur batao" / tell me more → full property brief, all amenities',
+    lead: { name: 'Sunita', intent: 'buy', preferred_areas: ['Baner'], ai_score: 5 },
+    messages: [
+      { role: 'assistant', content: '🏡 Sunrise Park 2BHK, Baner ₹79L — east-facing, ready to move. Sounds good?' },
+      { role: 'user', content: 'Aur batao iske baare mein. Sab kuch batao.' },
+    ],
+    rule: 'Reply must give comprehensive details about Sunrise Park — should include: size (1080 sqft), possession (ready to move), at least most of the amenities (east-facing, gym, clubhouse), and price (₹79L / 7900000). Must NOT give a vague 1-line response like "It is a nice property." The lead explicitly asked for everything — give them everything from the inventory.' },
+
+  { name: 'post-visit hot lead → push toward token/deal, not re-show property',
+    lead: { name: 'Kiran', intent: 'buy', preferred_areas: ['Baner'], ai_score: 8, status: 'visit_done',
+            post_visit_result: 'very_interested', notes: 'Client loved the flat. Said wife also liked it. Hesitating only on price.' },
+    messages: [{ role: 'user', content: 'Property bahut achi lagi, soch rahe hain' }],
+    rule: 'This is a post-visit HOT lead who loved the property. Reply must NOT suggest they see another property or restart their search. Must acknowledge their positive impression warmly. Should address the hesitation (price) since the agent notes say that is the only blocker — offer to check with builder for flexibility. Should move them toward next step (token/paperwork/decision), not backwards.' },
+
+  { name: 'Marathi "aur sangto" (tell me more) → detailed reply in Marathi',
+    lead: { name: 'Priya', intent: 'buy', preferred_areas: ['Baner'], ai_score: 5, language: 'mr' },
+    messages: [
+      { role: 'assistant', content: 'Sunrise Park 2BHK Baner madhe ahe, ₹79L la. East facing, ready to move. Baghayla yeta ka?' },
+      { role: 'user', content: 'haan, aahe kay aat, sab sangto ka? ameneties kay aahet?' },
+    ],
+    rule: 'Reply MUST be in Latin-script Marathi (romanised Marathi). Must list the amenities from inventory: east-facing, gym, clubhouse (all from p3 Sunrise Park). Must mention size (1080 sqft / chori) and possession (ready to move). Must NOT reply in English or Hindi. Must be comprehensive — the lead asked for "everything" in Marathi.' },
 ]
 
 test.describe('Engine eval (AI-judged)', () => {
