@@ -80,7 +80,9 @@ RULES:
         ...history,
         { role: 'user' as const, content: last },
       ],
-      { maxTokens: 220, temperature: 0.4 }
+      // Web chat: user is watching a spinner and the route is maxDuration=30 —
+      // keep the retry budget short so we degrade to escalation fast, not after 40s.
+      { maxTokens: 220, temperature: 0.4, deadlineMs: 18000 }
     )
     const escalate = text.includes('[ESCALATE]')
     text = text.replace('[ESCALATE]', '').trim()

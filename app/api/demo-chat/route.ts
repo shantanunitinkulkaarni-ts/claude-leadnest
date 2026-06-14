@@ -75,7 +75,9 @@ RULES:
         ...history,
         { role: 'user', content: lastMessage }
       ],
-      { maxTokens: 200, temperature: 0.7 }
+      // Landing demo: user is watching a spinner and the route is maxDuration=30
+      // — keep the retry budget short so a stall fails fast instead of after 40s.
+      { maxTokens: 200, temperature: 0.7, deadlineMs: 18000 }
     )
 
     return NextResponse.json({ response: responseText })
