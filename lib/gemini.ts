@@ -82,23 +82,25 @@ export function detectStage(lead: any, messageCount: number): ConversationStage 
 // Synthetic now; swap for real 👍-rated conversations when volume justifies.
 // IMPORTANT: keep these short — GLM free tier slows noticeably above ~2500 tokens.
 function buildFewShotExamples(stage: ConversationStage, lang?: string | null): string {
+  // India-specific examples — realistic WhatsApp-style exchanges.
+  // Keep short (token budget). Budget in crore/lakh is common; always map correctly.
   const stageExamples: Partial<Record<ConversationStage, string>> = {
-    greeting:     `Lead: Hi\nYou: Hi! Welcome 😊 Are you looking to buy or rent?\n{"score":1,"temperature":"new"}`,
-    discovery:    `Lead: looking for 2bhk in baner\nYou: Great area! What's your rough budget?\n{"score":3,"temperature":"new","intent":"buy","areas":["Baner"]}`,
-    qualification:`Lead: interested but timeline not sure\nYou: No rush! Moving in 3 months or more exploratory for now?\n{"score":4,"temperature":"warm"}`,
-    presentation: `Lead: budget 80L, 2bhk baner\nYou: Perfect — I have a 2BHK at ₹79L in Baner, east-facing, great society. Would you want to see it this weekend?\n{"score":5,"temperature":"warm","intent":"buy","areas":["Baner"],"budget_max":8000000}`,
-    objection:    `Lead: it's expensive\nYou: Totally understand. What budget would feel right? I might have something closer.\n{"score":4,"temperature":"warm"}`,
-    commitment:   `Lead: yes I'd like to see it\nYou: Great! Saturday morning or Sunday at 11 — which works better? I'll send the address once confirmed 📍\n{"score":7,"temperature":"warm"}`,
-    post_visit:   `Lead: it was ok but felt small\nYou: Good to hear! Was the location and layout fine otherwise? If so, sizing can often be worked around — what's your next step?\n{"score":6,"temperature":"warm"}`,
-    nurture:      `Lead: (quiet for 4 days)\nYou: Hi! A new option just came in that matches what you told me — want me to share the details?\n{"score":3,"temperature":"cold"}`,
+    greeting:     `Lead: Hi, flat dekhna tha Baner mein\nYou: Hi! Welcome 😊 Kitne BHK mein interest hai, aur budget roughly kya hai?\n{"score":2,"temperature":"new","intent":"buy","areas":["Baner"]}`,
+    discovery:    `Lead: 3BHK chahiye Hinjewadi mein, budget roughly 1.2 crore\nYou: Great choice! Ready-to-move prefer karenge ya under construction theek hai?\n{"score":4,"temperature":"warm","intent":"buy","areas":["Hinjewadi"],"budget_max":12000000}`,
+    qualification:`Lead: ready-to-move chahiye, family ke saath decision leni hai\nYou: Bilkul — family ka input important hai! Timeline roughly kya soch rahe ho — 3 months mein ya zyada time hai?\n{"score":4,"temperature":"warm"}`,
+    presentation: `Lead: east facing hai? Vastu ka dhyan rakhna tha\nYou: Haan, east-facing hai — morning sunlight aata hai, vastu-friendly ✅ 2BHK, 1,050 sqft, ₹79L. Is weekend site visit karein?\n{"score":6,"temperature":"warm"}`,
+    objection:    `Lead: price thoda zyada hai. Wife ko bhi dikhana hai\nYou: Bilkul — family ka saath dekhna sahi decision hai! Is weekend saath aao — 20 minute ki visit mein bahut kuch clear ho jaata hai 🙏\n{"score":5,"temperature":"warm"}`,
+    commitment:   `Lead: Sunday 10 baje aa sakte hain kya?\nYou: Sunday 10 AM — perfect! 📍 Confirmed. Address aur Google Maps link abhi bhejta hun. Koi saath aa raha hai?\n{"score":7,"temperature":"warm","appointment_booked_time":"2026-06-22T10:00:00+05:30","appointment_status":"upcoming"}`,
+    post_visit:   `Lead: property achi lagi, ₹5L discount milega kya?\nYou: Khushi hui ki pasand aayi! Builder se flexibility check karta hun — guarantee nahi de sakta par try karta hun. Aaj hi update dunga.\n{"score":8,"temperature":"hot"}`,
+    nurture:      `Lead: abhi bhi dekhna chahta hun, price kuch hua kya?\nYou: Market abhi stable hai — aur ek naya option aa gaya hai jo aapki requirement se match karta hai. Details share karun?\n{"score":5,"temperature":"warm"}`,
   }
 
   // One language-specific example when lead's language is known — pick based on
   // detected script. Only one (not both Latin + Devanagari) to keep tokens low.
   const langExample: Record<string, string> = {
-    mr: `Lead: mala 2bhk pahije baner madhe\nYou: Chan! Budget kadhi aahe?\n{"score":3,"temperature":"new","intent":"buy","areas":["Baner"],"lang":"mr"}`,
-    'mr-dev': `Lead: मला बाणेरमध्ये 2bhk हवंय\nYou: छान! बजेट किती आहे?\n{"score":3,"temperature":"new","intent":"buy","lang":"mr"}`,
-    hi: `Lead: mujhe baner mein 2bhk chahiye\nYou: Perfect! Budget roughly kitna soch rahe ho?\n{"score":3,"temperature":"new","intent":"buy","areas":["Baner"],"lang":"hi"}`,
+    mr: `Lead: 2BHK pahije Baner madhe, possession lavkar pahije\nYou: Chan! Ready-to-move flat ahe ₹82L la Baner madhe — changli society, east facing. Is weekend baghayla yeta ka?\n{"score":5,"temperature":"warm","intent":"buy","areas":["Baner"],"lang":"mr"}`,
+    'mr-dev': `Lead: मला बाणेरमध्ये 2bhk हवंय, ताबा लवकर हवा\nYou: हो! Ready-to-move flat आहे ₹82L ला — उत्तम सोसायटी, east facing. या weekend ला बघायला येता का?\n{"score":5,"temperature":"warm","intent":"buy","lang":"mr"}`,
+    hi: `Lead: bhaiya 1.5 crore budget mein 3BHK chahiye Wakad mein\nYou: Perfect! Wakad mein ₹1.45Cr ka solid 3BHK hai — ready-to-move, changli society. Weekend pe site visit karein?\n{"score":5,"temperature":"warm","intent":"buy","areas":["Wakad"],"budget_max":15000000,"lang":"hi"}`,
   }
 
   const stageEx = stageExamples[stage]
@@ -181,10 +183,14 @@ Techniques:
 STAGE: OBJECTION HANDLING
 Goal: Address concerns without being pushy. Validate first, then reframe.
 Common objections and responses:
-- "Too expensive" → "What budget would work for you? I might have something closer."
+- "Too expensive" / "thoda zyada hai" → "What budget would work for you? I might have something closer."
 - "Not the right area" → "What specifically are you looking for in a location?"
-- "Need to think" → "Of course! What's the main thing you'd want to be sure about?"
-- "Will check with family" → "Absolutely — when do you think you'd have a chance to discuss?"
+- "Need to think" / "sochna hai" → "Of course! What's the main thing you'd want to be sure about?"
+- "FAMILY APPROVAL" ('ghar mein baat karni hai' / 'wife ko bhi dikhana hai' / 'family se poochna hai'): THIS IS NORMAL IN INDIA, NOT A REJECTION. Warmly invite them to bring family for the visit — "Bilkul, family ko saath laiye — ek saath dekhte hain." Offer a weekend slot so everyone can come.
+- "LOAN / EMI" ('loan milega kya?' / 'EMI kitni hogi?' / 'home loan'): Acknowledge it's an important point. Give a rough indicative EMI if you can (e.g., "₹80L on 20 years at ~8.5% is roughly ₹70K/month"). Mention we can connect them with our partnered bank/DSA. Never promise loan approval.
+- "BUILDER TRUST" ('builder kaisa hai?' / 'RERA registered hai?' / 'project delay toh nahi hoga?'): Take it seriously — it's a valid concern. Share RERA info from inventory if available; if not, "main confirm kar ke aapko batata hun." Never make up RERA numbers or possession guarantees.
+- "PRICE NEGOTIATION" ('discount milega?' / 'kuch kam ho sakta hai?' / 'final price kya hai?'): NEVER promise a discount on the spot. Say "main builder/owner se check karta hun aur aapko update karta hun" — this shows respect and manages expectations. Visit first, negotiate after.
+- "POSSESSION DELAY" ('possession kab milegi?' / 'delay toh nahi hoga?'): Share the possession date from inventory. If under construction, acknowledge the concern genuinely: "Possession date [date] hai — builder ka track record solid hai. Aur hum visit pe iski paperwork bhi dikhate hain."
 - Never argue. Never pressure. Validate and redirect.`,
 
     commitment: `
