@@ -113,8 +113,8 @@ function LiveDemo() {
           </p>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[
-              ['🌐', 'Switch language — native Hindi, Marathi, Gujarati & English'],
-              ['🖼️', 'Ask for photos — watch it share rich media instantly'],
+              ['🌐', 'Switch language — native Hindi, Marathi & English'],
+              ['💬', 'Ask about price, location, or availability — it qualifies in real time'],
               ['🎯', 'Ask about price — experience the qualification flow'],
             ].map(([icon, text]) => (
               <li key={text} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: G.text }}>
@@ -233,7 +233,7 @@ function Proof() {
       <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 32px' }}>
         <div style={{ textAlign: 'center', marginBottom: 60 }}>
           <h2 style={{ fontSize: 40, fontWeight: 700, color: G.dark, letterSpacing: '-0.02em', marginBottom: 16 }}>The Math That Matters</h2>
-          <p style={{ fontSize: 16, color: G.muted }}>Real numbers from real agents</p>
+          <p style={{ fontSize: 16, color: G.muted }}>Projected outcomes at scale</p>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 28 }}>
@@ -341,20 +341,22 @@ function CTA() {
           Your first deal pays for a year of Convorian
         </h2>
         <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.6)', marginBottom: 32, lineHeight: 1.6 }}>
-          Stop losing leads to time delays. Start closing deals on autopilot. Join 50+ agents already using Convorian.
+          Stop losing leads to time delays. Start closing deals on autopilot — 24/7, even while you sleep.
         </p>
 
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => router.push('/onboarding')} style={{ padding: '14px 32px', borderRadius: 12, background: G.grad, color: '#fff', fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer', boxShadow: G.glow }}>
             Start Free Trial (No Card)
           </button>
-          <a href="https://wa.me/919876543210?text=Hi%20Convorian!%20I%20want%20to%20schedule%20a%20demo" target="_blank" style={{ padding: '14px 32px', borderRadius: 12, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', fontSize: 14, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}>
-            Chat on WhatsApp
-          </a>
+          {process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP && (
+            <a href={`https://wa.me/${process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP.replace(/\D/g, '')}?text=Hi%20Convorian!%20I%20want%20to%20schedule%20a%20demo`} target="_blank" style={{ padding: '14px 32px', borderRadius: 12, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', fontSize: 14, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}>
+              Chat on WhatsApp
+            </a>
+          )}
         </div>
 
         <div style={{ marginTop: 32, display: 'flex', justifyContent: 'center', gap: 28, flexWrap: 'wrap', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-          <div>✓ Free for 14 days</div>
+          <div>✓ Free for 30 days</div>
           <div>✓ No credit card required</div>
           <div>✓ Cancel anytime</div>
         </div>

@@ -71,13 +71,14 @@ test.describe('Signup validation guards (/api/auth/register)', () => {
     expect(body.error).toContain('Name required')
   })
 
-  test('rejects invalid plan value', async ({ request }) => {
+  test('ignores plan field — always creates trial (no 400 on unknown plan)', async ({ request }) => {
+    // Register route now hardcodes trial; any plan value in the request is ignored.
     const res = await request.post('/api/auth/register', {
-      data: { email: 'valid@example.com', name: 'Test Agent', plan: 'lifetime' },
+      data: { email: 'valid-plan-test@example.com', name: 'Test Agent', plan: 'lifetime' },
     })
-    expect(res.status()).toBe(400)
+    // Either 200 (created) or 400 (duplicate if test ran before) — NOT 400 "Invalid plan".
     const body = await res.json()
-    expect(body.error).toContain('Invalid plan')
+    expect(body.error ?? '').not.toContain('Invalid plan')
   })
 
   test('rejects too many property types', async ({ request }) => {

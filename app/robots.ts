@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: '*',
       allow: '/',
-      disallow: ['/api/', '/dashboard', '/admin', '/auth/'],
+      disallow: ['/api/', '/dashboard', '/admin', '/auth/', '/onboarding', '/reset-password', '/forgot-password', '/waitlist'],
     },
     sitemap: 'https://convorian.in/sitemap.xml',
     host: 'https://convorian.in',
