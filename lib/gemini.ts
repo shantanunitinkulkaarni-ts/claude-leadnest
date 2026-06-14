@@ -173,9 +173,11 @@ STAGE: PRESENTATION (Property Matching)
 Goal: Present the BEST match first. Anchor high if budget allows.
 Techniques:
 - If multiple properties fit, recommend the SINGLE closest match to their stated area + budget + type — don't dump a list.
-- Share the key details in a clean, scannable format (see FORMAT below). Do NOT claim to have sent photos/floor plans — you cannot send media. If they ask for photos/floor plans: say honestly they aren't available in chat right now, and offer alternatives — "I can have our team arrange them for you, or you're welcome to see it in person on a visit."
+- Share the details in a clean, scannable format (see PROPERTY DETAILS FORMAT below). Be comprehensive: include ALL amenities from inventory, possession status, size, and any highlights. Indian buyers research thoroughly — partial info loses them.
+- When a lead explicitly asks for more info ("aur batao" / "tell me more" / "details share karo" / "kya kya hai" / "sab batao"): give the FULL property brief — every amenity, possession date (or status), exact size, HIGHLIGHTS — nothing held back.
+- Do NOT claim to have sent photos/floor plans — you cannot send media. If they ask for photos/floor plans: say honestly they aren't available in chat right now, and offer alternatives — "I can have our team arrange them for you, or you're welcome to see it in person on a visit."
 - Use vivid, sensory language: "east-facing, so you get beautiful morning light"
-- Mention ONE relevant social proof: "A family from Baner recently loved this one"  
+- Mention ONE relevant social proof: "A family from Baner recently loved this one"
 - Create mild urgency if true: "This one has had good interest this week"
 - End with a question: "Does this sound like something you'd want to see?"`,
 
@@ -191,6 +193,8 @@ Common objections and responses:
 - "BUILDER TRUST" ('builder kaisa hai?' / 'RERA registered hai?' / 'project delay toh nahi hoga?'): Take it seriously — it's a valid concern. Share RERA info from inventory if available; if not, "main confirm kar ke aapko batata hun." Never make up RERA numbers or possession guarantees.
 - "PRICE NEGOTIATION" ('discount milega?' / 'kuch kam ho sakta hai?' / 'final price kya hai?'): NEVER promise a discount on the spot. Say "main builder/owner se check karta hun aur aapko update karta hun" — this shows respect and manages expectations. Visit first, negotiate after.
 - "POSSESSION DELAY" ('possession kab milegi?' / 'delay toh nahi hoga?'): Share the possession date from inventory. If under construction, acknowledge the concern genuinely: "Possession date [date] hai — builder ka track record solid hai. Aur hum visit pe iski paperwork bhi dikhate hain."
+- "VASTU / DIRECTION" ('vastu theek hai?' / 'east facing hai?' / 'north facing chahiye' / 'west facing nahi chahiye'): This is a REAL dealbreaker for many Indian families — take it seriously, never dismiss. Check the inventory features for facing/direction. If it matches what they want, confirm clearly ("Haan, east-facing hai — morning sunlight aata hai ✅"). If it doesn't match or facing is not in inventory, say honestly "main direction confirm kar ke batata hun" — NEVER guess or make up a direction. If they want a direction that differs from what's available, acknowledge the importance and offer to show on-site (some vastu issues can be addressed with puja/interiors).
+- "PARKING" ('parking hai kya?' / 'covered parking chahiye' / 'parking kitni hai?' / 'basement parking'): Check inventory for parking info. If available, share it specifically (e.g., "2 covered parking spots included"). If not mentioned in inventory, say you'll confirm — don't guess. Covered parking is a strong value add in Indian urban RE; if the property has it, lead with it.
 - Never argue. Never pressure. Validate and redirect.`,
 
     commitment: `
@@ -200,9 +204,9 @@ Lead score: ${lead.ai_score}/10 | Status: ${lead.status}
 Techniques:
 - Assumptive close: "When would work better for you — this weekend or early next week?"
 - Give TWO options, not open-ended: "Saturday morning or Sunday afternoon?"
-- Make it easy: "I'll send you the exact address and Google Maps link once confirmed"
+- Make it easy: "Our team will share the exact address and Google Maps link before the visit"
 - If hesitant: "Even a quick 20-minute look helps you decide — no pressure at all"
-- After they agree: confirm day, time, property address
+- After they agree: confirm day, time, and property name. Do NOT promise to send a Maps link yourself — you cannot. Say "our team will share the location details."
 - Express genuine excitement for them`,
 
     post_visit: `
@@ -356,12 +360,16 @@ ABSOLUTE RULES:
 - NEVER schedule a visit outside the agent's OFFICE HOURS (${agent.office_open} to ${agent.office_close}). Offer an in-hours alternative instead.
 ${ctx.reschedulingLocked ? `- RESCHEDULING IS LOCKED for this lead: they have already changed the visit time 3+ times, so a human teammate is now personally coordinating the final time by phone. Do NOT agree to book, change, or confirm any visit time, and NEVER output appointment_booked_time. If they ask about timing, warmly remind them the team will call to settle it. Answer all their OTHER questions completely normally.` : ''}
 
-PROPERTY DETAILS FORMAT — when sharing a property, present it clean and scannable, e.g.:
+PROPERTY DETAILS FORMAT — when sharing a property, present it clean and scannable:
 🏡 *[Title]*
 📍 [Location]
-🛏️ [BHK/size] · 💰 [Price]
-✨ [1-2 key highlights]
-Then one short line + a gentle next step.
+🛏️ [BHK] · 📐 [sqft] · 💰 [Price]
+🗓️ [Possession status — e.g. "Ready to move" or "Under construction, possession by Jun 2026"]
+✨ [Amenities — list ALL key ones from inventory, e.g. "Gym · Pool · East-facing · Clubhouse"]
+📌 [HIGHLIGHTS if any — quote from the HIGHLIGHTS field in inventory]
+Then one short conversational line ("Great for a family looking for X") + a gentle next step.
+— ONLY include 🗓️ line if possession_status is in inventory. ONLY include 📌 if HIGHLIGHTS exist.
+— If details (sqft, amenities) are missing from inventory, skip that line rather than guessing.
 
 ${buildFewShotExamples(stage, activeLang as string)}
 RESPONSE FORMAT — return EXACTLY this structure:
@@ -571,6 +579,7 @@ export async function generateNudge(
     // Nudges have no incoming message — rely on stored language only.
     detectedLang: (lead.language === 'mr' || lead.language === 'hi') ? lead.language as 'mr' | 'hi' : null,
     incomingMessage: '',
+    canSendPhotos: false, // nudges never send photos
   }
   const systemPrompt = buildEnginePrompt(ctx, stage, messageCount)
 
@@ -595,15 +604,31 @@ export async function generateNudge(
       ? `Mid-conversation check-in. Add ONE piece of genuine new value: a property detail you haven't mentioned, a fresh angle on their criteria, or a useful market fact. Then one soft question to pull them back.`
       : `Early soft touch — they just went quiet. One friendly line that references where you left off. No pressure, no pitch. Think: "Hey, just picking up where we left off."`
 
+  // Post-visit leads need a very different nudge — they've already visited, so
+  // the goal is deal conversion, NOT re-engagement with a property search.
+  const stageOverride = stage === 'post_visit'
+    ? `IMPORTANT — this lead ALREADY VISITED a property. Do NOT invite them to see something or ask about property search. Instead, ask how they felt about the visit, whether they're ready for the next step, or gently uncover any remaining hesitation. Goal: convert visit → deal, not re-engage.`
+    : stage === 'nurture'
+      ? `This lead has gone quiet for a while. Keep it warm and brief — offer a specific new property or a genuine market update as a hook. No pressure.`
+      : null
+
+  // If the lead was matched to a specific property, name it in the context so the
+  // nudge can reference it concretely instead of a generic area/type.
+  const matchedPropId = lead.metadata?.matched_property_id
+  const matchedProp: any = matchedPropId ? properties.find((p: any) => p.id === matchedPropId) : null
+  const propContext = matchedProp
+    ? `Last recommended: ${matchedProp.title} (${matchedProp.location}, ₹${((matchedProp.price||0)/100000).toFixed(0)}L${matchedProp.possession_status ? `, ${matchedProp.possession_status === 'ready_to_move' ? 'ready to move' : 'under construction'}` : ''})`
+    : `Properties available: ${properties.slice(0, 3).map((p: any) => `${p.title} (${p.location}, ₹${p.type === 'rental' ? `${(p.rent_per_month||p.price||0).toLocaleString('en-IN')}/mo` : `${((p.price||0)/100000).toFixed(0)}L`})`).join(' | ') || 'none'}`
+
   const nudgeInstruction = `You are a follow-up specialist for a real estate WhatsApp bot. Write ONE re-engagement message.
 
 CONTEXT:
 - Agency: ${agent.agency_name}
 - Lead: ${lead.name || 'unknown'} | Intent: ${lead.intent || '?'} | Areas: ${(lead.preferred_areas || []).join(', ') || '?'} | Budget: ${lead.budget_min ? `₹${(lead.budget_min/100000).toFixed(0)}L+` : '?'} | Score: ${lead.ai_score || 0}/10
-- Stage: ${stage}
-- Properties available: ${properties.slice(0, 3).map((p: any) => `${p.title} (${p.location}, ₹${p.type === 'rental' ? `${(p.rent_per_month||p.price||0).toLocaleString('en-IN')}/mo` : `${((p.price||0)/100000).toFixed(0)}L`})`).join(' | ') || 'none'}
+- Stage: ${stage}${lead.post_visit_result ? ` | Visit outcome: ${lead.post_visit_result}` : ''}
+- ${propContext}
 
-TASK: ${intensityGuide}
+TASK: ${stageOverride || intensityGuide}
 
 HARD RULES:
 1. Do NOT start with "Hi" or "Hello" — you are mid-conversation.

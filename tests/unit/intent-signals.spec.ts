@@ -91,9 +91,50 @@ test.describe('detectReplyKnowledgeGap', () => {
     expect(detectReplyKnowledgeGap("I don't have that information right now, our team will share it.")).toBe(true)
     expect(detectReplyKnowledgeGap("I'll confirm the possession date with the team.")).toBe(true)
   })
+  test('"get back to you" pattern → true', () => {
+    expect(detectReplyKnowledgeGap("I'll get back to you on the exact RERA number.")).toBe(true)
+    expect(detectReplyKnowledgeGap("Let me get back to you with those details.")).toBe(true)
+  })
+  test('"check on/about this and update/confirm" pattern → true', () => {
+    expect(detectReplyKnowledgeGap("I'll check on this and update you shortly.")).toBe(true)
+    expect(detectReplyKnowledgeGap("Let me check about this and let you know.")).toBe(true)
+    expect(detectReplyKnowledgeGap("I'll check on this and confirm by tomorrow.")).toBe(true)
+  })
+  test('"have our/the team share/confirm/send/provide" pattern → true', () => {
+    expect(detectReplyKnowledgeGap("I'll have our team confirm this for you.")).toBe(true)
+    expect(detectReplyKnowledgeGap("I'll have the team send you the floor plan.")).toBe(true)
+    expect(detectReplyKnowledgeGap("Let me have our team provide the exact details.")).toBe(true)
+  })
+  test('"confirm this/that with/from the team/builder/owner" pattern → true', () => {
+    expect(detectReplyKnowledgeGap("I'll confirm this with the builder.")).toBe(true)
+    expect(detectReplyKnowledgeGap("Let me confirm that with our team.")).toBe(true)
+    expect(detectReplyKnowledgeGap("I'll confirm this from the owner.")).toBe(true)
+  })
+  test('"unable/not able to confirm/share/provide exact/possession/floor/rera" pattern → true', () => {
+    expect(detectReplyKnowledgeGap("I'm unable to confirm the exact possession date right now.")).toBe(true)
+    expect(detectReplyKnowledgeGap("I'm not able to share the exact floor plan at this time.")).toBe(true)
+    expect(detectReplyKnowledgeGap("I'm unable to provide the RERA number at the moment.")).toBe(true)
+  })
+  test('"will update/let you know/confirm/share shortly/asap/soon" pattern → true', () => {
+    expect(detectReplyKnowledgeGap("I will update shortly.")).toBe(true)
+    expect(detectReplyKnowledgeGap("I will let you know asap.")).toBe(true)
+    expect(detectReplyKnowledgeGap("I will confirm once I check with the builder.")).toBe(true)
+    expect(detectReplyKnowledgeGap("I will share once I confirm with the owner.")).toBe(true)
+  })
+  test('Hinglish "main confirm kar ke batata/sangto" pattern → true', () => {
+    expect(detectReplyKnowledgeGap("Main confirm kar ke aapko batata hoon.")).toBe(true)
+    expect(detectReplyKnowledgeGap("Main confirm kar ke tumhala sangto.")).toBe(true)
+    expect(detectReplyKnowledgeGap("Main confirm kar ke aapko update karun.")).toBe(true)
+  })
+  test('team will reach out/contact/call → true', () => {
+    expect(detectReplyKnowledgeGap("Our team will reach out to you soon.")).toBe(true)
+    expect(detectReplyKnowledgeGap("The team will contact you with further details.")).toBe(true)
+  })
   test('confident answer → false', () => {
     expect(detectReplyKnowledgeGap('The 2BHK is priced at ₹95L, east-facing.')).toBe(false)
     expect(detectReplyKnowledgeGap('Sure! Would Saturday morning work for a visit?')).toBe(false)
+    expect(detectReplyKnowledgeGap('The flat is on the 5th floor with 2 covered parking.')).toBe(false)
+    expect(detectReplyKnowledgeGap('Great, I will book the site visit for Saturday!')).toBe(false)
   })
 })
 

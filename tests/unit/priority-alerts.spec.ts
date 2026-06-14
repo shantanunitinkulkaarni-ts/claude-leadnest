@@ -25,6 +25,29 @@ test.describe('buildAlertContent', () => {
     expect(c.whatsappText).toContain('possession date')
   })
 
+  test('knowledge_gap: includes bot reply snippet so agent knows what was deferred', () => {
+    const c = buildAlertContent('knowledge_gap', {
+      ...base,
+      lastMessage: 'when is possession date?',
+      botReply: "Let me check with the team and get back to you on the exact possession date.",
+    })
+    expect(c.whatsappText).toContain('Bot replied:')
+    expect(c.whatsappText).toContain('possession date')
+    expect(c.html).toContain('Bot replied:')
+    // templateValues still capped at 200 chars
+    expect(c.templateValues[2].length).toBeLessThanOrEqual(200)
+  })
+
+  test('knowledge_gap: no botReply → no "Bot replied:" line (no regression for other signals)', () => {
+    const c = buildAlertContent('knowledge_gap', { ...base, lastMessage: 'floor plan available?' })
+    expect(c.whatsappText).not.toContain('Bot replied:')
+  })
+
+  test('visit_now: botReply is irrelevant — not shown (only knowledge_gap uses it)', () => {
+    const c = buildAlertContent('visit_now', { ...base, botReply: 'I am here to help!' })
+    expect(c.whatsappText).not.toContain('Bot replied:')
+  })
+
   test('competitor: cautionary copy', () => {
     const c = buildAlertContent('competitor', base)
     expect(c.whatsappText).toContain('⚠️')
