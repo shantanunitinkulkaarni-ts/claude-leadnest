@@ -6,7 +6,8 @@ export const maxDuration = 60
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { generateBotReply } from '@/lib/gemini'
-import { sendWhatsAppMessage, sendViaMsg91 } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, sendViaMsg91, sendViaMsg91Media, sendMetaImage } from '@/lib/whatsapp'
+import { wantsPhotos, extractPropertyMedia, MAX_IMAGES_PER_SEND } from '@/lib/media'
 import { shouldBotReply } from '@/lib/botGating'
 import { resolveAppointmentTime, formatIST } from '@/lib/appointment'
 import { detectInboundSignals, detectReplyKnowledgeGap, topSignal, SIGNAL_LABELS, type PrioritySignal } from '@/lib/intentSignals'
@@ -525,6 +526,46 @@ export async function POST(request: NextRequest) {
     }
 
     await supabaseAdmin.from('agents').update({ messages_used: (agent.messages_used || 0) + 2 }).eq('id', agent.id)
+
+    // ── Share property photos when the lead asks (Convorian-held media only) ──
+    // Gated by MSG91_MEDIA_LIVE so it stays inert until the media send format is
+    // verified once via POST /api/admin/test-media. Sends the images stored on
+    // the matched property (features "media:<url>"). Best-effort, capped.
+    try {
+      if (process.env.MSG91_MEDIA_LIVE === 'true' && wantsPhotos(messageText)) {
+        const isUUID = (s: any) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
+        let prop: any = null
+        if (isUUID(metadata.matched_property_id)) {
+          const { data } = await supabaseAdmin.from('properties')
+            .select('id,title,features').eq('id', metadata.matched_property_id).eq('agent_id', agent.id).maybeSingle()
+          prop = data
+        }
+        if (!prop) {
+          // Fallback: if the agent has exactly ONE active property with photos, use it.
+          const { data: actives } = await supabaseAdmin.from('properties')
+            .select('id,title,features').eq('agent_id', agent.id).eq('status', 'active').limit(6)
+          const withMedia = (actives || []).filter((p: any) => extractPropertyMedia(p).length)
+          if (withMedia.length === 1) prop = withMedia[0]
+        }
+        const media = prop ? extractPropertyMedia(prop).slice(0, MAX_IMAGES_PER_SEND) : []
+        if (media.length) {
+          console.log(`Webhook: sharing ${media.length} photo(s) for property ${prop.id}`)
+          for (let i = 0; i < media.length; i++) {
+            const caption = i === 0 ? (prop.title || 'Property') : undefined
+            let mid: string | null = null
+            if (incomingProvider === 'msg91') mid = await sendViaMsg91Media(msg91IntegratedNumber, fromPhone, media[i], caption)
+            else mid = await sendMetaImage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, media[i], caption)
+            await supabaseAdmin.from('messages').insert({
+              lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
+              content: `[photo] ${prop.title || ''}`.trim(), sent_by: 'bot',
+              wa_message_id: typeof mid === 'string' ? mid : null,
+            })
+          }
+        }
+      }
+    } catch (mediaErr: any) {
+      console.error('Photo share failed (non-critical):', mediaErr?.message)
+    }
 
     // ── High-priority alerts to the agent (email + WhatsApp) ──
     // ROI-critical moments: visit booked, lead arriving now, wants a call/human,

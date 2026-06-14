@@ -129,6 +129,76 @@ export async function sendViaMsg91(
   }
 }
 
+// ─── MSG91 image/media session message (within the 24h window) ────────────────
+// Sends an image by URL through MSG91. NOTE: MSG91's media payload shape isn't
+// documented identically across accounts — this follows the session-message
+// pattern (type:image, media link top-level + nested payload, like the text
+// sender). Verify once with POST /api/admin/test-media before enabling broadly
+// (gated by MSG91_MEDIA_LIVE). Logs the full response so the first real send
+// reveals the exact accepted shape. Best-effort: returns null on any failure.
+export async function sendViaMsg91Media(
+  integratedNumber: string,
+  toPhone: string,
+  mediaUrl: string,
+  caption?: string
+): Promise<string | null> {
+  try {
+    const authkey = process.env.MSG91_AUTHKEY
+    if (!authkey) { console.error('MSG91 media: MSG91_AUTHKEY not set'); return null }
+    if (!/^https?:\/\//i.test(mediaUrl)) { console.error('MSG91 media: invalid url', mediaUrl); return null }
+    const to = toPhone.replace(/^\+/, '')
+    const res = await axios.post(
+      'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/',
+      {
+        integrated_number: integratedNumber,
+        content_type: 'media',
+        recipient_number: to,
+        media: { type: 'image', url: mediaUrl, ...(caption ? { caption } : {}) },
+        payload: {
+          to,
+          type: 'image',
+          image: { link: mediaUrl, ...(caption ? { caption } : {}) },
+          messaging_product: 'whatsapp',
+        },
+      },
+      { headers: { authkey, 'Content-Type': 'application/json' } }
+    )
+    console.log('MSG91 media OK:', JSON.stringify(res.data).slice(0, 400))
+    return res.data?.data?.[0]?.requestId || res.data?.requestId || res.data?.request_id || 'sent'
+  } catch (err: any) {
+    console.error('MSG91 media ERROR:', JSON.stringify(err?.response?.data || err?.message).slice(0, 600))
+    return null
+  }
+}
+
+// ─── Meta image message (within the 24h window) ──────────────────────────────
+export async function sendMetaImage(
+  phoneNumberId: string,
+  accessToken: string,
+  toPhone: string,
+  mediaUrl: string,
+  caption?: string
+): Promise<string | null> {
+  try {
+    if (!/^https?:\/\//i.test(mediaUrl)) return null
+    const res = await axios.post(
+      `${WA_BASE_URL}/${phoneNumberId}/messages`,
+      {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: toPhone,
+        type: 'image',
+        image: { link: mediaUrl, ...(caption ? { caption } : {}) },
+      },
+      { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+    )
+    return res.data?.messages?.[0]?.id || null
+  } catch (err: any) {
+    console.error('Meta image error:', err?.response?.data || err.message)
+    return null
+  }
+}
+
 // ─── MSG91 template message ───────────────────────────────────────────────────
 // Templates work OUTSIDE the 24h session window (proactive re-engagement +
 // agent alerts). The template must be approved in MSG91 first.

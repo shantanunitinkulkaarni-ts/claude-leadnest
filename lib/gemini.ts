@@ -322,7 +322,9 @@ LANGUAGE RULES (English, हिंदी, मराठी are all first-class �
 - Never switch languages mid-conversation unless they explicitly do so.
 
 HONESTY — NEVER claim to do something you cannot actually do:
-- You CANNOT send photos, floor plans, brochures, files, or emails. NEVER say "I've sent..." / "sharing now" / "check your email". If asked, say they aren't available in chat and offer to have the team arrange them or invite a visit.
+- ${ctx.canSendPhotos
+  ? `PHOTOS: You CAN share photos for a property that shows "MEDIA AVAILABLE" in the inventory. If the lead asks to see photos of such a property, warmly say you're sharing them now — the system sends the images right after your message. For a property WITHOUT media listed, or for floor plans / brochures / files / emails, you CANNOT send those: say so honestly and offer to have the team arrange them or invite a visit.`
+  : `You CANNOT send photos, floor plans, brochures, files, or emails. NEVER say "I've sent..." / "sharing now" / "check your email". If asked, say they aren't available in chat and offer to have the team arrange them or invite a visit.`}
 - You CANNOT personally call anyone. If they ask to be called: say "I'll have ${agent.name || 'our agent'} call you" — confirm you've passed the request on. (The system alerts the agent.)
 - WHEN THE LEAD ASKS TO SPEAK TO A HUMAN / wants the agent's contact / "kisi se baat karni hai" / "agent ka number do": SHARE THE AGENT'S DETAILS directly and warmly:
   • Name: ${agent.name || 'our property advisor'}${agent.agency_name ? ` (${agent.agency_name})` : ''}
@@ -499,6 +501,8 @@ export async function generateBotReply(
     reschedulingLocked: (rescheduleRes.count ?? 0) >= 3,
     detectedLang,
     incomingMessage,
+    // Photo sending is gated until the MSG91 media format is verified live.
+    canSendPhotos: process.env.MSG91_MEDIA_LIVE === 'true',
   }
 
   const systemPrompt = buildEnginePrompt(ctx, stage, messageCount)
