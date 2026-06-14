@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthContext } from '@/lib/apiAuth'
 import { sendViaMsg91Template } from '@/lib/whatsapp'
 import { supabaseAdmin } from '@/lib/supabase'
-import { renderTemplate } from '@/lib/outreach'
+import { renderTemplate, sampleTemplateValues, templateVars } from '@/lib/outreach'
 
 // Superadmin-only: fire ONE template to a chosen number to verify the MSG91
 // named-variable format renders correctly before enabling broad sending.
@@ -26,11 +26,20 @@ export async function POST(request: NextRequest) {
     const to = String(body.to || '').replace(/\D/g, '')
     const template = String(body.template || '')
     const language = String(body.language || 'en')
-    const values = (body.values && typeof body.values === 'object') ? body.values : {}
+    // If the caller omits values, build them from the canonical template
+    // definition (lib/outreach) so a verification send always uses the EXACT
+    // variable names + order production uses — no more numbered-vs-named drift.
+    const values = (Array.isArray(body.values) && body.values.length)
+      ? body.values
+      : sampleTemplateValues(template, language)
     if (!integrated || !to || !template) {
       return NextResponse.json({ error: 'integrated_number, to and template are required' }, { status: 400 })
     }
+    if (!values.length) {
+      return NextResponse.json({ error: `Unknown template "${template}" — not defined in lib/outreach TEMPLATE_BODIES` }, { status: 400 })
+    }
     const reqId = await sendViaMsg91Template(integrated, to, template, values, language)
+    console.log(`test-template: ${template}/${language} → ${to} | vars=[${templateVars(template, language).join(',')}] | reqId=${reqId}`)
 
     // Best-effort: log the rendered message into the matching lead's inbox so it
     // shows up like a real send (values must be {name,value}[] to render).

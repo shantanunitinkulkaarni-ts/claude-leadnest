@@ -1,5 +1,10 @@
 import axios from 'axios'
-import { supabase } from './supabase'
+// Use the service-role client: these helpers run server-side (webhook/cron) with
+// no logged-in user. The anon client is subject to RLS (agents/wa_transactions
+// are tenant-scoped to authenticated team_members), so it silently writes
+// NOTHING here — balance never deducts, no transaction logs. supabaseAdmin
+// bypasses RLS, which is correct for trusted server code.
+import { supabaseAdmin } from './supabase'
 
 // ─── Provider detection ───────────────────────────────────────────────────────
 // Set WHATSAPP_PROVIDER=twilio in env for Twilio, anything else = Meta
@@ -245,7 +250,7 @@ export async function deductWABalance(
   templateName?: string,
   leadId?: string
 ) {
-  const { data: agent } = await supabase
+  const { data: agent } = await supabaseAdmin
     .from('agents')
     .select('wa_balance')
     .eq('id', agentId)
@@ -255,12 +260,12 @@ export async function deductWABalance(
 
   const newBalance = Number(agent.wa_balance) - amount
 
-  await supabase
+  await supabaseAdmin
     .from('agents')
     .update({ wa_balance: newBalance })
     .eq('id', agentId)
 
-  await supabase.from('wa_transactions').insert({
+  await supabaseAdmin.from('wa_transactions').insert({
     agent_id: agentId,
     type: 'deduction',
     amount,
@@ -341,7 +346,7 @@ export async function sendWindowKeepalive(agent: any, lead: any) {
     message
   )
 
-  await supabase
+  await supabaseAdmin
     .from('leads')
     .update({ window_keepalive_sent_at: new Date().toISOString() })
     .eq('id', lead.id)
