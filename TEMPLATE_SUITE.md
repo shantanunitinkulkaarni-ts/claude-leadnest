@@ -4,6 +4,16 @@
 category, language, body, buttons, sample values). Tell Claude which get
 approved → it wires the names into the engine.*
 
+> ⚠️ **SOURCE OF TRUTH = `lib/outreach.ts` (`TEMPLATE_BODIES`), not this file.**
+> This doc shows the ORIGINAL design with numbered `{{1}}{{2}}{{3}}` and no
+> agency name. The APPROVED + live templates were later white-labelled with a
+> **named `{{agency_name}}` variable** (so leads never see "Convorian"). The
+> actual variable names + order the code sends are derived from the bodies in
+> `lib/outreach.ts` via `templateVars()`. When in doubt, trust the code and the
+> MSG91 dashboard — update the bodies in `outreach.ts` if Meta rejects a send.
+> e.g. `lead_new_match` is **4 named vars**: `customer_name, agency_name, area,
+> property_type` — NOT the 3 numbered vars shown below.
+
 ## How to read this
 - **Name** = the template's registered name (snake_case, lowercase). This is what the code calls.
 - **Category** = Marketing or Utility (set this in MSG91 — it affects cost/approval).

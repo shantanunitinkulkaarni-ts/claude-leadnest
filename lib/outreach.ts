@@ -111,6 +111,36 @@ export function renderTemplate(name: string, language: string, values: { name: s
   return body || `[${name}]`
 }
 
+// ─── Single source of truth for template variables ───────────────────────────
+// The {{var}} tokens in TEMPLATE_BODIES ARE the canonical definition — variable
+// names AND their order. Everything that sends a template (cron, alerts, the
+// /admin test tool) derives the shape from here, so code can never drift from
+// what was approved in MSG91 without this one map being wrong too. If a real
+// send fails with "parameter_name is missing"/"localizable_params (0)", the
+// approved MSG91 template's variables don't match the body here — fix the body.
+export function templateVars(name: string, language = 'en'): string[] {
+  const body = TEMPLATE_BODIES[name]?.[language] || TEMPLATE_BODIES[name]?.en || ''
+  const seen = new Set<string>()
+  const out: string[] = []
+  const re = /\{\{([a-zA-Z0-9_]+)\}\}/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(body)) !== null) {
+    if (!seen.has(m[1])) { seen.add(m[1]); out.push(m[1]) }
+  }
+  return out
+}
+
+// Build sample {name,value}[] for a template — used by the /admin test tool so a
+// verification send uses the EXACT variable names/order production would use.
+export function sampleTemplateValues(name: string, language = 'en'): { name: string; value: string }[] {
+  const samples: Record<string, string> = {
+    customer_name: 'Shantanu', agency_name: 'SK Properties', area: 'Baner',
+    property_type: '2BHK apartment', property: 'the 2BHK in Baner',
+    visit_date: 'Saturday 14 June', visit_time: '11:00 AM',
+  }
+  return templateVars(name, language).map((v, i) => ({ name: v, value: samples[v] || `sample${i + 1}` }))
+}
+
 function firstName(lead: any): string {
   return (lead.name || '').trim().split(/\s+/)[0] || 'there'
 }
