@@ -9,6 +9,8 @@ import { generateBotReply } from '@/lib/gemini'
 import { sendWhatsAppMessage, sendViaMsg91 } from '@/lib/whatsapp'
 import { shouldBotReply } from '@/lib/botGating'
 import { resolveAppointmentTime, formatIST } from '@/lib/appointment'
+import { detectInboundSignals, detectReplyKnowledgeGap, topSignal, SIGNAL_LABELS, type PrioritySignal } from '@/lib/intentSignals'
+import { buildAlertContent, guardrailReply } from '@/lib/priorityAlerts'
 
 const PROVIDER = process.env.WHATSAPP_PROVIDER || 'meta'
 
@@ -259,6 +261,29 @@ export async function POST(request: NextRequest) {
       return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'manual_mode' })
     }
 
+    // ── Safety guardrails: deflect NSFW / spam-scam / prompt-injection WITHOUT
+    //    invoking the sales engine (saves an LLM call and keeps the bot in role).
+    const inboundSignals = detectInboundSignals(messageText)
+    if (inboundSignals.guardrail) {
+      const safeReply = guardrailReply(inboundSignals.guardrail)
+      console.log(`Webhook: guardrail tripped (${inboundSignals.guardrail}) — deflecting, engine skipped`)
+      const { data: gOut } = await supabaseAdmin.from('messages').insert({
+        lead_id: lead.id, agent_id: agent.id, direction: 'outbound', content: safeReply, sent_by: 'bot',
+      }).select('id').single()
+      try {
+        let wid: string | null
+        if (incomingProvider === 'msg91') wid = await sendViaMsg91(msg91IntegratedNumber, fromPhone, safeReply)
+        else wid = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, PROVIDER === 'twilio' ? `whatsapp:${fromPhone}` : fromPhone, safeReply)
+        if (wid && gOut?.id) await supabaseAdmin.from('messages').update({ wa_message_id: wid }).eq('id', gOut.id)
+      } catch (e: any) { console.log('Guardrail send failed:', e?.message) }
+      await supabaseAdmin.from('activity_log').insert({
+        agent_id: agent.id, lead_id: lead.id, type: 'guardrail',
+        title: `Guardrail: ${inboundSignals.guardrail}`, description: messageText.slice(0, 140),
+      })
+      await supabaseAdmin.from('agents').update({ messages_used: (agent.messages_used || 0) + 1 }).eq('id', agent.id)
+      return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'guardrail', kind: inboundSignals.guardrail })
+    }
+
     console.log(`Webhook Debug: Calling engine for lead ${lead.phone} with message: "${messageText}"`)
     const tEngine = Date.now()
     let reply: string, metadata: any
@@ -500,6 +525,44 @@ export async function POST(request: NextRequest) {
     }
 
     await supabaseAdmin.from('agents').update({ messages_used: (agent.messages_used || 0) + 2 }).eq('id', agent.id)
+
+    // ── High-priority alerts to the agent (email + WhatsApp) ──
+    // ROI-critical moments: visit booked, lead arriving now, wants a call/human,
+    // very interested, the bot hit a knowledge gap, or a competitor is probing.
+    // Best-effort + deduped per (lead, signal) within 3h so we never spam.
+    try {
+      const priorities: PrioritySignal[] = [...inboundSignals.priorities]
+      if (metadata.appointment_booked_time) priorities.push('visit_booked')
+      if ((metadata.score || 0) >= 8 && !priorities.includes('very_interested')) priorities.push('very_interested')
+      if (detectReplyKnowledgeGap(reply) && !priorities.includes('knowledge_gap')) priorities.push('knowledge_gap')
+
+      const sig = topSignal(priorities)
+      if (sig) {
+        const since = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()
+        const { data: recentAlert } = await supabaseAdmin.from('activity_log')
+          .select('id').eq('lead_id', lead.id).eq('type', 'priority_alert').eq('title', sig)
+          .gte('created_at', since).limit(1)
+        if (!recentAlert || recentAlert.length === 0) {
+          const { sendHighPriorityAlert } = await import('@/lib/alerts')
+          const content = buildAlertContent(sig, {
+            leadName: lead.name || metadata.name, leadPhone: lead.phone,
+            agentName: agent.name, lastMessage: messageText,
+          })
+          await sendHighPriorityAlert(agent, {
+            subject: content.subject, html: content.html,
+            whatsappText: content.whatsappText, templateValues: content.templateValues,
+            msg91IntegratedNumber,
+          })
+          await supabaseAdmin.from('activity_log').insert({
+            agent_id: agent.id, lead_id: lead.id, type: 'priority_alert',
+            title: sig, description: SIGNAL_LABELS[sig],
+          })
+          console.log(`Webhook: priority alert sent — ${sig}`)
+        }
+      }
+    } catch (alertErr: any) {
+      console.error('Priority alert failed (non-critical):', alertErr?.message)
+    }
 
     console.log(`Webhook Timing: total ${Date.now() - tStart}ms (lead ${lead.phone})`)
     return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'ok' })
