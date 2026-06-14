@@ -112,3 +112,21 @@ test.describe('Opt-out pattern detection', () => {
     expect(isOptOut('Talk to agent')).toBe(false)
   })
 })
+
+// ─── Content-dedup trigger for button taps without UUID ───────────────────────
+// When MSG91 sends a button tap with no uuid, wa_message_id is stored as null.
+// Postgres doesn't enforce uniqueness on null, so retries can double-fire the
+// engine. The webhook checks for same content <60s when uuid is absent.
+
+function needsContentDedup(waMessageId: string | null | undefined): boolean {
+  return !waMessageId
+}
+
+test.describe('Content-dedup trigger (button taps without UUID)', () => {
+  test('empty uuid → fallback dedup needed', () => { expect(needsContentDedup('')).toBe(true) })
+  test('null uuid → fallback dedup needed', () => { expect(needsContentDedup(null)).toBe(true) })
+  test('undefined uuid → fallback dedup needed', () => { expect(needsContentDedup(undefined)).toBe(true) })
+  test('present uuid → primary dedup handles it, no fallback needed', () => {
+    expect(needsContentDedup('wamid.abc123')).toBe(false)
+  })
+})

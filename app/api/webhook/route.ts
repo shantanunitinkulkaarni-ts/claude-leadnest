@@ -243,6 +243,21 @@ export async function POST(request: NextRequest) {
     // Atomic dedup: the unique index on inbound wa_message_id makes this insert
     // fail with 23505 if a concurrent retry already recorded the same message —
     // the loser exits WITHOUT generating a second reply.
+    //
+    // Fallback for button taps with no UUID: Postgres doesn't enforce uniqueness
+    // on NULL, so MSG91 webhook retries (same button tap ~30s later) can both
+    // insert successfully and fire a double reply. Guard: if uuid is absent,
+    // check if this lead already sent the same text in the last 60 seconds.
+    if (!waMessageId) {
+      const cutoff = new Date(Date.now() - 60_000).toISOString()
+      const { data: recentDup } = await supabaseAdmin.from('messages')
+        .select('id').eq('lead_id', lead.id).eq('direction', 'inbound')
+        .eq('content', messageText).gt('created_at', cutoff).limit(1)
+      if (recentDup?.length) {
+        console.log('Webhook Debug: content-dedup hit (no uuid, same msg <60s ago) — skipping')
+        return NextResponse.json({ status: 'duplicate' })
+      }
+    }
     const { error: inboundInsertError } = await supabaseAdmin.from('messages').insert({
       lead_id: lead.id, agent_id: agent.id, direction: 'inbound',
       content: messageText, wa_message_id: waMessageId || null, sent_by: 'lead'
