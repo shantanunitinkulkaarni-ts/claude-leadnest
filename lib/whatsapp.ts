@@ -151,15 +151,10 @@ export async function sendViaMsg91Media(
       'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/',
       {
         integrated_number: integratedNumber,
-        content_type: 'media',
+        content_type: 'image',
         recipient_number: to,
-        media: { type: 'image', url: mediaUrl, ...(caption ? { caption } : {}) },
-        payload: {
-          to,
-          type: 'image',
-          image: { link: mediaUrl, ...(caption ? { caption } : {}) },
-          messaging_product: 'whatsapp',
-        },
+        attachment_url: mediaUrl,
+        ...(caption ? { caption } : {}),
       },
       { headers: { authkey, 'Content-Type': 'application/json' } }
     )
