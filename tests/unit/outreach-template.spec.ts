@@ -98,6 +98,16 @@ test.describe('pickTemplate', () => {
       expect(v.value.trim()).not.toBe('')
     }
   })
+
+  test('post-visit lead (visit_done) → no template sent (agent should call personally)', () => {
+    const lead = { status: 'visit_done', ai_score: 7, template_touches: 0, preferred_areas: ['Baner'], intent: 'buy' }
+    expect(pickTemplate(lead, agent, 'en')).toBeNull()
+  })
+
+  test('post-visit lead (post_visit_result set) → no template sent', () => {
+    const lead = { status: 'new', ai_score: 5, post_visit_result: 'interested', template_touches: 0, preferred_areas: ['Baner'], intent: 'buy' }
+    expect(pickTemplate(lead, agent, 'en')).toBeNull()
+  })
 })
 
 // ─── decideOutreach ───────────────────────────────────────────────────────────

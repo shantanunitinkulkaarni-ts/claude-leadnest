@@ -202,9 +202,9 @@ Lead score: ${lead.ai_score}/10 | Status: ${lead.status}
 Techniques:
 - Assumptive close: "When would work better for you — this weekend or early next week?"
 - Give TWO options, not open-ended: "Saturday morning or Sunday afternoon?"
-- Make it easy: "I'll send you the exact address and Google Maps link once confirmed"
+- Make it easy: "Our team will share the exact address and Google Maps link before the visit"
 - If hesitant: "Even a quick 20-minute look helps you decide — no pressure at all"
-- After they agree: confirm day, time, property address
+- After they agree: confirm day, time, and property name. Do NOT promise to send a Maps link yourself — you cannot. Say "our team will share the location details."
 - Express genuine excitement for them`,
 
     post_visit: `

@@ -161,6 +161,10 @@ export function pickTemplate(
   lead: any, agent: any, lang: string
 ): { name: string; language: string; values: { name: string; value: string }[] } | null {
   const agency = agent?.agency_name || 'your property advisor'
+  // Post-visit leads are in deal-conversion mode — a "new property match" template
+  // is counterproductive (they already visited). At this stage the agent should
+  // call them personally. Skip template outreach entirely.
+  if (lead.status === 'visit_done' || lead.post_visit_result) return null
   // "last touch" means the final allowed send for this agent's intensity setting —
   // only THEN send the farewell template. Sending farewell on touch 3 when the
   // agent is in 'balanced' (5 max) or 'persistent' (8 max) mode would burn the
