@@ -161,7 +161,14 @@ export function pickTemplate(
   lead: any, agent: any, lang: string
 ): { name: string; language: string; values: { name: string; value: string }[] } | null {
   const agency = agent?.agency_name || 'your property advisor'
-  const isLastTouch = (lead.template_touches || 0) >= 2 // graceful sign-off on later touches
+  // "last touch" means the final allowed send for this agent's intensity setting —
+  // only THEN send the farewell template. Sending farewell on touch 3 when the
+  // agent is in 'balanced' (5 max) or 'persistent' (8 max) mode would burn the
+  // final farewell slot way too early.
+  const intensity: OutreachIntensity =
+    (['gentle', 'balanced', 'persistent'].includes(agent?.outreach_intensity) ? agent.outreach_intensity as OutreachIntensity : 'persistent')
+  const maxTouches = INTENSITY[intensity].maxTouches
+  const isLastTouch = (lead.template_touches || 0) >= maxTouches - 1
   const qualified = lead.status === 'qualified' || (lead.ai_score || 0) >= 6
 
   let key: keyof typeof TEMPLATES
