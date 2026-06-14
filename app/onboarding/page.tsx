@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getSupabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import './onboarding.css'
@@ -126,26 +126,27 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     const supabase = getSupabase()
-    
+    // Ref prevents routing from running more than once (e.g. on token refresh).
+    // Avoids reading currentStep from a stale closure.
+    const hasRouted = { current: false }
+
     const checkAuthAndRoute = async () => {
+      if (hasRouted.current) return
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         setIsAuthenticated(true)
-        // Pre-fill data from Google is removed per user request
+        hasRouted.current = true
 
-        // Only auto-route them if they are on Step 0 (just landed from Google Auth)
-        if (currentStep === 0) {
-          const { data: teamMember } = await supabase
-            .from('team_members')
-            .select('agent_id')
-            .eq('auth_user_id', session.user.id)
-            .single()
-            
-          if (teamMember) {
-            router.push('/dashboard')
-          } else {
-            setCurrentStep(1)
-          }
+        const { data: teamMember } = await supabase
+          .from('team_members')
+          .select('agent_id')
+          .eq('auth_user_id', session.user.id)
+          .single()
+
+        if (teamMember) {
+          router.push('/dashboard')
+        } else {
+          setCurrentStep(1)
         }
       }
     }
@@ -155,7 +156,7 @@ export default function OnboardingPage() {
     })
 
     checkAuthAndRoute()
-    
+
     return () => subscription.unsubscribe()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])

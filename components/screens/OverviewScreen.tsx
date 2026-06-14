@@ -46,7 +46,7 @@ export default function OverviewScreen({ agentId, onNavigate }: Props) {
         <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '18px 20px' }}>
           <div style={{ fontSize: 11, fontWeight: 500, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 14 }}>Recent hot leads</div>
           {(() => {
-            const displayLeads = s.recentHotLeads && s.recentHotLeads.length > 0 
+            const displayLeads = s.recentHotLeads && s.recentHotLeads.length > 0
               ? s.recentHotLeads.map((l: any) => ({
                   name: l.name || 'Unknown',
                   prop: l.intent || 'Unknown intent',
@@ -59,7 +59,7 @@ export default function OverviewScreen({ agentId, onNavigate }: Props) {
                 }))
               : [
                   { name: 'No hot leads yet', prop: 'Waiting for activity', score: '-', scoreColor: '#9E9B92', time: '', av: '-', bg: '#F4F3EE', c: '#9E9B92' }
-                ];
+                ]
 
             return displayLeads.map((lead: any, i: number) => (
               <div key={i} onClick={() => onNavigate('inbox')} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < 3 ? '1px solid rgba(26,25,22,0.06)' : 'none', cursor: 'pointer' }}>
@@ -85,7 +85,8 @@ export default function OverviewScreen({ agentId, onNavigate }: Props) {
           <div style={{ marginTop: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 500, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>Message usage</div>
             <UsageBar label="Messages" used={s.messagesUsed ?? 0} total={s.messagesLimit ?? 5000} color="#1A5FA5" />
-            <UsageBar label="WA balance" used={s.waBalance ?? 0} total={(s.waBalance ?? 0) > 500 ? Math.ceil((s.waBalance ?? 0) / 500) * 500 : 500} color="#4F46E5" prefix="₹" />
+            {/* WA balance: scale bar to nearest ₹500 ceiling so it never reads "100% full" just because you have a positive balance */}
+            <UsageBar label="WA balance" used={s.waBalance ?? 0} total={Math.max(500, Math.ceil(((s.waBalance ?? 0) + 1) / 500) * 500)} color="#4F46E5" prefix="₹" />
           </div>
         </div>
       </div>

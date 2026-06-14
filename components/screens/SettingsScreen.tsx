@@ -6,21 +6,29 @@ interface Props {
   agent?: any
 }
 
-export default function SettingsScreen({ agentId }: Props) {
-  const [agentData, setAgentData] = useState<any>(null)
-  const [botActive, setBotActive] = useState(false)
+export default function SettingsScreen({ agentId, agent: initialAgent }: Props) {
+  const [agentData, setAgentData] = useState<any>(initialAgent || null)
+  const [botActive, setBotActive] = useState(initialAgent ? !!initialAgent.bot_active : false)
 
   // Inline edit modal state
   const [editModal, setEditModal] = useState<{ key: string; label: string; value: string; type: 'text' | 'select' | 'time-range' | 'tags' } | null>(null)
   const [editValue, setEditValue] = useState('')
   const [editSaving, setEditSaving] = useState(false)
 
-  // PIN modal can guard several sensitive actions
+  // PIN modal — guards sensitive bot actions
   const [pinPurpose, setPinPurpose] = useState<null | 'pause' | 'keepalive' | 'outreach'>(null)
   const [pendingIntensity, setPendingIntensity] = useState<string | null>(null)
   const [pinInput, setPinInput] = useState('')
   const [pinErr, setPinErr] = useState('')
+  const [pinLoading, setPinLoading] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
+
+  // "Set new PIN" flow — shown after first successful default-PIN use
+  const [showSetPin, setShowSetPin] = useState(false)
+  const [newPin, setNewPin] = useState('')
+  const [newPinConfirm, setNewPinConfirm] = useState('')
+  const [setPinErr, setSetPinErr] = useState('')
+  const [setPinLoading, setSetPinLoading] = useState(false)
 
   // Locally-persisted bot preferences (no dedicated DB columns yet)
   const [keepAlive, setKeepAlive] = useState(true)
@@ -45,7 +53,12 @@ export default function SettingsScreen({ agentId }: Props) {
       })
   }
 
-  useEffect(() => { fetchAgent() }, [agentId])
+  // Only fetch on mount if we didn't receive agent data as a prop.
+  // If we did, skip the initial network round-trip — dashboard already has it fresh.
+  useEffect(() => {
+    if (!initialAgent) fetchAgent()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentId])
 
   const handleToggleBot = async () => {
     if (botActive) { setPinPurpose('pause'); setPinInput(''); setPinErr(''); return }
@@ -64,7 +77,6 @@ export default function SettingsScreen({ agentId }: Props) {
   }
 
   const toggleKeepAlive = () => {
-    // Disabling the 24h keep-alive is sensitive — require PIN. Enabling is free.
     if (keepAlive) { setPinPurpose('keepalive'); setPinInput(''); setPinErr(''); return }
     setKeepAlive(true)
     localStorage.setItem('leadnest_keepalive', 'true')
@@ -76,12 +88,11 @@ export default function SettingsScreen({ agentId }: Props) {
     localStorage.setItem('leadnest_lowbalance', String(next))
   }
 
-  // Change how persistently the bot re-engages quiet leads. This spends
-  // WhatsApp credits, so it's PIN-gated.
   const requestIntensity = (level: string) => {
     if (level === (d?.outreach_intensity || 'persistent')) return
     setPendingIntensity(level); setPinPurpose('outreach'); setPinInput(''); setPinErr('')
   }
+
   const applyIntensity = async (level: string) => {
     try {
       await fetch('/api/agent?id=' + agentId, {
@@ -92,14 +103,59 @@ export default function SettingsScreen({ agentId }: Props) {
     } catch { /* ignore */ }
   }
 
-  const handlePinSubmit = () => {
-    if (pinInput !== '1234') { setPinErr('Incorrect PIN. Default is 1234.'); return }
-    const purpose = pinPurpose
-    const lvl = pendingIntensity
-    setPinPurpose(null); setPinInput(''); setPinErr(''); setPendingIntensity(null)
-    if (purpose === 'pause') executeToggle(false)
-    else if (purpose === 'keepalive') { setKeepAlive(false); localStorage.setItem('leadnest_keepalive', 'false') }
-    else if (purpose === 'outreach' && lvl) applyIntensity(lvl)
+  // Server-side PIN verification — no client-side comparison
+  const handlePinSubmit = async () => {
+    if (!pinInput) return
+    setPinLoading(true)
+    setPinErr('')
+    try {
+      const res = await fetch(`/api/agent/pin?id=${agentId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: pinInput })
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setPinErr(data.error || 'Incorrect PIN')
+        return
+      }
+      const purpose = pinPurpose
+      const lvl = pendingIntensity
+      setPinPurpose(null); setPinInput(''); setPinErr(''); setPendingIntensity(null)
+      if (purpose === 'pause') executeToggle(false)
+      else if (purpose === 'keepalive') { setKeepAlive(false); localStorage.setItem('leadnest_keepalive', 'false') }
+      else if (purpose === 'outreach' && lvl) applyIntensity(lvl)
+      // First-time users on default PIN → prompt them to set a real one
+      if (data.mustSetPin) {
+        setTimeout(() => { setShowSetPin(true); setNewPin(''); setNewPinConfirm(''); setSetPinErr('') }, 300)
+      }
+    } catch {
+      setPinErr('Network error. Please try again.')
+    } finally {
+      setPinLoading(false)
+    }
+  }
+
+  const handleSetNewPin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSetPinErr('')
+    if (newPin.length < 4) { setSetPinErr('PIN must be at least 4 characters.'); return }
+    if (newPin !== newPinConfirm) { setSetPinErr('PINs do not match.'); return }
+    setSetPinLoading(true)
+    try {
+      const res = await fetch(`/api/agent/pin?id=${agentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPin: '1234', newPin })
+      })
+      const data = await res.json()
+      if (!res.ok) { setSetPinErr(data.error || 'Failed to set PIN'); return }
+      setShowSetPin(false)
+    } catch {
+      setSetPinErr('Network error. Please try again.')
+    } finally {
+      setSetPinLoading(false)
+    }
   }
 
   const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s
@@ -115,15 +171,6 @@ export default function SettingsScreen({ agentId }: Props) {
     setEditSaving(true)
     try {
       const body: any = {}
-      const keyMap: any = {
-        'agency_name': 'agency_name',
-        'city': 'city',
-        'areas': 'areas',
-        'bot_tone': 'bot_tone',
-        'office_hours': null, // handled specially
-        'languages': 'languages',
-        'out_of_office_message': 'out_of_office_message'
-      }
 
       if (editModal.key === 'office_hours') {
         const parts = editValue.split('–').map(s => s.trim())
@@ -263,8 +310,6 @@ export default function SettingsScreen({ agentId }: Props) {
         {[
           { k: 'Plan', v: (d?.plan ? d.plan.charAt(0).toUpperCase() + d.plan.slice(1) : 'Monthly') + ' — ' + (d?.plan === 'free' ? '₹0' : '₹999') + '/month' },
           { k: 'Message usage', v: `${d?.messages_used ?? 0} / ${d?.messages_limit ?? 5000} this month` },
-          // Never surface internal provider status (Meta review etc.) to the
-          // agent — if a number is on file the assistant is live for them.
           { k: 'WhatsApp', v: (d?.wa_verified || d?.msg91_integrated_number || d?.phone) ? 'Connected ✓' : 'Setup in progress — our team is on it' },
         ].map((row, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < 2 ? '1px solid rgba(26,25,22,0.06)' : 'none' }}>
@@ -278,21 +323,52 @@ export default function SettingsScreen({ agentId }: Props) {
       {pinPurpose && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(3px)' }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: '24px 30px', width: 320, boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
-            <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B', marginBottom: 6 }}>{pinPurpose === 'pause' ? 'Pause Bot' : pinPurpose === 'outreach' ? 'Change follow-up intensity' : 'Disable Keep-Alive'}</div>
+            <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B', marginBottom: 6 }}>
+              {pinPurpose === 'pause' ? 'Pause Bot' : pinPurpose === 'outreach' ? 'Change follow-up intensity' : 'Disable Keep-Alive'}
+            </div>
             <div style={{ fontSize: 12, color: '#9E9B92', marginBottom: 20 }}>
               {pinPurpose === 'pause'
-                ? 'Enter master PIN to pause the AI agent. Default: 1234.'
+                ? 'Enter your master PIN to pause the AI agent.'
                 : pinPurpose === 'outreach'
-                ? `Set follow-up to "${pendingIntensity}". This affects how many paid reminder messages the bot sends and how much credit it uses. Enter master PIN to confirm. Default: 1234.`
-                : 'Disabling keep-alive may let WhatsApp windows expire and lose re-engagement. Enter master PIN to confirm. Default: 1234.'}
+                ? `Set follow-up to "${pendingIntensity}". This affects how many paid reminder messages the bot sends. Enter your master PIN to confirm.`
+                : 'Disabling keep-alive may let WhatsApp windows expire. Enter your master PIN to confirm.'}
             </div>
             {pinErr && <div style={{ background: '#FDF0F0', color: '#8B1A1A', padding: '8px 12px', borderRadius: 8, fontSize: 12, marginBottom: 12 }}>⚠️ {pinErr}</div>}
             <input type="password" value={pinInput} onChange={e => setPinInput(e.target.value)} placeholder="Enter PIN" onKeyDown={e => e.key === 'Enter' && handlePinSubmit()} autoFocus style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', marginBottom: 16, outline: 'none', boxSizing: 'border-box' }} />
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setPinPurpose(null); setPinInput(''); setPinErr('') }} style={{ padding: '8px 16px', borderRadius: 8, background: '#F4F3EE', color: '#6B6860', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>Cancel</button>
-              <button onClick={handlePinSubmit} style={{ padding: '8px 16px', borderRadius: 8, background: pinPurpose === 'outreach' ? '#4F46E5' : '#C0392B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>{pinPurpose === 'pause' ? 'Pause Bot' : pinPurpose === 'outreach' ? 'Confirm' : 'Disable'}</button>
+              <button onClick={() => { setPinPurpose(null); setPinInput(''); setPinErr('') }} disabled={pinLoading} style={{ padding: '8px 16px', borderRadius: 8, background: '#F4F3EE', color: '#6B6860', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>Cancel</button>
+              <button onClick={handlePinSubmit} disabled={pinLoading || !pinInput} style={{ padding: '8px 16px', borderRadius: 8, background: pinPurpose === 'outreach' ? '#4F46E5' : '#C0392B', color: '#fff', border: 'none', cursor: pinLoading ? 'wait' : 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', opacity: pinLoading ? 0.7 : 1 }}>
+                {pinLoading ? 'Verifying...' : pinPurpose === 'pause' ? 'Pause Bot' : pinPurpose === 'outreach' ? 'Confirm' : 'Disable'}
+              </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Set New PIN modal — shown after first successful default-PIN use */}
+      {showSetPin && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 110, backdropFilter: 'blur(4px)' }}>
+          <form onSubmit={handleSetNewPin} style={{ background: '#fff', borderRadius: 16, padding: '28px 30px', width: 340, boxShadow: '0 20px 50px rgba(0,0,0,0.15)' }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: '#15161B', marginBottom: 6 }}>Set your PIN</div>
+            <div style={{ fontSize: 12, color: '#9E9B92', marginBottom: 20, lineHeight: 1.5 }}>
+              You used the default PIN. Set a personal PIN now to secure sensitive actions in your account.
+            </div>
+            {setPinErr && <div style={{ background: '#FDF0F0', color: '#8B1A1A', padding: '8px 12px', borderRadius: 8, fontSize: 12, marginBottom: 12 }}>⚠️ {setPinErr}</div>}
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'block', fontSize: 12, color: '#6B6860', marginBottom: 6 }}>New PIN (min. 4 characters)</label>
+              <input type="password" value={newPin} onChange={e => setNewPin(e.target.value)} placeholder="New PIN" autoFocus style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 12, color: '#6B6860', marginBottom: 6 }}>Confirm new PIN</label>
+              <input type="password" value={newPinConfirm} onChange={e => setNewPinConfirm(e.target.value)} placeholder="Confirm PIN" style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setShowSetPin(false)} style={{ padding: '8px 16px', borderRadius: 8, background: '#F4F3EE', color: '#6B6860', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>Skip for now</button>
+              <button type="submit" disabled={setPinLoading} style={{ padding: '8px 16px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: setPinLoading ? 'wait' : 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', opacity: setPinLoading ? 0.7 : 1 }}>
+                {setPinLoading ? 'Saving...' : 'Set PIN'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

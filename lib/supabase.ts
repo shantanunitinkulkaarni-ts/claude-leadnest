@@ -37,11 +37,10 @@ export function getSupabaseAdmin(): ConvorianSupabaseClient {
 
 export function getSupabase(): ConvorianSupabaseClient {
   if (!_supabase) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hinqahjhtgsmljrrozql.supabase.co'
-    // Fallback is the public publishable key (safe to ship to browser; RLS protects data).
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_MPhyLd2gZVgKDVn0zKYwmQ_9epTOzrr'
-    if (!url || !key) throw new Error('Supabase env vars missing')
-    
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!url || !key) throw new Error('Supabase env vars missing: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set')
+
     // Use createBrowserClient so sessions are automatically synced to cookies!
     // This allows middleware.ts to see the user and not kick them to /login
     _supabase = createBrowserClient<Database>(url, key)

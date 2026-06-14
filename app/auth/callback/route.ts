@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   let { searchParams, origin } = new URL(request.url)
   const forwardedHost = request.headers.get('x-forwarded-host')
   const forwardedProto = request.headers.get('x-forwarded-proto') || 'https'
-  
+
   if (forwardedHost) {
     origin = `${forwardedProto}://${forwardedHost}`
   }
@@ -16,15 +16,18 @@ export async function GET(request: Request) {
   const next = searchParams.get('next') ?? '/dashboard'
 
   if (code) {
+    // Next.js 15: cookies() is async — must be awaited before constructing
+    // the Supabase client so that session cookies can be read and written.
+    const cookieStore = await cookies()
     const response = NextResponse.redirect(`${origin}${next}`)
-    
+
     const supabaseRoute = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hinqahjhtgsmljrrozql.supabase.co',
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhpbnFhaGpodGdzbWxqcnJvenFsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NDgxMzAsImV4cCI6MjA5NTIyNDEzMH0.0LJNkJwdj5A12XaB8wFXCVI4uyfy19N6sjS5dKTg6JE',
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
           getAll() {
-            return cookies().getAll()
+            return cookieStore.getAll()
           },
           setAll(cookiesToSet) {
             cookiesToSet.forEach(({ name, value, options }) => {
