@@ -55,13 +55,158 @@ export function detectStage(lead: any, messageCount: number): ConversationStage 
   // very first inbound message (e.g. a walk-in logged by the agent).
   if (lead.post_visit_result || lead.status === 'visit_done') return 'post_visit'
   if (messageCount <= 1) return 'greeting'
-  // Capture name + core criteria early — a lead with no name shows as "unknown".
-  if (!lead.name || !lead.intent || !lead.preferred_areas) return 'discovery'
-  if (!lead.budget_min || !lead.timeline) return 'qualification'
+  // Booked/commitment states take priority over any field-based logic below.
   if (lead.status === 'visit_booked') return 'commitment'
   if (lead.ai_score >= 7 && lead.status === 'qualified') return 'commitment'
   if (lead.ai_score >= 4) return 'presentation'
-  return 'discovery'
+
+  // Discovery/qualification: capture key fields early, but NEVER let
+  // discovery drag on forever — a real agent shows properties by message 5,
+  // not message 15. Force progression after 5 messages regardless of gaps;
+  // the bot will continue gathering info naturally during presentation.
+  const hasAnyCriteria = lead.intent || lead.preferred_areas || lead.budget_min
+  if (!hasAnyCriteria && messageCount <= 4) return 'discovery'
+  if (messageCount >= 5 && hasAnyCriteria) return 'presentation'
+  if (!lead.name || !lead.intent || !lead.preferred_areas) return 'discovery'
+  if (!lead.budget_min || !lead.timeline) return 'qualification'
+
+  // Cold leads who haven't engaged after qualifying get a nurture approach.
+  if (lead.temperature === 'cold' && messageCount > 6) return 'nurture'
+
+  return 'presentation'
+}
+
+// ─── Few-shot example conversations ──────────────────────────────────────────
+// Synthetic but realistic examples that show the model the exact tone, brevity,
+// and sales instincts we want. 1-2 relevant examples per call — enough to prime
+// the model without bloating the prompt. Written to match WhatsApp style.
+// When real winning conversations accumulate (👍-rated), swap in the top ones.
+function buildFewShotExamples(stage: ConversationStage, lang?: string): string {
+  // Always show one example of the ideal tone for this stage.
+  // For non-English leads, show an example in their language.
+  const examples: Partial<Record<ConversationStage, string>> = {
+    greeting: `
+EXAMPLE (ideal greeting — warm, one question, not salesy):
+Lead: Hi
+You: Hi! Welcome to Sunshine Realty 😊 Are you looking to buy or rent?
+{"score":1,"temperature":"new","stage":"greeting"}
+---`,
+
+    discovery: `
+EXAMPLE (discovery — curious, one question at a time, mirrors their energy):
+Lead: Looking for a 2bhk flat in Baner
+You: Great choice — Baner has some lovely options! What's your budget range, roughly?
+{"score":3,"temperature":"new","intent":"buy","areas":["Baner"],"stage":"discovery"}
+---
+EXAMPLE (Hinglish discovery — match their register):
+Lead: bhai 2bhk chahiye baner mein, reasonable budget
+You: Perfect bhai! Baner mein acche options hain. Budget kitna soch rahe ho roughly — 60-70L range?
+{"score":3,"temperature":"new","intent":"buy","areas":["Baner"],"stage":"discovery"}
+---`,
+
+    presentation: `
+EXAMPLE (presentation — one property, sensory, ends with a question):
+Lead: budget around 80 lakhs, 2bhk baner
+You: Perfect — I have exactly what you're looking for:
+
+🏡 *Prestige Oak Park*
+📍 Baner, near highway
+🛏️ 2 BHK · 1050 sqft · 💰 ₹79L
+✨ East-facing, modular kitchen, society pool
+
+A family from Wakad just loved this one last week. Would you want to see it this weekend?
+{"score":5,"temperature":"warm","intent":"buy","areas":["Baner"],"budget_max":8000000,"stage":"presentation"}
+---`,
+
+    qualification: `
+EXAMPLE (qualification — light touch on budget, not interrogation):
+Lead: I'm interested but not sure about timeline
+You: Totally fine! Are you thinking of moving in the next few months, or more exploratory for now? Helps me prioritise what to show you.
+{"score":4,"temperature":"warm","stage":"qualification"}
+---`,
+
+    commitment: `
+EXAMPLE (commitment — assumptive, two-option close, makes it easy):
+Lead: yes I'd like to see it
+You: Wonderful! Which works better — Saturday morning or Sunday around 11? I'll send the exact address once confirmed 📍
+{"score":7,"temperature":"warm","stage":"commitment"}
+---
+EXAMPLE (post-agreement — confirm warmly, express excitement):
+Lead: Sunday 11 works
+You: Perfect! See you Sunday at 11 AM. I'll share the Google Maps pin shortly. Really glad you're taking a look — I think you'll love it 😊
+{"score":8,"temperature":"hot","appointment_booked_time":"2026-06-15T11:00:00+05:30","appointment_status":"upcoming","stage":"commitment"}
+---`,
+
+    objection: `
+EXAMPLE (objection — validate first, never argue, redirect):
+Lead: It's a bit expensive
+You: Totally understand — budget matters. What range feels comfortable for you? I might have something closer that still ticks the boxes.
+{"score":4,"temperature":"warm","stage":"objection"}
+---`,
+
+    post_visit: `
+EXAMPLE (post-visit — personal, builds on visit, moves toward next step):
+Lead: it was okay but kitchen felt small
+You: Glad you went! Kitchen space is important — totally valid point. Were you happy with the location and overall layout? If those worked, a kitchen can often be customised. And what would your next step look like?
+{"score":6,"temperature":"warm","stage":"post_visit"}
+---`,
+
+    nurture: `
+EXAMPLE (nurture — adds value, no pressure, plants a seed):
+Lead: (no reply in 5 days)
+You: Hi Priya! A new 2BHK just came in near Baner main road — matches what you described. Want me to send the details?
+{"score":3,"temperature":"cold","stage":"nurture"}
+---`,
+  }
+
+  // Language-specific examples (Marathi / Hindi) — shown when lead's language is known
+  const marathiExample = lang === 'mr' ? `
+EXAMPLE (Marathi Latin — match their exact register, stay in Marathi):
+Lead: mala 2bhk pahije baner madhe, budget 70-80 lakh aahe
+You: Chan! Baner madhe tumchya budget madhe changle options ahet. He property bagha:
+
+🏡 *Green Valley*
+📍 Baner
+🛏️ 2 BHK · 980 sqft · 💰 ₹76L
+✨ Corner flat, ready to move
+
+Tumhala weekend la bhaychay ka site la?
+{"score":5,"temperature":"warm","intent":"buy","areas":["Baner"],"budget_min":7000000,"budget_max":8000000,"lang":"mr","stage":"presentation"}
+---
+EXAMPLE (Marathi Devanagari — natural, warm, short):
+Lead: मला बाणेरमध्ये 2bhk हवंय, बजेट ७० लाख आहे
+You: छान निवड! बाणेरमध्ये तुमच्या बजेटमध्ये उत्तम पर्याय आहेत. हे पाहा:
+
+🏡 *सनराइज अपार्टमेंट*
+📍 बाणेर, मेन रोडजवळ
+🛏️ 2 BHK · 1000 sqft · 💰 ₹68L
+✨ रेडी टू मूव्ह, पूर्वाभिमुख
+
+वीकेंडला साइट बघायला येणार का?
+{"score":5,"temperature":"warm","intent":"buy","areas":["बाणेर"],"budget_max":7000000,"lang":"mr","stage":"presentation"}
+---` : ''
+
+  const hindiExample = lang === 'hi' ? `
+EXAMPLE (Hinglish — natural Hindi-English mix, match their vibe):
+Lead: mujhe 2bhk chahiye baner mein, budget 75 lakh hai
+You: Perfect! Baner mein ek accha option hai tumhare liye:
+
+🏡 *Lakeview Heights*
+📍 Baner, Pune
+🛏️ 2 BHK · 1020 sqft · 💰 ₹74L
+✨ Brand new building, gym + kids play area
+
+Weekend ko site visit karoge? Saturday ya Sunday — jo convenient ho 😊
+{"score":5,"temperature":"warm","intent":"buy","areas":["Baner"],"budget_max":7500000,"lang":"hi","stage":"presentation"}
+---` : ''
+
+  const stageExample = examples[stage] || ''
+  const combined = (stageExample + marathiExample + hindiExample).trim()
+  if (!combined) return ''
+
+  return `\nEXAMPLE CONVERSATIONS (study the tone, brevity, and sales approach — apply the same style):
+${combined}
+`
 }
 
 export function buildEnginePrompt(ctx: any, stage: ConversationStage, messageCount: number): string {
@@ -302,6 +447,7 @@ PROPERTY DETAILS FORMAT — when sharing a property, present it clean and scanna
 ✨ [1-2 key highlights]
 Then one short line + a gentle next step.
 
+${buildFewShotExamples(stage, activeLang as string)}
 RESPONSE FORMAT — return EXACTLY this structure:
 [Your WhatsApp message here]
 {"score":7,"temperature":"warm","intent":"buy","areas":["Baner"],"budget_min":5000000,"budget_max":9000000,"timeline":"within_3_months","name":"Rahul","stage":"presentation","matched_property_id":"uuid","appointment_booked_time":"2026-06-05T10:00:00Z","appointment_status":"upcoming"}
@@ -415,7 +561,7 @@ export async function generateBotReply(
     supabaseAdmin.from('agents').select('*').eq('id', agentId).single(),
     supabaseAdmin.from('leads').select('*').eq('id', leadId).single(),
     supabaseAdmin.from('properties').select('*').eq('agent_id', agentId).eq('status', 'active'),
-    supabaseAdmin.from('messages').select('direction, content, sent_by').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(10),
+    supabaseAdmin.from('messages').select('direction, content, sent_by').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(14),
     supabaseAdmin.from('activity_log').select('*', { count: 'exact', head: true }).eq('lead_id', leadId).eq('title', 'Site visit rescheduled by AI')
   ])
 
@@ -449,8 +595,9 @@ export async function generateBotReply(
 
   const systemPrompt = buildEnginePrompt(ctx, stage, messageCount)
 
-  // Build conversation history — exclude the LAST message (the one we just inserted)
-  const historyMessages = recentMessages.slice(0, -1).slice(-8)
+  // Build conversation history — exclude the LAST message (the one we just inserted).
+  // 12 messages gives ~3-4 rounds of context without meaningfully bloating the prompt.
+  const historyMessages = recentMessages.slice(0, -1).slice(-12)
 
   // Convert to OpenAI chat format
   const chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
@@ -487,7 +634,7 @@ export async function generateNudge(
     supabaseAdmin.from('agents').select('*').eq('id', agentId).single(),
     supabaseAdmin.from('leads').select('*').eq('id', leadId).single(),
     supabaseAdmin.from('properties').select('*').eq('agent_id', agentId).eq('status', 'active'),
-    supabaseAdmin.from('messages').select('direction, content, sent_by').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(10),
+    supabaseAdmin.from('messages').select('direction, content, sent_by').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(14),
   ])
   const agent = agentRes.data as any
   const lead = leadRes.data as any
@@ -509,7 +656,7 @@ export async function generateNudge(
   const systemPrompt = buildEnginePrompt(ctx, stage, messageCount)
 
   const chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
-  for (const m of recentMessages.slice(-8)) {
+  for (const m of recentMessages.slice(-12)) {
     const role = m.direction === 'inbound' ? 'user' : 'assistant'
     const text = (m.content || '').toString()
     if (!text.trim()) continue
@@ -518,21 +665,43 @@ export async function generateNudge(
     else chatHistory.push({ role, content: text })
   }
 
-  const toneLine = intensity === 'window_save'
-    ? "This is your LAST message today before the chat window closes. Be warm and give one clear, easy reason to reply (a question they can answer in one tap). Do NOT sound desperate."
-    : intensity === 'value'
-      ? "Add genuine NEW value — a property detail they haven't heard, a fresh matching option, or answer a likely next question. Move things forward by one small step."
-      : "A light, friendly check-in that references where you left off. One sentence. No pressure."
+  const langLabel = lead.language === 'mr' ? 'Marathi' : lead.language === 'hi' ? 'Hindi/Hinglish' : 'English'
+  const langRule = lead.language && lead.language !== 'en'
+    ? `MANDATORY: Reply in ${langLabel} — this is the lead's language. Do NOT switch to English.`
+    : 'Reply in English (or Hinglish if the lead was writing Hindi).'
 
-  const nudgeInstruction = `[SYSTEM — COMPOSE A FOLLOW-UP NUDGE]
-The lead has gone quiet (no reply to your last message). Write ONE short WhatsApp follow-up to re-engage them.
+  const intensityGuide = intensity === 'window_save'
+    ? `This is the LAST chance today — the 24-hour window closes soon. Make it count: one warm message with a single easy question they can answer in one tap (e.g. "Saturday or Sunday?"). Don't sound desperate.`
+    : intensity === 'value'
+      ? `Mid-conversation check-in. Add ONE piece of genuine new value: a property detail you haven't mentioned, a fresh angle on their criteria, or a useful market fact. Then one soft question to pull them back.`
+      : `Early soft touch — they just went quiet. One friendly line that references where you left off. No pressure, no pitch. Think: "Hey, just picking up where we left off."`
+
+  const nudgeInstruction = `You are a follow-up specialist for a real estate WhatsApp bot. Write ONE re-engagement message.
+
+CONTEXT:
+- Agency: ${agent.agency_name}
+- Lead: ${lead.name || 'unknown'} | Intent: ${lead.intent || '?'} | Areas: ${(lead.preferred_areas || []).join(', ') || '?'} | Budget: ${lead.budget_min ? `₹${(lead.budget_min/100000).toFixed(0)}L+` : '?'} | Score: ${lead.ai_score || 0}/10
+- Stage: ${stage}
+- Properties available: ${properties.slice(0, 3).map((p: any) => `${p.title} (${p.location}, ₹${p.type === 'rental' ? `${(p.rent_per_month||p.price||0).toLocaleString('en-IN')}/mo` : `${((p.price||0)/100000).toFixed(0)}L`})`).join(' | ') || 'none'}
+
+TASK: ${intensityGuide}
+
 HARD RULES:
-- Do NOT greet again ("hi/hello") — you're already mid-conversation.
-- Do NOT repeat or rephrase anything you already said. Say something NEW.
-- ${toneLine}
-- Respect their language (mirror Hindi/Marathi/English as before), tone and stage.
-- If there is genuinely nothing new and useful to say, reply with exactly: SKIP
-- Output ONLY the message text. No JSON, no quotes, no preamble.`
+1. Do NOT start with "Hi" or "Hello" — you are mid-conversation.
+2. Do NOT repeat or rephrase anything already said above.
+3. One message only. Under 40 words. No filler phrases.
+4. ${langRule}
+5. If there is genuinely nothing new to say (no properties, no new angle), reply with exactly the word: SKIP
+6. Output ONLY the message text. No JSON. No quotes. No preamble.
+
+EXAMPLE NUDGE (en, value intensity, presentation stage):
+"By the way — that Baner 2BHK I mentioned has been getting a lot of interest this week. Would hate for you to miss it. Worth a quick look this weekend?"
+
+EXAMPLE NUDGE (mr, soft intensity):
+"Hi! Tumchi flat search kashi challiye? Kadhi baghaychay ka properties?"
+
+EXAMPLE NUDGE (window_save, en):
+"One last thing before I sign off today — would Saturday morning or Sunday afternoon work for a quick visit? No pressure, just wanted to check 😊"`
 
   const text = await callEngineLLM(systemPrompt, chatHistory, nudgeInstruction)
   const cleaned = (text || '').trim().replace(/^["']|["']$/g, '').trim()
