@@ -29,7 +29,7 @@ export function pick(obj: any, keys: string[]): string {
   return ''
 }
 
-const ID_KEYS = ['requestId', 'request_id', 'messageId', 'message_id', 'msgId', 'msg_id', 'id', 'uuid']
+const ID_KEYS = ['message_uuid', 'messageUuid', 'requestId', 'request_id', 'messageId', 'message_id', 'msgId', 'msg_id', 'id', 'uuid']
 const STATUS_KEYS = ['status', 'eventType', 'event', 'deliveryStatus', 'state']
 const ERROR_KEYS = ['error', 'errorMessage', 'error_message', 'reason', 'failureReason', 'errorCode', 'error_code']
 
