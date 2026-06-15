@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: June 15, 2026 (session 6)*
+*Last updated: June 15, 2026 (session 7)*
 
 > ⚠️ **PARALLEL WORK (June 14 s3):** Another agent (Kiro) is fixing frontend/auth
 > bugs. DO NOT TOUCH (Kiro's lane): a `route.ts` + 3 `page.tsx` (exact paths
@@ -18,6 +18,61 @@
 ---
 
 ## 1. DONE ✅
+
+- **June 15 SESSION 7 — PHOTO SENDING FIXED (root cause: AVIF) + prompt training:**
+  - **🔴 ROOT CAUSE of photos never arriving = AVIF format.** WhatsApp/Meta only
+    DELIVER JPEG/PNG; they silently DROP AVIF/HEIC/WebP/TIFF. MSG91 returns
+    `"success"` (accepted) but Meta never sends the file. We were blind because
+    delivery reports weren't being matched (see message_uuid fix). Founder
+    confirmed the property images were AVIF.
+  - **`MSG91_MEDIA_LIVE` was EMPTY in Vercel** (`""`, not `"true"`) — so the whole
+    photo block (`if MSG91_MEDIA_LIVE === 'true'`) never ran (zero logs, zero
+    attempts). FIXED → set to `true`. ⚠️ GOTCHA: `vercel env add` via piped stdin
+    SILENTLY stores empty in this sandbox; must use `--value "true"` flag (saved
+    to user memory `vercel-env-stdin-broken.md`). Env change needs a redeploy.
+  - **Image conversion shipped (PR #93, deployed to prod, NOT yet merged to main):**
+    `lib/imageConvert.ts` `toWhatsAppJpeg()` re-encodes any image → resized
+    (≤1600px) <5MB JPEG via **sharp** (now pinned in package.json; was transitive).
+    Upload route (`app/api/properties/upload/route.ts`) now ACCEPTS avif/heic/etc
+    and ALWAYS converts to JPEG before storing. New one-time backfill endpoint
+    `POST /api/admin/convert-media` (CRON_SECRET/superadmin-gated; `{dry:true}` to
+    preview, `{}` to run, `{property_id}`/`{agent_id}` to scope) converts EXISTING
+    non-JPEG property photos in place.
+  - **Delivery-tracking fix (PR #92, MERGED to main + deployed):** `sendViaMsg91`
+    + `sendViaMsg91Media` now return the real `data.message_uuid` (was returning
+    literal `'sent'` → delivery reports never matched → we couldn't see failures).
+    `lib/deliveryStatus.ts` ID_KEYS now includes `message_uuid`.
+  - **`[photo] Lodha` text leak fix (PR #91, MERGED + deployed):** bot was echoing
+    the `[photo] <title>` DB markers into its reply (it learned them from history).
+    `isMediaPlaceholder()` filters them out of LLM history (generateBotReply +
+    generateNudge); hard prompt rule never to write bracketed image tags;
+    `parseEngineResponse` strips any leaked placeholders/markdown images.
+  - **Prompt training (PR #87, MERGED + deployed):** greeting asks name+language
+    first (no property dump); never substitute a different locality (share agent
+    contact instead); show properties BEFORE pushing a visit ("sure tell me" →
+    show, don't book); when lead asks for photos/details, GIVE them, don't redirect
+    to visit; never repeat visit-booking when lead re-asks for info; never say
+    "system". `matched_property_id` now ALWAYS included when a property is in play
+    (was only on first recommendation) + saved to lead (migration
+    `matched_property_migration.sql` RUN in prod). Photo lookup in webhook now
+    falls back to matching property titles in recent bot messages. `wantsPhotos`
+    + `botPromisedPhotos` widened (EN+Hindi+Marathi).
+  - **`.gitignore` hardened:** now ignores all `.env.*` (prod secrets like
+    `.env.production` were untracked, not ignored — one `git add .` from leaking).
+  - **Tests:** 377 unit tests green; `next build` verified with sharp. New eval
+    scenarios for the founder-reported bugs (sure-tell-me, no-I-need-details,
+    area-not-in-inventory, photos-in-commitment, greeting flow).
+  - **⏳ PENDING (founder, see section 2):** merge PR #93; run convert-media on
+    existing AVIFs (or founder re-uploads as JPEG — founder said they re-uploaded
+    JPEGs but may need to DELETE old AVIF entries since the edit screen APPENDS);
+    create MSG91 delivery webhook → `/api/webhook/status` (events: failed,
+    api-failed, delivered, sent); then test "photos pls" and read delivery logs.
+  - **How competitors (Wati/Interakt) do media:** they're DIRECT Meta Cloud API
+    BSPs and upload media bytes to Meta first → get a media-ID → send by ID (no
+    fetch-at-send-time failure). We go through MSG91 (extra hop) + send by public
+    URL. Robust long-term path = direct Meta media-ID upload once App Review lands
+    (`sendMetaImageById`, deferred). Plan file:
+    `C:\Users\rahul\.claude\plans\vivid-dreaming-quiche.md`.
 
 - **Live** at https://convorian.in (Vercel, SSL). Convorian brand, indigo/violet theme, glassmorphism landing + live AI chat demo.
 - **Pages:** home, /login, /onboarding, /privacy-policy, /terms-of-service, /forgot-password, /reset-password. Legal docs render from `files/*.md`.
@@ -89,6 +144,24 @@
 - **Help/FAQ + support chat (June 11):** `/help` page (FAQ accordion via `lib/faq.ts`, shared chrome) LIVE. Support chat (floating bubble on dashboard + /help) is now real — Groq-grounded on the FAQ KB (`/api/support-chat`), degrades gracefully, and escalates to a human. Escalation surfaces WhatsApp + email (`lib/support.ts`). **WhatsApp number is a PLACEHOLDER** — until `NEXT_PUBLIC_SUPPORT_WHATSAPP` is set in Vercel it shows "WhatsApp support — launching soon" + email (no dead links). One-line swap when the business SIM arrives. LIVE.
 
 ## 2. PENDING ⏳
+
+**🔴 IMMEDIATE — finish the photo fix (session 7, resume here):**
+1. **Merge PR #93** (image→JPEG conversion). #87/#91/#92 already merged to main;
+   #93 deployed to prod but not yet merged to main. `gh pr merge 93 --squash`.
+2. **Fix existing photos** — founder re-uploaded JPEGs but the property edit screen
+   APPENDS (doesn't replace), so old AVIF entries may still be on the property and
+   would still fail. EITHER delete the old AVIF photos in the edit UI, OR run the
+   backfill: `POST https://convorian.in/api/admin/convert-media` with header
+   `Authorization: Bearer leadnest_cron_secret_dev_2026`, body `{"dry":true}` to
+   preview then `{}` to convert.
+3. **Create MSG91 delivery webhook** in dashboard → URL
+   `https://convorian.in/api/webhook/status`, events: on failed, on api failed,
+   on delivered, on sent. (Inbound stays on `/api/webhook`.) Without it we can't
+   see delivery failures.
+4. **Test:** send "photos pls" to the bot → confirm JPEGs arrive; read Vercel logs
+   for `PHOTO:` + `[delivery-status]` lines to confirm `delivered` per image.
+5. (Deferred) When Meta App Review lands, add `sendMetaImageById` (upload bytes →
+   media-ID → send by ID) — the robust path competitors use. See plan file.
 
 **Gates to first paying client:**
 - App Review approval (then can message REAL leads — currently only 5 test recipients)
