@@ -325,9 +325,11 @@ export async function POST(request: NextRequest) {
     if (metadata.timeline) leadUpdates.timeline = metadata.timeline
     if (metadata.name) leadUpdates.name = metadata.name
     if (metadata.lang && ['en', 'hi', 'mr'].includes(metadata.lang)) leadUpdates.language = metadata.lang
+    // matched_property_id saved separately (column may not exist until migration runs)
+    let safeMatchedPropId: string | null = null
     if (metadata.matched_property_id) {
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(metadata.matched_property_id)
-      if (isUUID) leadUpdates.matched_property_id = metadata.matched_property_id
+      if (isUUID) safeMatchedPropId = metadata.matched_property_id
     }
     if (metadata.score >= 7) leadUpdates.status = 'qualified'
     else if (metadata.score >= 4) leadUpdates.status = 'contacted'
@@ -511,6 +513,14 @@ export async function POST(request: NextRequest) {
 
     await supabaseAdmin.from('leads').update(leadUpdates).eq('id', lead.id)
 
+    // Save matched_property_id separately — column may not exist until migration runs;
+    // a failure here must NOT break the main lead update above.
+    if (safeMatchedPropId) {
+      try {
+        await supabaseAdmin.from('leads').update({ matched_property_id: safeMatchedPropId }).eq('id', lead.id)
+      } catch { /* column may not exist yet — safe to ignore */ }
+    }
+
     if (metadata.score) {
       await supabaseAdmin.from('activity_log').insert({
         agent_id: agent.id, lead_id: lead.id, type: 'score_updated',
@@ -553,35 +563,71 @@ export async function POST(request: NextRequest) {
     // the matched property (features "media:<url>"). Best-effort, capped.
     try {
       if (process.env.MSG91_MEDIA_LIVE === 'true' && wantsPhotos(messageText)) {
+        console.log('PHOTO: lead wants photos, looking up property...')
         const isUUID = (s: any) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
         let prop: any = null
+
+        // 1. Try matched_property_id from current metadata or stored on lead
         const propId = metadata.matched_property_id || lead.matched_property_id
         if (isUUID(propId)) {
           const { data } = await supabaseAdmin.from('properties')
             .select('id,title,features').eq('id', propId).eq('agent_id', agent.id).maybeSingle()
           prop = data
+          if (prop) console.log(`PHOTO: found via matched_property_id: ${prop.title}`)
         }
+
+        // 2. Fallback: search recent bot messages for property title mentions
         if (!prop) {
-          // Fallback: if the agent has exactly ONE active property with photos, use it.
           const { data: actives } = await supabaseAdmin.from('properties')
-            .select('id,title,features').eq('agent_id', agent.id).eq('status', 'active').limit(6)
-          const withMedia = (actives || []).filter((p: any) => extractPropertyMedia(p).length)
-          if (withMedia.length === 1) prop = withMedia[0]
+            .select('id,title,features').eq('agent_id', agent.id).eq('status', 'active').limit(20)
+          const allProps = actives || []
+          const withMedia = allProps.filter((p: any) => extractPropertyMedia(p).length)
+          console.log(`PHOTO: no matched_property_id. Agent has ${allProps.length} properties, ${withMedia.length} with media`)
+
+          if (withMedia.length > 0) {
+            // Search the last few bot messages + current reply for property title mentions
+            const { data: recentMsgs } = await supabaseAdmin.from('messages')
+              .select('content').eq('lead_id', lead.id).eq('direction', 'outbound')
+              .order('created_at', { ascending: false }).limit(5)
+            const recentText = [reply, ...(recentMsgs || []).map((m: any) => m.content)].join(' ').toLowerCase()
+
+            const titleMatches = withMedia.filter((p: any) => {
+              const title = (p.title || '').toLowerCase()
+              if (!title || title.length < 3) return false
+              return recentText.includes(title)
+            })
+            if (titleMatches.length === 1) {
+              prop = titleMatches[0]
+              console.log(`PHOTO: matched by title in recent messages: ${prop.title}`)
+            } else if (titleMatches.length > 1) {
+              prop = titleMatches[0]
+              console.log(`PHOTO: multiple title matches (${titleMatches.length}), using most recent: ${prop.title}`)
+            } else if (withMedia.length === 1) {
+              prop = withMedia[0]
+              console.log(`PHOTO: no title match, using only property with media: ${prop.title}`)
+            } else {
+              console.log(`PHOTO: could not determine which property — ${withMedia.length} have media, none matched recent conversation`)
+            }
+          }
         }
+
         const media = prop ? extractPropertyMedia(prop).slice(0, MAX_IMAGES_PER_SEND) : []
         if (media.length) {
-          console.log(`Webhook: sharing ${media.length} photo(s) for property ${prop.id}`)
+          console.log(`PHOTO: sending ${media.length} photo(s) for "${prop.title}" (${prop.id})`)
           for (let i = 0; i < media.length; i++) {
             const caption = i === 0 ? (prop.title || 'Property') : undefined
             let mid: string | null = null
             if (incomingProvider === 'msg91') mid = await sendViaMsg91Media(msg91IntegratedNumber, fromPhone, media[i], caption)
             else mid = await sendMetaImage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, media[i], caption)
+            console.log(`PHOTO: image ${i+1}/${media.length} send result: ${mid ? 'OK' : 'FAILED'}`)
             await supabaseAdmin.from('messages').insert({
               lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
               content: `[photo] ${prop.title || ''}`.trim(), sent_by: 'bot',
               wa_message_id: typeof mid === 'string' ? mid : null,
             })
           }
+        } else {
+          console.log(`PHOTO: no photos to send — prop=${prop ? prop.title : 'none found'}, media count=${media.length}`)
         }
       }
     } catch (mediaErr: any) {
