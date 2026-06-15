@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { extractPropertyMedia, wantsPhotos } from '../../lib/media'
+import { extractPropertyMedia, wantsPhotos, botPromisedPhotos } from '../../lib/media'
 
 test.describe('extractPropertyMedia', () => {
   test('extracts http(s) media URLs, strips prefix', () => {
@@ -27,6 +27,9 @@ test.describe('wantsPhotos', () => {
     'फोटो भेजो',
     'तस्वीर दिखाओ',
     'gallery?',
+    'dikhao property',
+    'photos bhej do',
+    'share karo photos',
   ]
   for (const m of yes) {
     test(`yes: "${m}"`, () => expect(wantsPhotos(m)).toBe(true))
@@ -38,8 +41,33 @@ test.describe('wantsPhotos', () => {
     'can you email the floor plan', // floor plan is not a photo — bot still cannot send
     'where is the office',
     '',
+    'share',  // too vague — could mean anything
   ]
   for (const m of no) {
     test(`no: "${m}"`, () => expect(wantsPhotos(m)).toBe(false))
+  }
+})
+
+test.describe('botPromisedPhotos', () => {
+  const yes = [
+    'Sure! Let me share the photos with you right now.',
+    'The photos should be arriving in your chat shortly.',
+    'Haan, photos bhejta hun!',
+    'Sure, sharing the photos now.',
+    'Let me send the photos to you.',
+    'Sending the images right away!',
+  ]
+  for (const r of yes) {
+    test(`yes: "${r}"`, () => expect(botPromisedPhotos(r)).toBe(true))
+  }
+
+  const no = [
+    'Would you like to see photos?',
+    'Happy to set up a visit for you!',
+    'Great choice — this property is in Baner.',
+    '',
+  ]
+  for (const r of no) {
+    test(`no: "${r}"`, () => expect(botPromisedPhotos(r)).toBe(false))
   }
 })

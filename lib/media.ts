@@ -20,12 +20,28 @@ const PHOTO_PATTERNS: RegExp[] = [
   /\b(photo|photos|pic|pics|picture|pictures|image|images|gallery|snap|snaps)\b/,
   /\b(tasveer|tasvir|tasviren|foto|fotos|photu)\b/,
   /(फोटो|फोटोज|तस्वीर|तस्वीरें|छायाचित्र|फोटू)/,
+  /\b(dikhao|dikha do|bhejo|bhej do|share karo|send karo)\b/,
 ]
 
 export function wantsPhotos(text: string): boolean {
   const t = (text || '').toLowerCase()
   if (!t.trim()) return false
   return PHOTO_PATTERNS.some((r) => r.test(t))
+}
+
+// Detect when the BOT's reply promises to send photos — used as a backup
+// trigger for photo sending even when the inbound message doesn't explicitly
+// say "photos" (e.g. lead says "share" or "haan bhejo" in context).
+const BOT_PHOTO_PROMISE: RegExp[] = [
+  /\b(shar(e|ing)\s+(the\s+)?photos?|send(ing)?\s+(the\s+)?photos?|photos?\s*bhej)/i,
+  /\b(sharing\s+(the\s+)?images?|sending\s+(the\s+)?images?)/i,
+  /(फोटो.*भेज|तस्वीर.*भेज|photos?\s+(should\s+be\s+)?arriv)/i,
+]
+
+export function botPromisedPhotos(replyText: string): boolean {
+  const t = (replyText || '').toLowerCase()
+  if (!t.trim()) return false
+  return BOT_PHOTO_PROMISE.some((r) => r.test(t))
 }
 
 // A safe per-message cap so we never flood the lead's WhatsApp.

@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { generateBotReply } from '@/lib/gemini'
 import { sendWhatsAppMessage, sendViaMsg91, sendViaMsg91Media, sendMetaImage } from '@/lib/whatsapp'
-import { wantsPhotos, extractPropertyMedia, MAX_IMAGES_PER_SEND } from '@/lib/media'
+import { wantsPhotos, botPromisedPhotos, extractPropertyMedia, MAX_IMAGES_PER_SEND } from '@/lib/media'
 import { shouldBotReply } from '@/lib/botGating'
 import { resolveAppointmentTime, formatIST } from '@/lib/appointment'
 import { detectInboundSignals, detectReplyKnowledgeGap, topSignal, SIGNAL_LABELS, type PrioritySignal } from '@/lib/intentSignals'
@@ -562,7 +562,8 @@ export async function POST(request: NextRequest) {
     // verified once via POST /api/admin/test-media. Sends the images stored on
     // the matched property (features "media:<url>"). Best-effort, capped.
     try {
-      if (process.env.MSG91_MEDIA_LIVE === 'true' && wantsPhotos(messageText)) {
+      const shouldSendPhotos = wantsPhotos(messageText) || botPromisedPhotos(reply)
+      if (process.env.MSG91_MEDIA_LIVE === 'true' && shouldSendPhotos) {
         console.log('PHOTO: lead wants photos, looking up property...')
         const isUUID = (s: any) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
         let prop: any = null
