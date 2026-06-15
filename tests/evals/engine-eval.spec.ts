@@ -60,9 +60,12 @@ type Scenario = {
 const scenarios: Scenario[] = [
   { name: 'plain hi → English + asks name', lead: {}, messages: [{ role: 'user', content: 'Hi' }],
     rule: 'Reply is in English, warm, concise, and asks for the lead\'s name. It must NOT dump property listings or prices.' },
-  { name: 'asks photos → no fake "sent"', lead: { name: 'Rahul', intent: 'buy', preferred_areas: ['Baner'], ai_score: 5 },
-    messages: [{ role: 'user', content: 'Can you send me photos of the Baner flat?' }],
-    rule: 'Reply must NOT claim it has sent / is sending photos. It should honestly say photos aren\'t available in chat and offer to arrange them or invite a visit.' },
+  { name: 'asks photos (media enabled) → confirm sending + include property ID', lead: { name: 'Rahul', intent: 'buy', preferred_areas: ['Baner'], ai_score: 5 },
+    messages: [
+      { role: 'assistant', content: '🏡 Sunrise Park 2BHK, Baner ₹79L — east-facing, ready to move, gym, clubhouse. Sounds good?' },
+      { role: 'user', content: 'Can you send me photos of the Baner flat?' },
+    ],
+    rule: 'Reply should warmly confirm photo sharing (e.g. "Sure! Let me share the photos" or similar). Must NOT say "system will send" or "I cannot send photos". Must NOT push for a visit instead of showing photos. The JSON metadata should ideally include matched_property_id.' },
   { name: 'email floor plan → no fake email', lead: { name: 'Rahul', intent: 'buy', preferred_areas: ['Baner'], ai_score: 5 },
     messages: [{ role: 'user', content: 'Email me the floor plan please' }],
     rule: 'Reply must NOT claim to have emailed anything or ask for an email address to send a file. Honestly saying it CANNOT email / cannot send files (and offering the team or a visit instead) is correct and a PASS — mentioning the word "email" while refusing is fine.' },
@@ -240,6 +243,42 @@ const scenarios: Scenario[] = [
       { role: 'user', content: 'Parking hai? 2 gaadi hai hamare paas — covered parking chahiye' },
     ],
     rule: 'Skyline Residency (p1) has "2 covered parking" in its description field. Reply MUST mention the parking — specifically that there are 2 covered parking spots. Must NOT say "I\'ll check" when the information IS in the property description. Should position covered parking as a strong value add. Must not make up details beyond what\'s in the inventory.' },
+
+  // ─── Founder-reported bugs (June 14-15) — these must never regress ─────────
+
+  { name: '"sure tell me" → show properties, NOT push visit',
+    lead: { name: 'Rohit', intent: 'buy', preferred_areas: ['Baner'], ai_score: 5 },
+    messages: [
+      { role: 'assistant', content: 'We have some great options in Baner! Would you like to explore them?' },
+      { role: 'user', content: 'Sure, tell me' },
+    ],
+    rule: 'Reply MUST show at least one property from inventory with details (name, price, location). Must NOT jump to "let me set up a visit" or ask for a visit time. The lead has NOT seen any property yet — showing properties comes FIRST, visit comes AFTER they show interest in a specific property. Failing to show property details is an automatic FAIL.' },
+
+  { name: '"no I need details" after visit push → show property details, not repeat visit',
+    lead: { name: 'Anita', intent: 'buy', preferred_areas: ['Baner'], ai_score: 7, status: 'qualified' },
+    messages: [
+      { role: 'assistant', content: '🏡 Sunrise Park 2BHK, Baner ₹79L — east-facing. Would you like to visit this weekend?' },
+      { role: 'user', content: 'No, I need details of the property first. Tell me everything about it.' },
+    ],
+    rule: 'Reply MUST show comprehensive details about Sunrise Park: price (₹79L), size (1080 sqft), possession (ready to move), amenities (east-facing, gym, clubhouse). Must NOT repeat the visit booking message. Must NOT say "happy to set up a visit" again. The lead explicitly asked for details — give them details. Must NOT ask another question without answering first.' },
+
+  { name: 'area not in inventory → share agent contact, never substitute',
+    lead: { name: 'Vivek', intent: 'buy', ai_score: 4 },
+    messages: [{ role: 'user', content: 'Kothrud mein koi 3BHK available hai kya?' }],
+    rule: 'There is NO property in Kothrud in the inventory. Reply must NOT fabricate a Kothrud property. Must NOT silently show a Baner or Wakad property instead without clearly saying "I don\'t have listings in Kothrud." Should share the agent\'s contact details (Suresh Kumar, 9876543210) so the lead can ask directly. Must NOT just say "I\'ll check" — be clear that Kothrud is not in current inventory.' },
+
+  { name: '"photos pls" in commitment → send photos, not push visit',
+    lead: { name: 'Pooja', intent: 'buy', preferred_areas: ['Baner'], ai_score: 7, status: 'qualified' },
+    messages: [
+      { role: 'assistant', content: 'I have a great 2BHK at Sunrise Park, Baner — ₹79L, east-facing, ready to move, gym and clubhouse. Would you like to see photos?' },
+      { role: 'user', content: 'Photos pls' },
+    ],
+    rule: 'Reply must confirm photo sharing warmly (e.g. "Sure, sending the photos now!"). Must NOT redirect to visit booking. Must NOT say "I cannot send photos" (since photo sending is enabled). Must NOT say "system will send" — use "I" or "our team". Must NOT ask another question before confirming the photo send.' },
+
+  { name: 'greeting → asks name + language, no property dump',
+    lead: {},
+    messages: [{ role: 'user', content: 'Hello' }],
+    rule: 'Reply must ask for the lead\'s name AND offer language preference (English/Hindi/Marathi). Must NOT dump property listings or prices in the first message. Must be warm and welcoming. Should ask name first, not start with area or budget questions.' },
 ]
 
 test.describe('Engine eval (AI-judged)', () => {
@@ -265,12 +304,13 @@ test.describe('Engine eval (AI-judged)', () => {
   for (const s of scenarios) {
     test(s.name, async () => {
       const stage = detectStage(s.lead, s.messages.length)
-      const ctx = { agent: baseAgent, lead: { phone: '+910000000000', ...s.lead }, properties: sampleProperties, currentTime: new Date().toLocaleString('en-IN'), isOfficeHours: true }
+      const lead = { phone: '+910000000000', ...s.lead }
+      const lastMessage = s.messages[s.messages.length - 1].content
+      const ctx = { agent: baseAgent, lead, properties: sampleProperties, currentTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), isOfficeHours: true, canSendPhotos: true, reschedulingLocked: false, detectedLang: null as string | null, incomingMessage: lastMessage }
       const systemPrompt = buildEnginePrompt(ctx, stage, s.messages.length)
       // Generate via the real provider chain (GLM → Gemini → Groq) — exactly
       // what production runs — then strip the metadata JSON the same way.
       const history = s.messages.slice(0, -1)
-      const lastMessage = s.messages[s.messages.length - 1].content
       const raw = await callEngineLLM(systemPrompt, history, lastMessage)
       const { reply } = parseEngineResponse(raw, stage)
       const verdict = await judge(s.rule, reply)

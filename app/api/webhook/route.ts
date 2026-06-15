@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { generateBotReply } from '@/lib/gemini'
 import { sendWhatsAppMessage, sendViaMsg91, sendViaMsg91Media, sendMetaImage } from '@/lib/whatsapp'
-import { wantsPhotos, extractPropertyMedia, MAX_IMAGES_PER_SEND } from '@/lib/media'
+import { wantsPhotos, botPromisedPhotos, extractPropertyMedia, MAX_IMAGES_PER_SEND } from '@/lib/media'
 import { shouldBotReply } from '@/lib/botGating'
 import { resolveAppointmentTime, formatIST } from '@/lib/appointment'
 import { detectInboundSignals, detectReplyKnowledgeGap, topSignal, SIGNAL_LABELS, type PrioritySignal } from '@/lib/intentSignals'
@@ -325,6 +325,12 @@ export async function POST(request: NextRequest) {
     if (metadata.timeline) leadUpdates.timeline = metadata.timeline
     if (metadata.name) leadUpdates.name = metadata.name
     if (metadata.lang && ['en', 'hi', 'mr'].includes(metadata.lang)) leadUpdates.language = metadata.lang
+    // matched_property_id saved separately (column may not exist until migration runs)
+    let safeMatchedPropId: string | null = null
+    if (metadata.matched_property_id) {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(metadata.matched_property_id)
+      if (isUUID) safeMatchedPropId = metadata.matched_property_id
+    }
     if (metadata.score >= 7) leadUpdates.status = 'qualified'
     else if (metadata.score >= 4) leadUpdates.status = 'contacted'
 
@@ -355,12 +361,13 @@ export async function POST(request: NextRequest) {
       // whenever the model's time was unparseable (the 6:58 PM bug). The resolver
       // tries the model's structured time, then natural language in the model
       // field, then the reply text the lead actually saw — and NEVER guesses.
-      const bookingIntentRe = /(confirm|lock in|schedule|set|book|confirmed|updat|reschedul|chang)[\s\S]*?(visit|appointment|viewing|tomorrow|today|at\s+\d+|on\s+\d+)/i
-      const apptIntent = !!metadata.appointment_booked_time || bookingIntentRe.test(reply)
+      const bookingIntentRe = /(confirm|lock in|schedule|set|book|confirmed|updat|reschedul|chang|perfect|done|pakka|great|sounds good|works)[\s\S]*?(visit|appointment|viewing|tomorrow|today|at\s+\d+|on\s+\d+|sunday|monday|tuesday|wednesday|thursday|friday|saturday|\d+\s*(am|pm))/i
+      const inboundVisitRe = /(visit|site visit|dekhna|aana|aata|come|tomorrow|kal)\s.*(at\s+\d+|\d+\s*(am|pm)|baje|subah|sham|dopahar)/i
+      const apptIntent = !!metadata.appointment_booked_time || bookingIntentRe.test(reply) || (inboundVisitRe.test(messageText) && bookingIntentRe.test(reply))
       if (apptIntent) {
         const resolved = resolveAppointmentTime({
           llmTime: metadata.appointment_booked_time,
-          replyText: reply,
+          replyText: reply + ' ' + messageText,
           nowMs: Date.now(),
         })
         if (resolved.ok) {
@@ -377,7 +384,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      console.log('APPT-DEBUG: metadata.appointment_booked_time =', metadata.appointment_booked_time || 'NOT SET')
+      console.log(`APPT-DEBUG: metadata.appointment_booked_time=${metadata.appointment_booked_time || 'NOT SET'} bookingIntentRe=${bookingIntentRe.test(reply)} inboundVisitRe=${inboundVisitRe.test(messageText)}`)
 
     // HARD GUARD: never accept a visit outside the agent's office hours — the
     // model is told the hours but occasionally agrees anyway (e.g. "8pm is
@@ -506,6 +513,14 @@ export async function POST(request: NextRequest) {
 
     await supabaseAdmin.from('leads').update(leadUpdates).eq('id', lead.id)
 
+    // Save matched_property_id separately — column may not exist until migration runs;
+    // a failure here must NOT break the main lead update above.
+    if (safeMatchedPropId) {
+      try {
+        await supabaseAdmin.from('leads').update({ matched_property_id: safeMatchedPropId }).eq('id', lead.id)
+      } catch { /* column may not exist yet — safe to ignore */ }
+    }
+
     if (metadata.score) {
       await supabaseAdmin.from('activity_log').insert({
         agent_id: agent.id, lead_id: lead.id, type: 'score_updated',
@@ -547,35 +562,73 @@ export async function POST(request: NextRequest) {
     // verified once via POST /api/admin/test-media. Sends the images stored on
     // the matched property (features "media:<url>"). Best-effort, capped.
     try {
-      if (process.env.MSG91_MEDIA_LIVE === 'true' && wantsPhotos(messageText)) {
+      const shouldSendPhotos = wantsPhotos(messageText) || botPromisedPhotos(reply)
+      if (process.env.MSG91_MEDIA_LIVE === 'true' && shouldSendPhotos) {
+        console.log('PHOTO: lead wants photos, looking up property...')
         const isUUID = (s: any) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
         let prop: any = null
-        if (isUUID(metadata.matched_property_id)) {
+
+        // 1. Try matched_property_id from current metadata or stored on lead
+        const propId = metadata.matched_property_id || lead.matched_property_id
+        if (isUUID(propId)) {
           const { data } = await supabaseAdmin.from('properties')
-            .select('id,title,features').eq('id', metadata.matched_property_id).eq('agent_id', agent.id).maybeSingle()
+            .select('id,title,features').eq('id', propId).eq('agent_id', agent.id).maybeSingle()
           prop = data
+          if (prop) console.log(`PHOTO: found via matched_property_id: ${prop.title}`)
         }
+
+        // 2. Fallback: search recent bot messages for property title mentions
         if (!prop) {
-          // Fallback: if the agent has exactly ONE active property with photos, use it.
           const { data: actives } = await supabaseAdmin.from('properties')
-            .select('id,title,features').eq('agent_id', agent.id).eq('status', 'active').limit(6)
-          const withMedia = (actives || []).filter((p: any) => extractPropertyMedia(p).length)
-          if (withMedia.length === 1) prop = withMedia[0]
+            .select('id,title,features').eq('agent_id', agent.id).eq('status', 'active').limit(20)
+          const allProps = actives || []
+          const withMedia = allProps.filter((p: any) => extractPropertyMedia(p).length)
+          console.log(`PHOTO: no matched_property_id. Agent has ${allProps.length} properties, ${withMedia.length} with media`)
+
+          if (withMedia.length > 0) {
+            // Search the last few bot messages + current reply for property title mentions
+            const { data: recentMsgs } = await supabaseAdmin.from('messages')
+              .select('content').eq('lead_id', lead.id).eq('direction', 'outbound')
+              .order('created_at', { ascending: false }).limit(5)
+            const recentText = [reply, ...(recentMsgs || []).map((m: any) => m.content)].join(' ').toLowerCase()
+
+            const titleMatches = withMedia.filter((p: any) => {
+              const title = (p.title || '').toLowerCase()
+              if (!title || title.length < 3) return false
+              return recentText.includes(title)
+            })
+            if (titleMatches.length === 1) {
+              prop = titleMatches[0]
+              console.log(`PHOTO: matched by title in recent messages: ${prop.title}`)
+            } else if (titleMatches.length > 1) {
+              prop = titleMatches[0]
+              console.log(`PHOTO: multiple title matches (${titleMatches.length}), using most recent: ${prop.title}`)
+            } else if (withMedia.length === 1) {
+              prop = withMedia[0]
+              console.log(`PHOTO: no title match, using only property with media: ${prop.title}`)
+            } else {
+              console.log(`PHOTO: could not determine which property — ${withMedia.length} have media, none matched recent conversation`)
+            }
+          }
         }
+
         const media = prop ? extractPropertyMedia(prop).slice(0, MAX_IMAGES_PER_SEND) : []
         if (media.length) {
-          console.log(`Webhook: sharing ${media.length} photo(s) for property ${prop.id}`)
+          console.log(`PHOTO: sending ${media.length} photo(s) for "${prop.title}" (${prop.id})`)
           for (let i = 0; i < media.length; i++) {
             const caption = i === 0 ? (prop.title || 'Property') : undefined
             let mid: string | null = null
             if (incomingProvider === 'msg91') mid = await sendViaMsg91Media(msg91IntegratedNumber, fromPhone, media[i], caption)
             else mid = await sendMetaImage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, media[i], caption)
+            console.log(`PHOTO: image ${i+1}/${media.length} send result: ${mid ? 'OK' : 'FAILED'}`)
             await supabaseAdmin.from('messages').insert({
               lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
               content: `[photo] ${prop.title || ''}`.trim(), sent_by: 'bot',
               wa_message_id: typeof mid === 'string' ? mid : null,
             })
           }
+        } else {
+          console.log(`PHOTO: no photos to send — prop=${prop ? prop.title : 'none found'}, media count=${media.length}`)
         }
       }
     } catch (mediaErr: any) {
