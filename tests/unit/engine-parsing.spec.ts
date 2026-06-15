@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { parseEngineResponse } from '../../lib/gemini'
+import { parseEngineResponse, isMediaPlaceholder } from '../../lib/gemini'
 
 // The engine asks the model for: reply text, then a metadata JSON object.
 // Models drift on formatting (code fences, multi-line JSON, no JSON at all) —
@@ -54,4 +54,40 @@ test('reply that is only JSON does not loop or crash', () => {
   const out = parseEngineResponse('{"score":3', 'discovery')
   expect(out.reply).toBe('{"score":3')
   expect(out.metadata).toEqual({ stage: 'discovery' })
+})
+
+// ── Media placeholder leakage (the "[photo] Lodha [photo] Lodha" bug) ──
+// The model sometimes echoes the "[photo] Title" markers we store for sent
+// images. The real images go out separately; these markers must be stripped.
+
+test('strips leaked [photo] Title placeholders from the reply', () => {
+  const out = parseEngineResponse(
+    'Sure, let me share the photos with you! [photo] Lodha [photo] Lodha [photo] Lodha\n{"score":7}',
+    'commitment'
+  )
+  expect(out.reply).toBe('Sure, let me share the photos with you!')
+  expect(out.metadata.score).toBe(7)
+})
+
+test('strips bare [image] / [video] placeholders', () => {
+  const out = parseEngineResponse('Here you go [image] [video]\n{"score":5}', 'presentation')
+  expect(out.reply).toBe('Here you go')
+})
+
+test('strips markdown image syntax', () => {
+  const out = parseEngineResponse('Check this ![flat](https://x/y.jpg) out\n{"score":5}', 'presentation')
+  expect(out.reply).toBe('Check this  out'.replace(/\s{2,}/g, ' '))
+})
+
+test('normal reply with square brackets that are not media is untouched', () => {
+  const out = parseEngineResponse('The price [as discussed] is ₹95L.\n{"score":6}', 'presentation')
+  expect(out.reply).toBe('The price [as discussed] is ₹95L.')
+})
+
+test.describe('isMediaPlaceholder', () => {
+  const yes = ['[photo] Lodha', '[photo]', '  [image] Sunrise', '[video] tour', '[media]', '[attachment] file']
+  for (const m of yes) test(`yes: "${m}"`, () => expect(isMediaPlaceholder(m)).toBe(true))
+
+  const no = ['Sure, let me share the photos!', 'The [society] charges are extra', '', 'photos coming up']
+  for (const m of no) test(`no: "${m}"`, () => expect(isMediaPlaceholder(m)).toBe(false))
 })

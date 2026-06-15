@@ -37,6 +37,14 @@ export async function callEngineLLM(
 // 8. Trust building before closing
 // ─────────────────────────────────────────────────────────────────────────────
 
+// A message row that's just a media marker we logged when sending an image
+// (e.g. "[photo] Lodha", "[image]", "[video] ..."). These are NOT real chat
+// text — if fed back into the LLM history the model imitates them and writes
+// literal "[photo] ..." into its reply. Filter them out of history everywhere.
+export function isMediaPlaceholder(text: string): boolean {
+  return /^\s*\[(photo|image|video|media|file|attachment)\b/i.test(text || '')
+}
+
 export type ConversationStage =
   | 'greeting'        // First message — establish rapport
   | 'discovery'       // Understand needs — SPIN questions
@@ -337,7 +345,7 @@ LANGUAGE RULES (English, हिंदी, मराठी are all first-class �
 
 HONESTY — NEVER claim to do something you cannot actually do:
 - ${ctx.canSendPhotos
-  ? `PHOTOS: You CAN share photos for a property that shows "MEDIA AVAILABLE" in the inventory. If the lead asks to see photos of such a property, say "Sure, let me share the photos with you!" or "Haan, photos bhejta hun!" — use "I" or "team", NEVER say "system". The photos are sent right after your message automatically. For a property WITHOUT "MEDIA AVAILABLE" in the inventory, or for floor plans / brochures / files / emails, you CANNOT send those: say so honestly and offer to have the team arrange them or invite a visit.`
+  ? `PHOTOS: You CAN share photos for a property that shows "MEDIA AVAILABLE" in the inventory. If the lead asks to see photos of such a property, say ONLY a short friendly line like "Sure, let me share the photos with you!" or "Haan, photos bhejta hun!" — use "I" or "team", NEVER say "system". The actual image files are attached and sent automatically right after your message — you do NOT represent them in text. NEVER write placeholders like "[photo]", "[image]", "[photo] Lodha", or any bracketed/markdown image tag — that is broken-looking and must never appear in your reply. Just write the one friendly sentence and stop. For a property WITHOUT "MEDIA AVAILABLE" in the inventory, or for floor plans / brochures / files / emails, you CANNOT send those: say so honestly and offer to have the team arrange them or invite a visit.`
   : `You CANNOT send photos, floor plans, brochures, files, or emails. NEVER say "I've sent..." / "sharing now" / "check your email". If asked, say they aren't available in chat and offer to have the team arrange them or invite a visit.`}
 - NEVER use the word "system" when talking to the lead. You are a person, not a system. Say "I" or "our team" instead.
 - You CANNOT personally call anyone. If they ask to be called: say "I'll have ${agent.name || 'our agent'} call you" — confirm you've passed the request on. (The team alerts the agent.)
@@ -537,6 +545,11 @@ export async function generateBotReply(
     const role = m.direction === 'inbound' ? 'user' : 'assistant'
     const text = (m.content || '').toString()
     if (!text.trim()) continue
+    // Skip photo/media placeholder rows ("[photo] Title") — these are DB markers
+    // for images we sent, NOT real text. If fed back, the model imitates them and
+    // writes literal "[photo] Title" into its reply. The images are sent by the
+    // webhook automatically; the model must never see or echo these markers.
+    if (isMediaPlaceholder(text)) continue
     const last = chatHistory[chatHistory.length - 1]
     if (last && last.role === role) {
       last.content += '\n' + text
@@ -593,6 +606,7 @@ export async function generateNudge(
     const role = m.direction === 'inbound' ? 'user' : 'assistant'
     const text = (m.content || '').toString()
     if (!text.trim()) continue
+    if (isMediaPlaceholder(text)) continue  // never feed "[photo] Title" markers back
     const last = chatHistory[chatHistory.length - 1]
     if (last && last.role === role) last.content += '\n' + text
     else chatHistory.push({ role, content: text })
@@ -694,6 +708,21 @@ export function parseEngineResponse(responseText: string, stage: ConversationSta
   }
 
   if (!reply) throw new Error('Engine returned reply with no text content')
+
+  // Safety net: strip any leaked media placeholders the model may have written
+  // (e.g. "[photo] Lodha", "[image]"). The real images are sent separately by
+  // the webhook; these markers must never reach the lead. Also markdown images.
+  reply = reply
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')                                            // ![alt](url)
+    // "[photo] Lodha" — the title sits OUTSIDE the brackets in our DB format, so
+    // also consume trailing text up to the next "[" or end of line.
+    .replace(/\[(?:photo|image|video|media|file|attachment)\b[^\]]*\][^[\n]*/gi, '')
+    .replace(/[ \t]{2,}/g, ' ')                                                      // collapse double spaces
+    .replace(/[ \t]+\n/g, '\n')                                                      // trim trailing spaces on lines
+    .replace(/\n{3,}/g, '\n\n')                                                      // collapse blank runs
+    .trim()
+
+  if (!reply) throw new Error('Engine returned reply with no text content after sanitising')
 
   return { reply, metadata }
 }
