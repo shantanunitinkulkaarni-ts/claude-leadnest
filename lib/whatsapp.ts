@@ -122,7 +122,11 @@ export async function sendViaMsg91(
       { headers: { authkey, 'Content-Type': 'application/json' } }
     )
     console.log('MSG91 send OK:', JSON.stringify(res.data).slice(0, 400))
-    return res.data?.data?.[0]?.requestId || res.data?.requestId || res.data?.request_id || 'sent'
+    // MSG91 returns the stable id as data.message_uuid — capture it FIRST so the
+    // delivery-report webhook (matched by wa_message_id) can attribute reports.
+    // The old order returned 'sent' for every send, making delivery reports
+    // un-matchable (we were blind to failures).
+    return res.data?.data?.message_uuid || res.data?.data?.[0]?.requestId || res.data?.requestId || res.data?.request_id || 'sent'
   } catch (err: any) {
     console.error('MSG91 send ERROR:', JSON.stringify(err?.response?.data || err?.message).slice(0, 600))
     return null
@@ -159,7 +163,10 @@ export async function sendViaMsg91Media(
       { headers: { authkey, 'Content-Type': 'application/json' } }
     )
     console.log('MSG91 media OK:', JSON.stringify(res.data).slice(0, 400))
-    return res.data?.data?.[0]?.requestId || res.data?.requestId || res.data?.request_id || 'sent'
+    // Capture data.message_uuid FIRST (see sendViaMsg91) so media delivery
+    // reports can be matched to the [photo] message row and we can finally see
+    // why a photo failed to deliver instead of guessing.
+    return res.data?.data?.message_uuid || res.data?.data?.[0]?.requestId || res.data?.requestId || res.data?.request_id || 'sent'
   } catch (err: any) {
     console.error('MSG91 media ERROR:', JSON.stringify(err?.response?.data || err?.message).slice(0, 600))
     return null

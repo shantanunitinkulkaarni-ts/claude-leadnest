@@ -83,6 +83,11 @@ test.describe('extractEvents', () => {
     expect(out).toEqual([{ id: 'u7', status: 'failed', error: 'no whatsapp' }])
   })
 
+  test('MSG91 media report keyed by message_uuid matches (the photo-delivery fix)', () => {
+    const out = extractEvents({ data: [{ message_uuid: '7b4ba6f0', status: 'failed', reason: 'media download failed' }] })
+    expect(out).toEqual([{ id: '7b4ba6f0', status: 'failed', error: 'media download failed' }])
+  })
+
   test('numeric error code is captured as string', () => {
     const out = extractEvents({ id: 'x1', status: 'failed', error_code: 470 })
     expect(out[0]).toEqual({ id: 'x1', status: 'failed', error: '470' })
