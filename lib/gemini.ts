@@ -132,7 +132,11 @@ export function buildEnginePrompt(ctx: any, stage: ConversationStage, messageCou
     const price = p.type === 'rental'
       ? `₹${(p.rent_per_month || p.price || 0).toLocaleString('en-IN')}/month${p.deposit ? ` (deposit ₹${Number(p.deposit).toLocaleString('en-IN')})` : ''}`
       : `₹${((p.price || 0) / 100000).toFixed(0)}L`
-    const mediaUrls = (p.features || []).filter((f: string) => typeof f === 'string' && f.startsWith('media:')).map((f: string) => f.slice(6))
+    // property_media is the canonical media column (Phase 0F). Fall back to
+    // parsing legacy media: prefixed entries from features for unmigrated rows.
+    const mediaUrls: string[] = Array.isArray(p.property_media) && p.property_media.length > 0
+      ? p.property_media.filter((u: string) => typeof u === 'string' && /^https?:\/\//i.test(u))
+      : (p.features || []).filter((f: string) => typeof f === 'string' && f.startsWith('media:')).map((f: string) => f.slice(6))
     const amenities = (p.features || []).filter((f: string) => typeof f === 'string' && !f.startsWith('media:'))
     const poss = p.possession_status ? (possessionLabel[p.possession_status] || p.possession_status) + (p.possession_date ? ` by ${p.possession_date}` : '') : ''
     const parts = [
