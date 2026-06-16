@@ -4,6 +4,7 @@ import { callLLM } from './llm'
 import { detectStage, type ConversationStage } from './stageMachine'
 import { filterPropertiesForLead, isValidMatchedProperty } from './propertyMatcher'
 import { validateReply } from './replyValidator'
+import { shouldRefreshSummary, refreshConversationSummary, SUMMARY_OLDER_WINDOW } from './conversationSummary'
 
 export { detectStage, type ConversationStage }
 
@@ -297,7 +298,7 @@ LEAD PROFILE:
 - Language on record: ${lead.language === 'mr' ? 'Marathi' : lead.language === 'hi' ? 'Hindi' : lead.language === 'en' ? 'English' : 'Not yet detected'} — maintain this unless they clearly switch
 - Post-visit outcome: ${lead.post_visit_result || 'No visit completed yet'}
 - Agent's private notes / visit feedback: ${lead.notes || 'None'}
-
+${lead.conversation_summary ? `\nEARLIER CONVERSATION SUMMARY (older messages, before the recent history below — use for context, don't repeat it verbatim):\n${lead.conversation_summary}\n` : ''}
 ${stageInstructions[stage]}
 
 LANGUAGE RULES (English, हिंदी, मराठी are all first-class — you are fully fluent in each):
@@ -467,13 +468,17 @@ export async function generateBotReply(
   incomingMessage: string
 ): Promise<{ reply: string; metadata: any }> {
 
-  const [agentRes, leadRes, propertiesRes, messagesRes, rescheduleRes, lastStageRes] = await Promise.all([
+  const [agentRes, leadRes, propertiesRes, messagesRes, rescheduleRes, lastStageRes, totalMessagesRes] = await Promise.all([
     supabaseAdmin.from('agents').select('*').eq('id', agentId).single(),
     supabaseAdmin.from('leads').select('*').eq('id', leadId).single(),
     supabaseAdmin.from('properties').select('*').eq('agent_id', agentId).eq('status', 'active'),
     supabaseAdmin.from('messages').select('direction, content, sent_by').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(14),
     supabaseAdmin.from('activity_log').select('*', { count: 'exact', head: true }).eq('lead_id', leadId).eq('title', 'Site visit rescheduled by AI'),
     supabaseAdmin.from('activity_log').select('metadata').eq('lead_id', leadId).eq('type', 'stage_transition').order('created_at', { ascending: false }).limit(1),
+    // Raw history is capped at 12 messages below (~3-4 rounds) — this count is
+    // ONLY so we know the TRUE conversation length, to decide whether the
+    // rolling summary (see lib/conversationSummary.ts) needs refreshing.
+    supabaseAdmin.from('messages').select('*', { count: 'exact', head: true }).eq('lead_id', leadId),
   ])
 
   const agent = agentRes.data as any
@@ -485,7 +490,30 @@ export async function generateBotReply(
   if (!lead) throw new Error('Lead not found')
 
   const messageCount = recentMessages.length
+  const totalMessageCount = totalMessagesRes.count ?? messageCount
   const stage = detectStage(lead, messageCount)
+
+  // Refresh the rolling conversation summary once enough new messages have
+  // piled up beyond the raw history window. Fire-and-forget: this is purely
+  // for FUTURE replies (injected into the prompt below from `lead.*` as
+  // already-fetched), never something the current reply waits on.
+  if (shouldRefreshSummary(totalMessageCount, lead.conversation_summary_message_count)) {
+    ;(async () => {
+      const { data: olderRows } = await supabaseAdmin
+        .from('messages')
+        .select('direction, content')
+        .eq('lead_id', leadId)
+        .order('created_at', { ascending: false })
+        .range(12, 12 + SUMMARY_OLDER_WINDOW - 1)
+      const olderMessages = (olderRows || []).reverse()
+      const summary = await refreshConversationSummary(lead.conversation_summary || null, olderMessages)
+      const { error } = await supabaseAdmin.from('leads').update({
+        conversation_summary: summary,
+        conversation_summary_message_count: totalMessageCount,
+      }).eq('id', leadId)
+      if (error) Sentry.captureException(error)
+    })().catch(err => Sentry.captureException(err))
+  }
 
   // Record every stage change to activity_log so an agent can see in the
   // dashboard WHY the bot's behavior shifted (e.g. "why did it show properties
