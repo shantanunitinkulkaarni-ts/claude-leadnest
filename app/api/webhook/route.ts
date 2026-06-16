@@ -87,6 +87,9 @@ export async function POST(request: NextRequest) {
     let fromPhone = '', messageText = '', waMessageId = '', phoneNumberId = '', forcedAgentId = ''
     let incomingProvider: 'meta' | 'twilio' | 'msg91' = PROVIDER === 'twilio' ? 'twilio' : 'meta'
     let msg91IntegratedNumber = ''
+    // Meta Cloud API non-text inbound (voice note/image/etc.) — flagged here,
+    // handled after agent lookup below since sending the nudge needs agent.wa_access_token.
+    let isNonTextMedia = false
 
     if (PROVIDER === 'twilio' || contentType.includes('application/x-www-form-urlencoded')) {
       const text = await request.text()
@@ -153,7 +156,12 @@ export async function POST(request: NextRequest) {
         fromPhone = incomingMsg.from || ''
         messageText = incomingMsg.text?.body || ''
         waMessageId = incomingMsg.id || ''
-        if (!messageText || !phoneNumberId) return NextResponse.json({ status: 'no_text' })
+        // Genuinely unsupported media (voice note, image, video, document, sticker,
+        // location...) arrives with no `text` field but a known `type` — nudge the
+        // lead to type instead, mirroring the MSG91 path above, rather than going dark.
+        if (!messageText && incomingMsg.type && incomingMsg.type !== 'text') isNonTextMedia = true
+        if (!messageText && !isNonTextMedia) return NextResponse.json({ status: 'no_text' })
+        if (!phoneNumberId) return NextResponse.json({ status: 'no_text' })
       } else {
         return NextResponse.json({ status: 'ignored' })
       }
@@ -242,6 +250,11 @@ export async function POST(request: NextRequest) {
       if (existing && existing.length > 0) {
         return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'duplicate' })
       }
+    }
+
+    if (isNonTextMedia) {
+      try { await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, "I can only read text messages — could you type your question? I'm happy to help! 😊") } catch { /* best-effort */ }
+      return NextResponse.json({ status: 'ignored_non_text' })
     }
 
     const now = new Date().toISOString()

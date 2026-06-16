@@ -30,7 +30,12 @@ export type ConversationStage =
  *    Takes priority even on the very first inbound message (e.g. a walk-in
  *    logged by the agent before any WhatsApp exchange) because the whole
  *    conversation must pivot to converting that visit into a deal.
- * 3. `greeting` — messageCount <= 1 (first message in the thread).
+ * 3. `greeting` — messageCount <= 1 AND lead.name is not yet known. A lead
+ *    that already has a name on file (e.g. entered by the agent from a
+ *    referral or portal lead before WhatsApp contact started) skips the
+ *    name-and-language-only greeting even on their first inbound message —
+ *    the bot answers whatever they actually asked instead of ignoring it to
+ *    re-ask for a name it already has.
  * 4. `commitment` — lead.status is 'visit_booked', OR ai_score >= 7 AND
  *    status is 'qualified'. Booked/commitment states take priority over any
  *    field-based logic below.
@@ -57,7 +62,7 @@ export type ConversationStage =
 export function detectStage(lead: any, messageCount: number): ConversationStage {
   if (lead.status === 'closed_won' || lead.status === 'closed_lost') return 'closed'
   if (lead.post_visit_result || lead.status === 'visit_done') return 'post_visit'
-  if (messageCount <= 1) return 'greeting'
+  if (messageCount <= 1 && !lead.name) return 'greeting'
   if (lead.status === 'visit_booked') return 'commitment'
   if (lead.ai_score >= 7 && lead.status === 'qualified') return 'commitment'
   if (lead.ai_score >= 4) return 'presentation'
