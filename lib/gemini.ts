@@ -59,7 +59,25 @@ export function isMediaPlaceholder(text: string): boolean {
 // No multi-line property cards in examples (those live in the inventory section).
 // Synthetic now; swap for real 👍-rated conversations when volume justifies.
 // IMPORTANT: keep these short — GLM free tier slows noticeably above ~2500 tokens.
-function buildFewShotExamples(stage: ConversationStage, lang?: string | null): string {
+// Strips emoji + decorative symbols from the "You:" line of an example —
+// the examples are authored in a casual, friendly style for brevity/structure
+// reference only; a 'professional' or 'concise' agent's examples shouldn't
+// visually demonstrate emoji usage that contradicts their configured tone.
+export function stripEmojisFromReplyLine(example: string): string {
+  return example
+    .split('\n')
+    .map(line => line.startsWith('You:')
+      ? line
+          .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '') // astral-plane emoji (surrogate pairs, e.g. 🏡📍🙏)
+          .replace(/[←-⇿☀-➿]/g, '')   // BMP arrows/dingbats (e.g. ✅✨)
+          .replace(/️/g, '')                          // emoji variation selector (e.g. trailing mark on 🛏️)
+          .replace(/ {2,}/g, ' ')
+          .trim()
+      : line)
+    .join('\n')
+}
+
+function buildFewShotExamples(stage: ConversationStage, lang?: string | null, tone?: string): string {
   // India-specific examples — realistic WhatsApp-style exchanges.
   // Keep short (token budget). Budget in crore/lakh is common; always map correctly.
   const stageExamples: Partial<Record<ConversationStage, string>> = {
@@ -85,10 +103,15 @@ function buildFewShotExamples(stage: ConversationStage, lang?: string | null): s
   const langKey = lang === 'mr' ? 'mr' : lang === 'hi' ? 'hi' : null
   const langEx = langKey ? langExample[langKey] : null
 
-  const parts = [stageEx, langEx].filter(Boolean)
+  let parts = [stageEx, langEx].filter(Boolean) as string[]
   if (!parts.length) return ''
 
-  return `\nEXAMPLES (tone + brevity to match):\n${parts.join('\n---\n')}\n`
+  // Examples are authored casual/friendly for brevity — strip emojis for
+  // agents configured for a non-friendly tone so the example doesn't visually
+  // contradict the TONE directive (copy structure, not decoration).
+  if (tone && tone !== 'friendly') parts = parts.map(stripEmojisFromReplyLine)
+
+  return `\nEXAMPLES (structure + brevity to match — NOT necessarily wording/emoji, see TONE):\n${parts.join('\n---\n')}\n`
 }
 
 export function buildEnginePrompt(ctx: any, stage: ConversationStage, messageCount: number): string {
@@ -232,6 +255,16 @@ If lost — be gracious, offer to help in future, ask for referrals.`
     concise: 'Short and direct. Maximum 2-3 sentences per message. No fluff.'
   }
 
+  // ── Hard tone directive (injected BEFORE the main prompt, mirrors langDirective) ──
+  // The EXAMPLES below are written in a casual, friendly, emoji-heavy style for
+  // brevity/structure reference. For a non-'friendly' agent that style visually
+  // dominates the prompt and silently overrides the one-line TONE instruction
+  // further down — this directive makes the override explicit and points at it.
+  const tone = agent.bot_tone || 'friendly'
+  const toneDirective = tone !== 'friendly'
+    ? `⚠️ MANDATORY TONE RULE — override the EXAMPLES' style:\nThis agency's configured tone is "${tone}": ${toneMap[tone] || toneMap.friendly}\nThe EXAMPLES section below is written in a casual, friendly style purely to show message structure and brevity — copy the STRUCTURE, never the casual wording, fillers, or emojis from those examples. Every reply must match the tone above instead.\n`
+    : ''
+
   // ── Hard language directive (injected BEFORE the main prompt so it wins) ──
   // The LLM's own language-detection is unreliable for Latin-script Marathi.
   // We pre-detect server-side and turn it into a mandatory instruction.
@@ -250,7 +283,7 @@ If lost — be gracious, offer to help in future, ask for referrals.`
     return ''
   })()
 
-  return `${langDirective}You are the Convorian Conversion Engine — a highly sophisticated AI sales assistant for ${agent.agency_name}, a real estate agency in India.
+  return `${toneDirective}${langDirective}You are the Convorian Conversion Engine — a highly sophisticated AI sales assistant for ${agent.agency_name}, a real estate agency in India.
 
 You are NOT a generic chatbot. You are trained in real estate sales psychology and your goal is to convert leads into site visits and ultimately into transactions. Every message should move the lead one step closer — but a great salesperson knows that sometimes the right move is to slow down, listen, or give space. You play the long game.
 
@@ -348,18 +381,23 @@ ABSOLUTE RULES:
 ${ctx.reschedulingLocked ? `- RESCHEDULING IS LOCKED for this lead: they have already changed the visit time 3+ times, so a human teammate is now personally coordinating the final time by phone. Do NOT agree to book, change, or confirm any visit time, and NEVER output appointment_booked_time. If they ask about timing, warmly remind them the team will call to settle it. Answer all their OTHER questions completely normally.` : ''}
 
 PROPERTY DETAILS FORMAT — when sharing a property, present it clean and scannable:
-🏡 *[Title]*
+${tone === 'professional' ? `*[Title]*
+Location: [Location]
+[BHK] · [sqft] · [Price]
+Possession: [Possession status — e.g. "Ready to move" or "Under construction, possession by Jun 2026"]
+Amenities: [list ALL key ones from inventory, e.g. "Gym, Pool, East-facing, Clubhouse"]
+Highlights: [HIGHLIGHTS if any — quote from the HIGHLIGHTS field in inventory]` : `🏡 *[Title]*
 📍 [Location]
 🛏️ [BHK] · 📐 [sqft] · 💰 [Price]
 🗓️ [Possession status — e.g. "Ready to move" or "Under construction, possession by Jun 2026"]
 ✨ [Amenities — list ALL key ones from inventory, e.g. "Gym · Pool · East-facing · Clubhouse"]
-📌 [HIGHLIGHTS if any — quote from the HIGHLIGHTS field in inventory]
+📌 [HIGHLIGHTS if any — quote from the HIGHLIGHTS field in inventory]`}
 Then one short conversational line ("Great for a family looking for X") + a gentle next step.
-— ONLY include 🗓️ line if possession_status is in inventory. ONLY include 📌 if HIGHLIGHTS exist.
+— ONLY include the possession line if possession_status is in inventory. ONLY include highlights if they exist.
 — If details (sqft, amenities) are missing from inventory, skip that line rather than guessing.
 
-${buildFewShotExamples(stage, activeLang as string)}
-RESPONSE FORMAT — return EXACTLY this structure:
+${buildFewShotExamples(stage, activeLang as string, tone)}
+${toneDirective ? `⚠️ REMINDER — this agency's tone is "${tone}": ${toneMap[tone] || toneMap.friendly} Do not slip back into the casual style from the examples above.\n` : ''}RESPONSE FORMAT — return EXACTLY this structure:
 [Your WhatsApp message here]
 {"score":7,"temperature":"warm","intent":"buy","areas":["Baner"],"budget_min":5000000,"budget_max":9000000,"timeline":"within_3_months","name":"Rahul","stage":"presentation","matched_property_id":"uuid","appointment_booked_time":"2026-06-05T10:00:00Z","appointment_status":"upcoming"}
 
