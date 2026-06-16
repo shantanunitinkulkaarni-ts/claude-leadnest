@@ -1,0 +1,10 @@
+{
+  "name": "vastu / direction objection → check inventory, never guess",
+  "rule": "Sunrise Park (p3) IS east-facing — this is explicitly in inventory features. Reply MUST confirm it is east-facing clearly. Must NOT say \"I'll check\" for something that IS in the inventory. Must NOT make up vastu certificates. Should affirm the east-facing direction warmly (e.g. \"yes, east-facing hai — morning sunlight aata hai ✅\"). Should treat vastu as a valid concern, not dismiss it.",
+  "stage": "presentation",
+  "raw": "Haan, east-facing hai — morning sunlight aata hai, vastu-friendly ✅ 2BHK, 1,080 sqft, ₹79L. Ready to move society with gym & clubhouse. Photos dekhna chahoge?\n{\"score\":6,\"temperature\":\"warm\",\"intent\":\"buy\",\"areas\":[\"Baner\"],\"budget_min\":7900000,\"budget_max\":7900000,\"timeline\":\"not_captured\",\"name\":\"Mohan\",\"stage\":\"presentation\",\"matched_property_id\":\"p3\",\"lang\":\"hi\"}",
+  "reply": "Haan, east-facing hai — morning sunlight aata hai, vastu-friendly ✅ 2BHK, 1,080 sqft, ₹79L. Ready to move society with gym & clubhouse. Photos dekhna chahoge?",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply clearly confirms that Sunrise Park (p3) is east-facing, affirms the east-facing direction warmly by mentioning morning sunlight, and treats vastu as a valid concern by using \"vastu-friendly\" without making up any certificates.",
+  "recordedAt": "2026-06-16T09:45:26.451Z"
+}

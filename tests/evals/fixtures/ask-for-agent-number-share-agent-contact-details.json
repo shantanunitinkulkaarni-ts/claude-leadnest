@@ -1,0 +1,10 @@
+{
+  "name": "ask for agent number → share agent contact details",
+  "rule": "Reply must share the agent's contact details directly: name (Suresh Kumar) and phone (9876543210), available 9 AM to 7 PM. Must NOT refuse or say \"I cannot share contact.\" Must NOT just say \"team will call you\" — the lead explicitly asked for the number, so share it.",
+  "stage": "greeting",
+  "raw": "Sure! You can reach Suresh Kumar directly on 9876543210, available 09:00–19:00. He'll be happy to assist you with your property needs.",
+  "reply": "Sure! You can reach Suresh Kumar directly on 9876543210, available 09:00–19:00. He'll be happy to assist you with your property needs.",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply shares the agent's contact details directly, including name (Suresh Kumar) and phone number (9876543210), and mentions the availability (09:00–19:00, which corresponds to 9 AM to 7 PM), without refusing or saying \"team will call you\".",
+  "recordedAt": "2026-06-16T09:44:45.231Z"
+}

@@ -15,8 +15,13 @@ import { detectInboundSignals, detectReplyKnowledgeGap, topSignal, SIGNAL_LABELS
 import { buildAlertContent, guardrailReply } from '@/lib/priorityAlerts'
 import { verifySharedSecret } from '@/lib/webhookAuth'
 import { createLogger } from '@/lib/logger'
+import { checkRateLimit } from '@/lib/rateLimit'
 import { randomUUID } from 'crypto'
 import * as Sentry from '@sentry/nextjs'
+
+const IP_RATE_LIMIT = 60       // requests / minute / IP
+const AGENT_RATE_LIMIT = 10    // requests / minute / agent
+const RATE_LIMIT_WINDOW_MS = 60_000
 
 const PROVIDER = process.env.WHATSAPP_PROVIDER || 'meta'
 
@@ -64,6 +69,18 @@ export async function POST(request: NextRequest) {
       }
     }
     // ─────────────────────────────────────────────────────────────────────────
+
+    // ── IP rate limit ───────────────────────────────────────────────────────
+    // Cheapest possible check — runs before any body parsing or DB work, so a
+    // hammering IP never costs us an LLM call or a write.
+    {
+      const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown'
+      const ipLimit = checkRateLimit(`ip:${ip}`, IP_RATE_LIMIT, RATE_LIMIT_WINDOW_MS)
+      if (!ipLimit.allowed) {
+        log('rate_limited_ip', { ip })
+        return NextResponse.json({ status: 'rate_limited' }, { status: 429 })
+      }
+    }
 
     const contentType = request.headers.get('content-type') || ''
     let fromPhone = '', messageText = '', waMessageId = '', phoneNumberId = '', forcedAgentId = ''
@@ -185,6 +202,20 @@ export async function POST(request: NextRequest) {
     }
     setContext({ agentId: agent.id })
     Sentry.setContext('webhook', { traceId, agentId: agent.id })
+
+    // ── Per-agent rate limit ────────────────────────────────────────────────
+    // Caps one agent's number looping/storming the webhook (buggy automation,
+    // misconfigured retry on their side) from burning the LLM budget shared
+    // across all agents. Below the gate checks (bot off/limit reached) so it
+    // applies even while those are otherwise permissive.
+    {
+      const agentLimit = checkRateLimit(`agent:${agent.id}`, AGENT_RATE_LIMIT, RATE_LIMIT_WINDOW_MS)
+      if (!agentLimit.allowed) {
+        log('rate_limited_agent', { agentId: agent.id })
+        return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'rate_limited' }, { status: 429 })
+      }
+    }
+
     // Agent-level gates (bot off / limit reached / subscription lapsed),
     // centralised + unit-tested in lib/botGating.ts. 'active' agents are never
     // blocked by expiry (protects demo/comp/legacy/trial-not-yet-expired).

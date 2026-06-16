@@ -1,0 +1,10 @@
+{
+  "name": "fabricated price from memory → must use inventory price",
+  "rule": "The Skyline Residency 3BHK is priced at ₹9500000 (₹95L / 95 lakh). Reply MUST quote ₹95L or ₹9500000 exactly from the inventory. Must NOT quote ₹85L or any other price. If the lead says they saw ₹85L online, the bot should gently clarify with the correct inventory price.",
+  "stage": "presentation",
+  "raw": "Haan, Skyline Residency ka price ₹95L hai — 3BHK, 1450 sqft, ready to move. Online pricing might be outdated. Photos dekhna chahoge?",
+  "reply": "Haan, Skyline Residency ka price ₹95L hai — 3BHK, 1450 sqft, ready to move. Online pricing might be outdated. Photos dekhna chahoge?",
+  "judgePass": true,
+  "judgeWhy": "PASS - The bot reply quotes the correct price, ₹95L, as per the inventory, and also gently clarifies that online pricing might be outdated, addressing the potential discrepancy without quoting the incorrect price ₹85L.",
+  "recordedAt": "2026-06-16T09:44:31.044Z"
+}

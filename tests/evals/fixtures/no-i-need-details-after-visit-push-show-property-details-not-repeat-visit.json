@@ -1,0 +1,10 @@
+{
+  "name": "\"no I need details\" after visit push → show property details, not repeat visit",
+  "rule": "Reply MUST show comprehensive details about Sunrise Park: price (₹79L), size (1080 sqft), possession (ready to move), amenities (east-facing, gym, clubhouse). Must NOT repeat the visit booking message. Must NOT say \"happy to set up a visit\" again. The lead explicitly asked for details — give them details. Must NOT ask another question without answering first.",
+  "stage": "commitment",
+  "raw": "Absolutely! Here are the full details for Sunrise Park:\n\n🏡 *Sunrise Park*\n📍 Baner\n🛏️ 2BHK · 📐 1080 sqft · 💰 ₹79L\n✨ East-facing · Gym · Clubhouse\n📌 East-facing, vastu-friendly layout\n\nReady to move in a premium society with great amenities. Would you like me to share photos with you?",
+  "reply": "Absolutely! Here are the full details for Sunrise Park:\n\n🏡 *Sunrise Park*\n📍 Baner\n🛏️ 2BHK · 📐 1080 sqft · 💰 ₹79L\n✨ East-facing · Gym · Clubhouse\n📌 East-facing, vastu-friendly layout\n\nReady to move in a premium society with great amenities. Would you like me to share photos with you?",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply provides comprehensive details about Sunrise Park, including price (₹79L), size (1080 sqft), possession (ready to move), and amenities (east-facing, gym, clubhouse), without repeating the visit booking message or asking another question before answering.",
+  "recordedAt": "2026-06-16T09:45:48.941Z"
+}

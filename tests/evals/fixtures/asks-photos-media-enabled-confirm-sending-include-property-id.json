@@ -1,0 +1,10 @@
+{
+  "name": "asks photos (media enabled) → confirm sending + include property ID",
+  "rule": "Reply should warmly confirm photo sharing (e.g. \"Sure! Let me share the photos\" or similar). Must NOT say \"system will send\" or \"I cannot send photos\". Must NOT push for a visit instead of showing photos. The JSON metadata should ideally include matched_property_id.",
+  "stage": "presentation",
+  "raw": "Sure, let me share the photos with you!\n{\"score\":6,\"temperature\":\"warm\",\"intent\":\"buy\",\"areas\":[\"Baner\"],\"budget_min\":null,\"budget_max\":null,\"timeline\":null,\"name\":\"Rahul\",\"stage\":\"presentation\",\"matched_property_id\":\"p3\",\"appointment_booked_time\":null,\"appointment_status\":null,\"lang\":\"en\"}",
+  "reply": "Sure, let me share the photos with you!",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply warmly confirms photo sharing and does not include any phrases that are not allowed, such as \"system will send\", \"I cannot send photos\", or pushing for a visit instead of showing photos.",
+  "recordedAt": "2026-06-16T09:40:59.762Z"
+}
