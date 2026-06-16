@@ -1,0 +1,10 @@
+{
+  "name": "greeting → asks name + language, no property dump",
+  "rule": "Reply must ask for the lead's name AND offer language preference (English/Hindi/Marathi). Must NOT dump property listings or prices in the first message. Must be warm and welcoming. Should ask name first, not start with area or budget questions.",
+  "stage": "greeting",
+  "raw": "Hi! Welcome to SK Properties 😊 May I know your good name? And by the way, I can chat in English, हिंदी or मराठी — whichever is comfortable for you!",
+  "reply": "Hi! Welcome to SK Properties 😊 May I know your good name? And by the way, I can chat in English, हिंदी or मराठी — whichever is comfortable for you!",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply asks for the lead's name first and offers language preference (English, Hindi, Marathi), while being warm and welcoming, without dumping property listings or prices.",
+  "recordedAt": "2026-06-16T09:46:10.558Z"
+}

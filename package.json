@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
-    "eval": "cross-env RUN_EVALS=1 playwright test tests/evals"
+    "eval": "cross-env RUN_EVALS=1 playwright test tests/evals/engine-eval.spec.ts",
+    "eval:record": "cross-env RUN_EVALS=1 EVAL_RECORD=1 playwright test tests/evals/engine-eval.spec.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.99.0",

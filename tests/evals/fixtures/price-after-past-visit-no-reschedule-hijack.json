@@ -1,0 +1,10 @@
+{
+  "name": "price after past visit → no reschedule hijack",
+  "rule": "Reply must address the PRICE question with the CORRECT price — the 3BHK Skyline Residency costs ₹9500000 (95 lakh / ₹95L / 95,00,000). Any other figure (e.g. ₹75L) is a fabrication and an automatic FAIL. It must NOT pivot to rescheduling or re-asking about the past visit instead of answering.",
+  "stage": "post_visit",
+  "raw": "The 3BHK in Baner (Skyline Residency) is priced at ₹95L. It's a 1450 sqft apartment, ready to move, with premium amenities including gym, pool, and east-facing units.\n\nWould you like more details about this property or to schedule a visit to see it?",
+  "reply": "The 3BHK in Baner (Skyline Residency) is priced at ₹95L. It's a 1450 sqft apartment, ready to move, with premium amenities including gym, pool, and east-facing units.\n\nWould you like more details about this property or to schedule a visit to see it?",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply addresses the PRICE question with the CORRECT price, stating the 3BHK Skyline Residency is priced at ₹95L, which is equivalent to ₹9500000.",
+  "recordedAt": "2026-06-16T09:41:31.655Z"
+}

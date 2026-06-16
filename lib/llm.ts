@@ -1,10 +1,13 @@
 import axios from 'axios'
+import * as Sentry from '@sentry/nextjs'
+import { cerebrasChat } from './cerebras'
 
 // ─── Single LLM provider: GLM-4.5-Flash (Z.ai, free tier) ────────────────────
 // Founder decision (June 13): Gemini removed (key requires paid billing) and
 // Groq removed (100k tokens/day free cap → mid-day outages = canned replies to
-// real leads). GLM is the ONLY brain; reliability comes from a fast first
+// real leads). GLM is the primary brain; reliability comes from a fast first
 // attempt + one automatic retry with a longer budget, not from provider count.
+// A single Cerebras fallback attempt (callLLM, below) now backs it up.
 //
 // thinking disabled: GLM-4.5 is a reasoning model by default and would spend
 // the whole token budget "thinking", returning empty text for chat use.
@@ -192,4 +195,24 @@ export function glmChat(
     () => glmOnce(messages, { maxTokens, temperature, timeoutMs: ATTEMPT_TIMEOUT_MS }),
     { deadlineMs, attemptTimeoutMs: ATTEMPT_TIMEOUT_MS, hedgeAfterMs: HEDGE_AFTER_MS, maxAttempts: MAX_ATTEMPTS, maxInFlight: MAX_IN_FLIGHT }
   )
+}
+
+// ─── Fallback chain: GLM (hedged) → Cerebras (one shot) ───────────────────────
+// Only reached when GLM exhausts every hedged attempt within its own deadline.
+// `deps` is injectable so tests can exercise the fallback path without making
+// real network calls or touching env vars (mirrors runWithHedging's injectable
+// `attempt` above).
+export async function callLLM(
+  messages: ChatMessage[],
+  opts?: { maxTokens?: number; temperature?: number; deadlineMs?: number },
+  deps: { glm?: typeof glmChat; cerebras?: typeof cerebrasChat } = {}
+): Promise<string> {
+  const glm = deps.glm ?? glmChat
+  const cerebras = deps.cerebras ?? cerebrasChat
+  try {
+    return await glm(messages, opts)
+  } catch (err) {
+    Sentry.captureException(err, { tags: { provider: 'glm', fallback: 'cerebras' } })
+    return await cerebras(messages, { maxTokens: opts?.maxTokens, temperature: opts?.temperature })
+  }
 }

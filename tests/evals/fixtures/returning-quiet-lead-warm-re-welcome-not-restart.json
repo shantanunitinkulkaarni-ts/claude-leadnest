@@ -1,0 +1,10 @@
+{
+  "name": "returning quiet lead → warm re-welcome, not restart",
+  "rule": "Reply must NOT restart discovery from scratch (must NOT re-ask name, intent, or area since those are already known from the lead profile). Should warmly welcome them back. May mention a new or matching property. Must NOT be cold or say \"who are you?\" Must feel continuous, not like a fresh start.",
+  "stage": "presentation",
+  "raw": "No worries at all, Arjun! Welcome back. Let me show you the best 2BHK options currently available in Baner within your ₹80L budget:\n\n🏡 **2BHK Sunrise Park**\n📍 Baner\n🛏️ 2BHK · 📐 1,080 sqft · 💰 ₹79L\n🗓️ Ready to move\n✨ Gym · Clubhouse · East-facing · Vastu-friendly layout\n📌 East-facing, so you get beautiful morning light\n\n🏡 **3BHK Skyline Residency**\n📍 Baner\n🛏️ 3BHK · 📐 1,450 sqft · 💰 ₹95L\n🗓️ Ready to move\n✨ Gym · Pool · East-facing · Premium society · 2 covered parking\n\nWhich one catches your eye? I can share more details or photos for either.",
+  "reply": "No worries at all, Arjun! Welcome back. Let me show you the best 2BHK options currently available in Baner within your ₹80L budget:\n\n🏡 **2BHK Sunrise Park**\n📍 Baner\n🛏️ 2BHK · 📐 1,080 sqft · 💰 ₹79L\n🗓️ Ready to move\n✨ Gym · Clubhouse · East-facing · Vastu-friendly layout\n📌 East-facing, so you get beautiful morning light\n\n🏡 **3BHK Skyline Residency**\n📍 Baner\n🛏️ 3BHK · 📐 1,450 sqft · 💰 ₹95L\n🗓️ Ready to move\n✨ Gym · Pool · East-facing · Premium society · 2 covered parking\n\nWhich one catches your eye? I can share more details or photos for either.",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply warmly welcomes the user back, addresses them by name, and provides property options within their known budget and area, showing continuity and not restarting discovery from scratch.",
+  "recordedAt": "2026-06-16T09:43:52.212Z"
+}

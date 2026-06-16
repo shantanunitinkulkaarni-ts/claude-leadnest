@@ -1,0 +1,10 @@
+{
+  "name": "template button \"Yes, share details\" → present actual property from inventory",
+  "rule": "Reply must present actual property details from the inventory — NOT just say \"I'll share details later\" or ask discovery questions. Should show at least the property name, location, price, and one or two features from the inventory (e.g. Sunrise Park 2BHK Baner ₹79L). Must be concrete and specific, not vague.",
+  "stage": "qualification",
+  "raw": "🏡 *Sunrise Park*\n📍 Baner\n🛏️ 2BHK · 📐 1080 sqft · 💰 ₹79L\n🗓️ Ready to move\n✨ Gym · Clubhouse · East-facing · Vastu-friendly layout\n\nGreat for families wanting a ready home with good vibes! Would you like to see the photos, or shall I arrange a site visit?",
+  "reply": "🏡 *Sunrise Park*\n📍 Baner\n🛏️ 2BHK · 📐 1080 sqft · 💰 ₹79L\n🗓️ Ready to move\n✨ Gym · Clubhouse · East-facing · Vastu-friendly layout\n\nGreat for families wanting a ready home with good vibes! Would you like to see the photos, or shall I arrange a site visit?",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply presents actual property details from the inventory, including the property name (Sunrise Park), location (Baner), price (₹79L), and features (2BHK, 1080 sqft, Gym, Clubhouse, East-facing, Vastu-friendly layout), making it concrete and specific.",
+  "recordedAt": "2026-06-16T09:44:49.030Z"
+}

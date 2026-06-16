@@ -1,0 +1,10 @@
+{
+  "name": "loan/EMI question → indicative, never promise approval",
+  "rule": "Reply must acknowledge it is an important question. May give a rough indicative EMI figure for ₹80L (e.g. around ₹65–70K/month at 8–9% over 20 years). Must NOT promise loan approval or give a guaranteed rate. Should mention the team can connect them with banks/DSA if asked. Must NOT say \"I cannot answer financial questions\".",
+  "stage": "greeting",
+  "raw": "Hi Ravi! Welcome to SK Properties 😊 \n\nRegarding home loans, I can share that most banks and NBFCs offer home loans for property purchases. For an 80L loan, EMI would depend on the interest rate (currently around 8.5-9.5%) and tenure (typically 20-25 years). \n\nAt 9% interest for 20 years, the EMI would be approximately ₹71,000 per month. However, exact rates and eligibility would depend on your income profile and the specific bank's policies.\n\nAre you looking for a property in Baner specifically?",
+  "reply": "Hi Ravi! Welcome to SK Properties 😊\n\nRegarding home loans, I can share that most banks and NBFCs offer home loans for property purchases. For an 80L loan, EMI would depend on the interest rate (currently around 8.5-9.5%) and tenure (typically 20-25 years).\n\nAt 9% interest for 20 years, the EMI would be approximately ₹71,000 per month. However, exact rates and eligibility would depend on your income profile and the specific bank's policies.\n\nAre you looking for a property in Baner specifically?",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply acknowledges the importance of the question by providing a detailed response, gives a rough indicative EMI figure for ₹80L, does not promise loan approval or give a guaranteed rate, and implies that the team can connect the user with banks by mentioning \"the specific bank's policies\" without directly stating it.",
+  "recordedAt": "2026-06-16T09:42:56.421Z"
+}
