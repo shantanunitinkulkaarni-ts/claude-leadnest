@@ -1,5 +1,11 @@
+import * as Sentry from '@sentry/nextjs'
 import { supabaseAdmin } from './supabase'
 import { glmChat } from './llm'
+import { detectStage, type ConversationStage } from './stageMachine'
+import { filterPropertiesForLead, isValidMatchedProperty } from './propertyMatcher'
+import { validateReply } from './replyValidator'
+
+export { detectStage, type ConversationStage }
 
 // ─── Engine LLM call: GLM-4.5-Flash ONLY (see lib/llm.ts) ─────────────────────
 // Gemini and Groq were removed (June 13, founder decision): Gemini's key needs
@@ -43,45 +49,6 @@ export async function callEngineLLM(
 // literal "[photo] ..." into its reply. Filter them out of history everywhere.
 export function isMediaPlaceholder(text: string): boolean {
   return /^\s*\[(photo|image|video|media|file|attachment)\b/i.test(text || '')
-}
-
-export type ConversationStage =
-  | 'greeting'        // First message — establish rapport
-  | 'discovery'       // Understand needs — SPIN questions
-  | 'qualification'   // Budget, timeline, decision maker
-  | 'presentation'    // Show matched properties
-  | 'objection'       // Handle concerns
-  | 'commitment'      // Book site visit
-  | 'post_visit'      // Lead has completed a site visit — convert to deal
-  | 'nurture'         // Long-term follow up
-  | 'closed'          // Won or lost
-
-export function detectStage(lead: any, messageCount: number): ConversationStage {
-  if (lead.status === 'closed_won' || lead.status === 'closed_lost') return 'closed'
-  // Highest priority after closed: if a visit has happened and feedback exists,
-  // the whole conversation must pivot to converting that visit — even on the
-  // very first inbound message (e.g. a walk-in logged by the agent).
-  if (lead.post_visit_result || lead.status === 'visit_done') return 'post_visit'
-  if (messageCount <= 1) return 'greeting'
-  // Booked/commitment states take priority over any field-based logic below.
-  if (lead.status === 'visit_booked') return 'commitment'
-  if (lead.ai_score >= 7 && lead.status === 'qualified') return 'commitment'
-  if (lead.ai_score >= 4) return 'presentation'
-
-  // Discovery/qualification: capture key fields early, but NEVER let
-  // discovery drag on forever — a real agent shows properties by message 5,
-  // not message 15. Force progression after 5 messages regardless of gaps;
-  // the bot will continue gathering info naturally during presentation.
-  const hasAnyCriteria = lead.intent || lead.preferred_areas || lead.budget_min
-  if (!hasAnyCriteria && messageCount <= 4) return 'discovery'
-  if (messageCount >= 5 && hasAnyCriteria) return 'presentation'
-  if (!lead.name || !lead.intent || !lead.preferred_areas) return 'discovery'
-  if (!lead.budget_min || !lead.timeline) return 'qualification'
-
-  // Cold leads who haven't engaged after qualifying get a nurture approach.
-  if (lead.temperature === 'cold' && messageCount > 6) return 'nurture'
-
-  return 'presentation'
 }
 
 // ─── Few-shot example conversations ──────────────────────────────────────────
@@ -517,6 +484,10 @@ export async function generateBotReply(
   const messageCount = recentMessages.length
   const stage = detectStage(lead, messageCount)
 
+  // Server-side filter: the LLM only ever sees properties that already match
+  // the lead's known intent/areas/budget, so it can't recommend a mismatch.
+  const filteredProperties = filterPropertiesForLead(properties, lead)
+
   // Server-side language detection — runs before the LLM so we can inject a
   // hard directive. Uses the current message + stored lead.language as fallback.
   const detectedLang = detectMessageLanguage(incomingMessage, lead.language)
@@ -524,7 +495,7 @@ export async function generateBotReply(
   const ctx = {
     agent,
     lead,
-    properties,
+    properties: filteredProperties,
     currentTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
     isOfficeHours: isOfficeHours(agent.office_open, agent.office_close),
     // 3+ AI reschedules → a human is coordinating the final time; the bot must
@@ -566,7 +537,35 @@ export async function generateBotReply(
   const responseText = await callEngineLLM(systemPrompt, chatHistory, incomingMessage)
   if (!responseText) throw new Error('Engine LLM returned empty')
 
-  return parseEngineResponse(responseText, stage)
+  const result = parseEngineResponse(responseText, stage)
+
+  // The LLM was only shown filteredProperties — if it claims a property ID
+  // outside that set, it hallucinated. Discard the field rather than letting
+  // the webhook look up (or send photos for) a property the lead never asked
+  // about, and alert so we can see how often this happens in production.
+  const matchedId = result.metadata?.matched_property_id
+  if (matchedId && !isValidMatchedProperty(matchedId, filteredProperties)) {
+    Sentry.captureMessage('Engine recommended property outside filtered set', {
+      level: 'warning',
+      extra: { agentId, leadId, matchedId, stage, filteredCount: filteredProperties.length },
+    })
+    delete result.metadata.matched_property_id
+  }
+
+  // Last line of defense: every rupee figure the LLM just wrote must match a
+  // real property in the agent's inventory (within 5% tolerance). Checked
+  // against the FULL inventory, not just filteredProperties — the ground
+  // truth is "does this price exist anywhere," not "was it in what we showed."
+  const validation = validateReply(result.reply, properties)
+  if (!validation.valid) {
+    Sentry.captureMessage('Reply contained a price not found in inventory', {
+      level: 'warning',
+      extra: { agentId, leadId, stage, quotedPrice: validation.price, reply: result.reply },
+    })
+    result.reply = "Let me double-check the exact pricing on that and get back to you in a moment!"
+  }
+
+  return result
 }
 
 // ─── Proactive follow-up nudge (the lead went quiet) ─────────────────────────
@@ -592,9 +591,10 @@ export async function generateNudge(
   const recentMessages = (messagesRes.data || []).reverse()
   const messageCount = recentMessages.length
   const stage = detectStage(lead, messageCount)
+  const filteredProperties = filterPropertiesForLead(properties, lead)
 
   const ctx = {
-    agent, lead, properties,
+    agent, lead, properties: filteredProperties,
     currentTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
     isOfficeHours: isOfficeHours(agent.office_open, agent.office_close),
     reschedulingLocked: false,

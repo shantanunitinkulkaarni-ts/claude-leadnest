@@ -10,6 +10,7 @@ import { sendWhatsAppMessage, sendViaMsg91, sendViaMsg91Media, sendMetaImage } f
 import { wantsPhotos, botPromisedPhotos, extractPropertyMedia, MAX_IMAGES_PER_SEND } from '@/lib/media'
 import { shouldBotReply } from '@/lib/botGating'
 import { resolveAppointmentTime, formatIST } from '@/lib/appointment'
+import { isConfirmationReply, isPendingAppointmentExpired } from '@/lib/appointmentConfirmation'
 import { detectInboundSignals, detectReplyKnowledgeGap, topSignal, SIGNAL_LABELS, type PrioritySignal } from '@/lib/intentSignals'
 import { buildAlertContent, guardrailReply } from '@/lib/priorityAlerts'
 import { verifySharedSecret } from '@/lib/webhookAuth'
@@ -384,18 +385,32 @@ export async function POST(request: NextRequest) {
     if (metadata.score >= 7) leadUpdates.status = 'qualified'
     else if (metadata.score >= 4) leadUpdates.status = 'contacted'
 
-    // 1. Check for Cancellation
+    // pending_appointment_* saved separately (columns may not exist until
+    // pending_appointment_migration.sql has run) — same pattern as
+    // safeMatchedPropId above, so a missing column never breaks the main
+    // lead update (score/temperature/etc).
+    let hasPendingApptUpdate = false
+    const pendingApptUpdates: any = {}
+    const setPendingAppt = (time: string | null, propertyId: string | null, setAt: string | null) => {
+      hasPendingApptUpdate = true
+      pendingApptUpdates.pending_appointment_time = time
+      pendingApptUpdates.pending_appointment_property_id = propertyId
+      pendingApptUpdates.pending_appointment_set_at = setAt
+    }
+
+    // 1. Check for Cancellation — also drops any pending (unconfirmed) hold.
     if (metadata.appointment_status === 'cancelled' || /(cancel|drop|abort)[\s\S]*?(visit|appointment|viewing|meeting)/i.test(reply)) {
        console.log('APPT-DEBUG: Cancellation detected');
        leadUpdates.status = 'contacted'; // reset status
-       
+       setPendingAppt(null, null, null)
+
        const { data: existingAppts } = await supabaseAdmin
         .from('appointments')
         .select('id')
         .eq('lead_id', lead.id)
         .eq('status', 'upcoming')
         .limit(1)
-        
+
        if (existingAppts && existingAppts.length > 0) {
          await supabaseAdmin.from('appointments').update({ status: 'cancelled' }).eq('id', existingAppts[0].id);
          await supabaseAdmin.from('activity_log').insert({
@@ -404,6 +419,102 @@ export async function POST(request: NextRequest) {
             description: 'Lead cancelled their scheduled site visit via WhatsApp.'
          })
        }
+    } else if (
+      lead.pending_appointment_time &&
+      !isPendingAppointmentExpired(lead.pending_appointment_set_at) &&
+      isConfirmationReply(messageText)
+    ) {
+      // 2. Lead explicitly confirmed a previously staged time — THIS is the
+      // only path that ever writes to `appointments`. See lib/appointmentConfirmation.ts.
+      console.log('APPT-DEBUG: Confirmation detected — promoting pending_appointment_time')
+      const scheduledIso = lead.pending_appointment_time
+      const safePropertyId = lead.pending_appointment_property_id || null
+
+      const { data: existingAppts } = await supabaseAdmin
+        .from('appointments')
+        .select('id')
+        .eq('lead_id', lead.id)
+        .eq('status', 'upcoming')
+        .limit(1)
+
+      let blockedByRescheduleLimit = false
+
+      if (existingAppts && existingAppts.length > 0) {
+        // Troll detection: this is a reschedule of an already-confirmed visit.
+        const { count: rescheduleCount } = await supabaseAdmin
+          .from('activity_log')
+          .select('*', { count: 'exact', head: true })
+          .eq('lead_id', lead.id)
+          .eq('title', 'Site visit rescheduled by AI')
+
+        if (rescheduleCount !== null && rescheduleCount >= 3) {
+          // Reschedule limit reached: block this confirmation and bring in a
+          // human — but KEEP THE BOT ON for everything else.
+          blockedByRescheduleLimit = true
+          console.log('APPT-DEBUG: Reschedule limit (>=3). Blocking confirmation, alerting agent, bot stays on.')
+          reply = "Noted! Since we've moved this a few times, our team will personally call you to lock in the final time — that way it's settled in one go. Meanwhile, I'm right here for anything else you'd like to know. 😊"
+
+          const { data: prevHandover } = await supabaseAdmin
+            .from('activity_log').select('id')
+            .eq('lead_id', lead.id).eq('type', 'human_handover').limit(1)
+          if (!prevHandover || prevHandover.length === 0) {
+            await supabaseAdmin.from('activity_log').insert({
+              agent_id: agent.id, lead_id: lead.id, type: 'human_handover',
+              title: 'Action needed: call this lead to fix the visit time',
+              description: `${lead.name || lead.phone} has rescheduled 3+ times. The bot has stopped changing the appointment — please call them to confirm a final time.`
+            })
+            try {
+              const { sendHighPriorityAlert } = await import('@/lib/alerts')
+              await sendHighPriorityAlert(agent, {
+                subject: `Action needed: ${lead.name || lead.phone} keeps rescheduling — please call them`,
+                html: `<p>Hi ${agent.name || ''},</p><p><strong>${lead.name || 'A lead'} (${lead.phone})</strong> has rescheduled their site visit 3+ times. Your AI assistant has stopped changing the appointment and told them your team will call to fix a final time.</p><p><strong>Please call them to confirm the visit.</strong> The bot is still answering their other questions in the meantime.</p>`,
+                whatsappText: `🔴 Convorian — action needed\n\n${lead.name || 'A lead'} (${lead.phone}) has rescheduled their site visit 3+ times. The AI has locked the appointment and told them your team will call.\n\n📞 Please call them now to fix the final time — this lead is at risk.`,
+                templateValues: [lead.name || 'A lead', lead.phone, 'rescheduled their site visit 3+ times — please call them to fix the final time'],
+                msg91IntegratedNumber,
+              })
+            } catch (alertErr: any) {
+              console.error('Handover alert failed (non-critical):', alertErr?.message)
+            }
+          }
+        }
+      }
+
+      // Always clear the pending hold once acted on — confirmed or blocked.
+      setPendingAppt(null, null, null)
+
+      if (!blockedByRescheduleLimit) {
+        let apptData, apptError
+        if (existingAppts && existingAppts.length > 0) {
+          const res = await supabaseAdmin.from('appointments').update({
+            scheduled_at: scheduledIso,
+            property_id: safePropertyId || undefined,
+          }).eq('id', existingAppts[0].id).select()
+          apptData = res.data
+          apptError = res.error
+        } else {
+          const res = await supabaseAdmin.from('appointments').insert({
+            agent_id: agent.id,
+            lead_id: lead.id,
+            property_id: safePropertyId,
+            scheduled_at: scheduledIso,
+            status: 'upcoming',
+          }).select()
+          apptData = res.data
+          apptError = res.error
+        }
+
+        if (apptError) console.error('APPT-DEBUG: confirm SAVE FAILED:', apptError)
+        else console.log('APPT-DEBUG: confirm SAVE SUCCESS:', apptData)
+
+        leadUpdates.status = 'visit_booked'
+        await supabaseAdmin.from('activity_log').insert({
+          agent_id: agent.id, lead_id: lead.id, type: 'visit_booked',
+          title: existingAppts && existingAppts.length > 0 ? 'Site visit rescheduled by AI' : 'Site visit booked by AI',
+          description: `Confirmed for ${formatIST(scheduledIso)} IST`,
+        })
+
+        reply = `Perfect, you're all set! ✅ Your site visit is confirmed for ${formatIST(scheduledIso)}. Our team will share the exact location details before the visit. Looking forward to it!`
+      }
     } else {
       // Robustly resolve a real, IST-correct visit time (lib/appointment).
       // Replaces (a) the old chrono-only-when-the-model-omitted-it fallback and
@@ -460,105 +571,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 3. A new time was resolved this turn — STAGE it as a pending hold and
+    // ask the lead to explicitly confirm. Never write straight to `appointments`.
     const parsedDate = metadata.appointment_booked_time ? new Date(metadata.appointment_booked_time) : null
     if (parsedDate && !isNaN(parsedDate.getTime())) {
-      leadUpdates.status = 'visit_booked'
-      
       let safePropertyId = null;
       if (metadata.matched_property_id) {
           const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(metadata.matched_property_id);
           safePropertyId = isUUID ? metadata.matched_property_id : null;
       }
 
-      // Check if there is already an upcoming appointment for this lead
-      const { data: existingAppts } = await supabaseAdmin
-        .from('appointments')
-        .select('id')
-        .eq('lead_id', lead.id)
-        .eq('status', 'upcoming')
-        .limit(1)
+      console.log('APPT-DEBUG: Staging pending_appointment_time:', parsedDate.toISOString())
+      setPendingAppt(parsedDate.toISOString(), safePropertyId, now)
 
-      let apptData, apptError;
-      
-      if (existingAppts && existingAppts.length > 0) {
-        // Troll detection: Check how many times they have rescheduled
-        const { count: rescheduleCount } = await supabaseAdmin
-          .from('activity_log')
-          .select('*', { count: 'exact', head: true })
-          .eq('lead_id', lead.id)
-          .eq('title', 'Site visit rescheduled by AI')
-
-        if (rescheduleCount !== null && rescheduleCount >= 3) {
-          // Reschedule limit reached: block this time change and bring in a
-          // human — but KEEP THE BOT ON. Pausing here left leads talking to a
-          // wall (no replies at all) while the agent never noticed the silent
-          // activity-log entry. Now: bot keeps answering, agent gets an email.
-          console.log('APPT-DEBUG: Reschedule limit (>=3). Blocking change, alerting agent, bot stays on.')
-          reply = "Noted! Since we've moved this a few times, our team will personally call you to lock in the final time — that way it's settled in one go. Meanwhile, I'm right here for anything else you'd like to know. 😊"
-
-          // Alert the agent ONCE per lead (email + activity log), not on every attempt.
-          const { data: prevHandover } = await supabaseAdmin
-            .from('activity_log').select('id')
-            .eq('lead_id', lead.id).eq('type', 'human_handover').limit(1)
-          if (!prevHandover || prevHandover.length === 0) {
-            await supabaseAdmin.from('activity_log').insert({
-              agent_id: agent.id, lead_id: lead.id, type: 'human_handover',
-              title: 'Action needed: call this lead to fix the visit time',
-              description: `${lead.name || lead.phone} has rescheduled 3+ times. The bot has stopped changing the appointment — please call them to confirm a final time.`
-            })
-            // High-priority → the trio (email + WhatsApp; call later). ROI-critical.
-            try {
-              const { sendHighPriorityAlert } = await import('@/lib/alerts')
-              await sendHighPriorityAlert(agent, {
-                subject: `Action needed: ${lead.name || lead.phone} keeps rescheduling — please call them`,
-                html: `<p>Hi ${agent.name || ''},</p><p><strong>${lead.name || 'A lead'} (${lead.phone})</strong> has rescheduled their site visit 3+ times. Your AI assistant has stopped changing the appointment and told them your team will call to fix a final time.</p><p><strong>Please call them to confirm the visit.</strong> The bot is still answering their other questions in the meantime.</p>`,
-                whatsappText: `🔴 Convorian — action needed\n\n${lead.name || 'A lead'} (${lead.phone}) has rescheduled their site visit 3+ times. The AI has locked the appointment and told them your team will call.\n\n📞 Please call them now to fix the final time — this lead is at risk.`,
-                templateValues: [lead.name || 'A lead', lead.phone, 'rescheduled their site visit 3+ times — please call them to fix the final time'],
-                msg91IntegratedNumber,
-              })
-            } catch (alertErr: any) {
-              console.error('Handover alert failed (non-critical):', alertErr?.message)
-            }
-          }
-
-          // Skip updating the appointment time in DB
-          metadata.appointment_booked_time = null
-        } else {
-          console.log('APPT-DEBUG: Found existing upcoming appointment, updating time to:', parsedDate.toISOString())
-          const res = await supabaseAdmin.from('appointments').update({
-            scheduled_at: parsedDate.toISOString(),
-            property_id: safePropertyId || undefined // don't clear it if they just rescheduled
-          }).eq('id', existingAppts[0].id).select()
-          apptData = res.data
-          apptError = res.error
-        }
-      } else {
-        console.log('APPT-DEBUG: Inserting new appointment — agent_id:', agent.id, 'lead_id:', lead.id, 'property_id:', safePropertyId, 'scheduled_at:', parsedDate.toISOString())
-        const res = await supabaseAdmin.from('appointments').insert({
-          agent_id: agent.id,
-          lead_id: lead.id,
-          property_id: safePropertyId,
-          scheduled_at: parsedDate.toISOString(),
-          status: 'upcoming'
-        }).select()
-        apptData = res.data
-        apptError = res.error
-      }
-      
-      if (metadata.appointment_booked_time) {
-        if (apptError) {
-          console.error('APPT-DEBUG: SAVE FAILED:', apptError)
-        } else {
-          console.log('APPT-DEBUG: SAVE SUCCESS:', apptData)
-        }
-        
-        await supabaseAdmin.from('activity_log').insert({
-          agent_id: agent.id, lead_id: lead.id, type: 'visit_booked',
-          title: existingAppts && existingAppts.length > 0 ? 'Site visit rescheduled by AI' : 'Site visit booked by AI',
-          description: `Scheduled for ${formatIST(parsedDate.toISOString())} IST`
-        })
-      }
-    } // end of Book/Reschedule Logic
+      reply = `Perfect — I'll schedule your site visit for ${formatIST(parsedDate.toISOString())}. Just reply "Confirm" or "Yes" to lock it in, or let me know a different time that works better.`
+    }
     }
 
     await supabaseAdmin.from('leads').update(leadUpdates).eq('id', lead.id)
@@ -569,6 +596,15 @@ export async function POST(request: NextRequest) {
       try {
         await supabaseAdmin.from('leads').update({ matched_property_id: safeMatchedPropId }).eq('id', lead.id)
       } catch { /* column may not exist yet — safe to ignore */ }
+    }
+
+    // Save pending_appointment_* separately — columns may not exist until
+    // pending_appointment_migration.sql has run; a failure here must NOT
+    // break the main lead update above.
+    if (hasPendingApptUpdate) {
+      try {
+        await supabaseAdmin.from('leads').update(pendingApptUpdates).eq('id', lead.id)
+      } catch { /* columns may not exist yet — safe to ignore */ }
     }
 
     if (metadata.score) {

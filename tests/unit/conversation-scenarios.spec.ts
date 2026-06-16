@@ -10,7 +10,7 @@
  */
 import { test, expect } from '@playwright/test'
 import { detectInboundSignals, topSignal } from '../../lib/intentSignals'
-import { detectStage } from '../../lib/gemini'
+import { detectStage } from '../../lib/stageMachine'
 import { detectMessageLanguage } from '../../lib/gemini'
 
 // ─── VERY_INTERESTED — Indian RE-specific buying signals ──────────────────────
@@ -262,14 +262,14 @@ test.describe('detectStage — Indian RE lead profiles', () => {
     expect(detectStage({ status: 'closed_lost', name: 'Meera' }, 12)).toBe('closed')
   })
 
-  test('cold low-score lead with 8 msgs → presentation (bot keeps showing properties)', () => {
-    // Note: nurture stage requires cold temp + msgCount>6, but the presentation
-    // shortcut (msgCount>=5 && hasAnyCriteria) fires first. The bot stays in
-    // presentation for these leads; agent should nurture manually via outreach.
+  test('cold low-score lead with 8 msgs → nurture (stalled, switch to long-term follow-up)', () => {
+    // Cold temp + msgCount>6 is checked before the presentation shortcut
+    // (msgCount>=5 && hasAnyCriteria), so stalled cold leads correctly fall
+    // into nurture instead of being force-fed more property presentations.
     expect(detectStage({
       name: 'Suresh', intent: 'buy', preferred_areas: ['Wakad'],
       budget_min: 6000000, temperature: 'cold', ai_score: 2,
-    }, 8)).toBe('presentation')
+    }, 8)).toBe('nurture')
   })
 
   test('no name yet at msg 4 → discovery (name capture first)', () => {
