@@ -465,12 +465,13 @@ export async function generateBotReply(
   incomingMessage: string
 ): Promise<{ reply: string; metadata: any }> {
 
-  const [agentRes, leadRes, propertiesRes, messagesRes, rescheduleRes] = await Promise.all([
+  const [agentRes, leadRes, propertiesRes, messagesRes, rescheduleRes, lastStageRes] = await Promise.all([
     supabaseAdmin.from('agents').select('*').eq('id', agentId).single(),
     supabaseAdmin.from('leads').select('*').eq('id', leadId).single(),
     supabaseAdmin.from('properties').select('*').eq('agent_id', agentId).eq('status', 'active'),
     supabaseAdmin.from('messages').select('direction, content, sent_by').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(14),
-    supabaseAdmin.from('activity_log').select('*', { count: 'exact', head: true }).eq('lead_id', leadId).eq('title', 'Site visit rescheduled by AI')
+    supabaseAdmin.from('activity_log').select('*', { count: 'exact', head: true }).eq('lead_id', leadId).eq('title', 'Site visit rescheduled by AI'),
+    supabaseAdmin.from('activity_log').select('metadata').eq('lead_id', leadId).eq('type', 'stage_transition').order('created_at', { ascending: false }).limit(1),
   ])
 
   const agent = agentRes.data as any
@@ -484,9 +485,29 @@ export async function generateBotReply(
   const messageCount = recentMessages.length
   const stage = detectStage(lead, messageCount)
 
+  // Record every stage change to activity_log so an agent can see in the
+  // dashboard WHY the bot's behavior shifted (e.g. "why did it show properties
+  // now?") without asking the developer. Fire-and-forget: this is pure
+  // observability and must never slow down or break reply generation.
+  const previousStage = (lastStageRes.data?.[0]?.metadata as any)?.to ?? null
+  if (previousStage !== stage) {
+    supabaseAdmin.from('activity_log').insert({
+      agent_id: agentId, lead_id: leadId, type: 'stage_transition',
+      title: `Stage: ${previousStage || 'none'} → ${stage}`,
+      description: `messageCount=${messageCount}`,
+      metadata: { from: previousStage, to: stage, messageCount },
+    }).then(({ error }: any) => { if (error) Sentry.captureException(error) })
+  }
+
+  // Filterable context for any Sentry event captured during this call — lets
+  // you search/filter production incidents by lead/stage instead of digging
+  // through the `extra` blob on each individual captureMessage call.
+  Sentry.setContext('lead', { id: leadId, agentId, stage, score: lead.ai_score, temperature: lead.temperature })
+
   // Server-side filter: the LLM only ever sees properties that already match
   // the lead's known intent/areas/budget, so it can't recommend a mismatch.
   const filteredProperties = filterPropertiesForLead(properties, lead)
+  Sentry.setContext('engine', { stage, messageCount, filteredPropertyCount: filteredProperties.length, totalPropertyCount: properties.length })
 
   // Server-side language detection — runs before the LLM so we can inject a
   // hard directive. Uses the current message + stored lead.language as fallback.

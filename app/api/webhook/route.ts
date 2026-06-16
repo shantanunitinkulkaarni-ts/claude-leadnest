@@ -14,6 +14,9 @@ import { isConfirmationReply, isPendingAppointmentExpired } from '@/lib/appointm
 import { detectInboundSignals, detectReplyKnowledgeGap, topSignal, SIGNAL_LABELS, type PrioritySignal } from '@/lib/intentSignals'
 import { buildAlertContent, guardrailReply } from '@/lib/priorityAlerts'
 import { verifySharedSecret } from '@/lib/webhookAuth'
+import { createLogger } from '@/lib/logger'
+import { randomUUID } from 'crypto'
+import * as Sentry from '@sentry/nextjs'
 
 const PROVIDER = process.env.WHATSAPP_PROVIDER || 'meta'
 
@@ -30,6 +33,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const tStart = Date.now()
+  const traceId = randomUUID()
+  const { log, logError, setContext } = createLogger(traceId)
   try {
     // ── Webhook authentication ────────────────────────────────────────────────
     // MSG91 does not sign payloads with HMAC. Their mechanism is a custom header
@@ -49,12 +54,12 @@ export async function POST(request: NextRequest) {
         process.env.SKIP_WEBHOOK_AUTH === 'true'
 
       if (devBypass) {
-        console.warn('⚠️  WEBHOOK AUTH BYPASS ACTIVE (SKIP_WEBHOOK_AUTH=true) — dev only')
+        log('auth_bypass', { note: 'SKIP_WEBHOOK_AUTH=true — dev only' })
       } else if (!secret) {
-        console.error('WEBHOOK AUTH: MSG91_WEBHOOK_SECRET is not set — rejecting all requests')
+        logError('auth_misconfigured', { note: 'MSG91_WEBHOOK_SECRET is not set — rejecting all requests' })
         return NextResponse.json({ error: 'Webhook auth misconfigured' }, { status: 500 })
       } else if (!verifySharedSecret(request.headers.get('x-webhook-secret'), secret)) {
-        console.warn('WEBHOOK AUTH: rejected — invalid or missing x-webhook-secret')
+        log('auth_rejected', { note: 'invalid or missing x-webhook-secret' })
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
@@ -112,7 +117,7 @@ export async function POST(request: NextRequest) {
         }
         if (!messageText || !fromPhone) {
           // Full payload (not truncated) so we can map any unexpected button shape.
-          console.log('MSG91 inbound: could not extract text — FULL payload:', JSON.stringify(body))
+          log('msg91_no_text_extracted', { payload: body })
           return NextResponse.json({ status: 'no_text' })
         }
         // Diagnostic: does this inbound carry a stable id (body.uuid)? The atomic
@@ -120,7 +125,7 @@ export async function POST(request: NextRequest) {
         // (=body.uuid). If button taps arrive with an EMPTY uuid, their retries
         // can't be deduped — this log tells us whether that gap is real before we
         // harden it. Safe to remove once confirmed.
-        console.log(`MSG91 inbound: contentType=${body.contentType || '?'} uuid=${body.uuid ? 'present' : 'EMPTY'} textLen=${messageText.length}`)
+        log('msg91_inbound', { contentType: body.contentType || '?', uuid: body.uuid ? 'present' : 'EMPTY', textLen: messageText.length })
       } else if (body.object === 'whatsapp_business_account') {
         // ── Meta Cloud API inbound ──
         const value = body.entry?.[0]?.changes?.[0]?.value
@@ -175,9 +180,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (!agent) {
-      console.log('Webhook Debug: Agent not found')
+      log('agent_not_found')
       return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'agent_not_found' })
     }
+    setContext({ agentId: agent.id })
+    Sentry.setContext('webhook', { traceId, agentId: agent.id })
     // Agent-level gates (bot off / limit reached / subscription lapsed),
     // centralised + unit-tested in lib/botGating.ts. 'active' agents are never
     // blocked by expiry (protects demo/comp/legacy/trial-not-yet-expired).
@@ -190,7 +197,7 @@ export async function POST(request: NextRequest) {
         plan_expires_at: agent.plan_expires_at,
       })
       if (!gate.reply) {
-        console.log('Webhook Debug: bot gated —', gate.reason)
+        log('bot_gated', { reason: gate.reason })
         return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: gate.reason })
       }
     }
@@ -232,13 +239,13 @@ export async function POST(request: NextRequest) {
           const { data: raceLead } = await supabaseAdmin.from('leads')
             .select('*').eq('agent_id', agent.id).eq('phone', fromPhone).maybeSingle()
           if (!raceLead) {
-            console.error('Webhook: race-condition lead fetch failed', leadInsertError)
+            logError('lead_race_fetch_failed', { error: leadInsertError })
             return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'lead_create_failed' })
           }
           lead = raceLead
           // No activity_log for the race loser — the winner already logged it
         } else {
-          console.error('Webhook: Failed to create lead', leadInsertError)
+          logError('lead_create_failed', { error: leadInsertError })
           return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'lead_create_failed' })
         }
       } else if (!newLead) {
@@ -263,6 +270,8 @@ export async function POST(request: NextRequest) {
         template_touches: 0, last_template_at: null, nurture_state: 'active',
       }).eq('id', lead.id)
     }
+    setContext({ leadId: lead.id })
+    Sentry.setContext('webhook', { traceId, agentId: agent.id, leadId: lead.id })
 
     // ── Opt-out / STOP handling (ban-safety + respect) ──
     // If the lead clearly asks to stop, never message them again. Honoring this
@@ -305,7 +314,7 @@ export async function POST(request: NextRequest) {
         .select('id').eq('lead_id', lead.id).eq('direction', 'inbound')
         .eq('content', messageText).gt('created_at', cutoff).limit(1)
       if (recentDup?.length) {
-        console.log('Webhook Debug: content-dedup hit (no uuid, same msg <60s ago) — skipping')
+        log('dedup_hit', { kind: 'no_uuid_content_match' })
         return NextResponse.json({ status: 'duplicate' })
       }
     }
@@ -315,16 +324,16 @@ export async function POST(request: NextRequest) {
     })
     if (inboundInsertError) {
       if (inboundInsertError.code === '23505') {
-        console.log('Webhook Debug: duplicate inbound message (unique index), skipping')
+        log('dedup_hit', { kind: 'unique_index' })
         return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'duplicate' })
       }
-      console.error('Webhook: Failed to record inbound message', inboundInsertError)
+      logError('inbound_message_insert_failed', { error: inboundInsertError })
       // Don't reply if we couldn't record the message — a retry will reprocess it cleanly.
       return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'message_insert_failed' })
     }
 
     if (lead.bot_paused) {
-      console.log('Webhook Debug: Lead is in manual mode (bot paused)')
+      log('manual_mode', { note: 'lead bot_paused' })
       return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'manual_mode' })
     }
 
@@ -333,7 +342,7 @@ export async function POST(request: NextRequest) {
     const inboundSignals = detectInboundSignals(messageText)
     if (inboundSignals.guardrail) {
       const safeReply = guardrailReply(inboundSignals.guardrail)
-      console.log(`Webhook: guardrail tripped (${inboundSignals.guardrail}) — deflecting, engine skipped`)
+      log('guardrail_tripped', { guardrail: inboundSignals.guardrail, note: 'engine skipped' })
       const { data: gOut } = await supabaseAdmin.from('messages').insert({
         lead_id: lead.id, agent_id: agent.id, direction: 'outbound', content: safeReply, sent_by: 'bot',
       }).select('id').single()
@@ -342,7 +351,7 @@ export async function POST(request: NextRequest) {
         if (incomingProvider === 'msg91') wid = await sendViaMsg91(msg91IntegratedNumber, fromPhone, safeReply)
         else wid = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, PROVIDER === 'twilio' ? `whatsapp:${fromPhone}` : fromPhone, safeReply)
         if (wid && gOut?.id) await supabaseAdmin.from('messages').update({ wa_message_id: wid }).eq('id', gOut.id)
-      } catch (e: any) { console.log('Guardrail send failed:', e?.message) }
+      } catch (e: any) { log('guardrail_send_failed', { error: e?.message }) }
       await supabaseAdmin.from('activity_log').insert({
         agent_id: agent.id, lead_id: lead.id, type: 'guardrail',
         title: `Guardrail: ${inboundSignals.guardrail}`, description: messageText.slice(0, 140),
@@ -351,20 +360,27 @@ export async function POST(request: NextRequest) {
       return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'guardrail', kind: inboundSignals.guardrail })
     }
 
-    console.log(`Webhook Debug: Calling engine for lead ${lead.phone} with message: "${messageText}"`)
+    log('engine_call_start', { messageText })
     const tEngine = Date.now()
     let reply: string, metadata: any
+    let engineFallback = false
     try {
       const result = await generateBotReply(agent.id, lead.id, messageText)
       reply = result.reply
       metadata = result.metadata
     } catch (engineErr: any) {
-      console.error('Webhook: engine error, using fallback reply', engineErr.message)
+      logError('engine_error_fallback_used', { error: engineErr.message })
       reply = `Thank you for reaching out! Our team will get back to you shortly. 🙏`
       metadata = {}
+      engineFallback = true
     }
-    console.log(`Webhook Timing: engine took ${Date.now() - tEngine}ms`)
-    console.log(`Webhook Debug: Engine replied with: "${reply}" and metadata:`, metadata)
+    log('engine_call_done', { durationMs: Date.now() - tEngine, reply, metadata, fallback: engineFallback })
+    if (engineFallback) {
+      supabaseAdmin.from('activity_log').insert({
+        agent_id: agent.id, lead_id: lead.id, type: 'engine_fallback',
+        title: 'Engine fallback reply used', description: messageText.slice(0, 140),
+      }).then(({ error }: any) => { if (error) Sentry.captureException(error) })
+    }
 
     const leadUpdates: any = { updated_at: now, window_nudge_count: 0 }
     if (metadata.score) leadUpdates.ai_score = metadata.score
@@ -400,7 +416,7 @@ export async function POST(request: NextRequest) {
 
     // 1. Check for Cancellation — also drops any pending (unconfirmed) hold.
     if (metadata.appointment_status === 'cancelled' || /(cancel|drop|abort)[\s\S]*?(visit|appointment|viewing|meeting)/i.test(reply)) {
-       console.log('APPT-DEBUG: Cancellation detected');
+       log('appt_cancellation_detected')
        leadUpdates.status = 'contacted'; // reset status
        setPendingAppt(null, null, null)
 
@@ -426,7 +442,7 @@ export async function POST(request: NextRequest) {
     ) {
       // 2. Lead explicitly confirmed a previously staged time — THIS is the
       // only path that ever writes to `appointments`. See lib/appointmentConfirmation.ts.
-      console.log('APPT-DEBUG: Confirmation detected — promoting pending_appointment_time')
+      log('appt_confirmation_detected', { note: 'promoting pending_appointment_time' })
       const scheduledIso = lead.pending_appointment_time
       const safePropertyId = lead.pending_appointment_property_id || null
 
@@ -451,7 +467,7 @@ export async function POST(request: NextRequest) {
           // Reschedule limit reached: block this confirmation and bring in a
           // human — but KEEP THE BOT ON for everything else.
           blockedByRescheduleLimit = true
-          console.log('APPT-DEBUG: Reschedule limit (>=3). Blocking confirmation, alerting agent, bot stays on.')
+          log('appt_reschedule_limit_blocked', { rescheduleCount })
           reply = "Noted! Since we've moved this a few times, our team will personally call you to lock in the final time — that way it's settled in one go. Meanwhile, I'm right here for anything else you'd like to know. 😊"
 
           const { data: prevHandover } = await supabaseAdmin
@@ -473,7 +489,7 @@ export async function POST(request: NextRequest) {
                 msg91IntegratedNumber,
               })
             } catch (alertErr: any) {
-              console.error('Handover alert failed (non-critical):', alertErr?.message)
+              logError('handover_alert_failed', { error: alertErr?.message })
             }
           }
         }
@@ -503,8 +519,8 @@ export async function POST(request: NextRequest) {
           apptError = res.error
         }
 
-        if (apptError) console.error('APPT-DEBUG: confirm SAVE FAILED:', apptError)
-        else console.log('APPT-DEBUG: confirm SAVE SUCCESS:', apptData)
+        if (apptError) logError('appt_confirm_save_failed', { error: apptError })
+        else log('appt_confirm_save_success', { appointment: apptData })
 
         leadUpdates.status = 'visit_booked'
         await supabaseAdmin.from('activity_log').insert({
@@ -533,11 +549,11 @@ export async function POST(request: NextRequest) {
         })
         if (resolved.ok) {
           metadata.appointment_booked_time = resolved.iso
-          console.log(`APPT: resolved ${resolved.iso} (IST ${formatIST(resolved.iso)}) via ${resolved.source}`)
+          log('appt_time_resolved', { iso: resolved.iso, ist: formatIST(resolved.iso), source: resolved.source })
         } else {
           // No trustworthy time — NEVER fabricate one. If the reply implied a
           // booking, ask the lead to confirm the exact day/time instead.
-          console.log('APPT: no trustworthy time —', resolved.reason)
+          log('appt_time_unresolved', { reason: resolved.reason })
           if (bookingIntentRe.test(reply)) {
             reply = "Happy to set that up! Could you confirm the exact day and time that works for your visit? For example: “tomorrow at 11:30 AM” or “Saturday at 5 PM”."
           }
@@ -545,7 +561,11 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      console.log(`APPT-DEBUG: metadata.appointment_booked_time=${metadata.appointment_booked_time || 'NOT SET'} bookingIntentRe=${bookingIntentRe.test(reply)} inboundVisitRe=${inboundVisitRe.test(messageText)}`)
+      log('appt_intent_check', {
+        bookedTime: metadata.appointment_booked_time || 'NOT SET',
+        bookingIntentMatched: bookingIntentRe.test(reply),
+        inboundVisitMatched: inboundVisitRe.test(messageText),
+      })
 
     // HARD GUARD: never accept a visit outside the agent's office hours — the
     // model is told the hours but occasionally agrees anyway (e.g. "8pm is
@@ -558,7 +578,7 @@ export async function POST(request: NextRequest) {
         const [oH, oM] = String(agent.office_open || '09:00').split(':').map(Number)
         const [cH, cM] = String(agent.office_close || '19:00').split(':').map(Number)
         if (mins < oH * 60 + oM || mins > cH * 60 + cM) {
-          console.log('APPT-DEBUG: Booked time outside office hours — refusing and correcting reply')
+          log('appt_outside_office_hours', { mins, officeOpen: agent.office_open, officeClose: agent.office_close })
           metadata.appointment_booked_time = null
           const fmt = (t: string) => {
             const [h, m] = t.split(':').map(Number)
@@ -581,7 +601,7 @@ export async function POST(request: NextRequest) {
           safePropertyId = isUUID ? metadata.matched_property_id : null;
       }
 
-      console.log('APPT-DEBUG: Staging pending_appointment_time:', parsedDate.toISOString())
+      log('appt_pending_staged', { iso: parsedDate.toISOString() })
       setPendingAppt(parsedDate.toISOString(), safePropertyId, now)
 
       reply = `Perfect — I'll schedule your site visit for ${formatIST(parsedDate.toISOString())}. Just reply "Confirm" or "Yes" to lock it in, or let me know a different time that works better.`
@@ -636,9 +656,9 @@ export async function POST(request: NextRequest) {
           .update({ wa_message_id: outWaId })
           .eq('id', outboundMsg.id)
       }
-      console.log(`Webhook Debug: WhatsApp sent. ID: ${outWaId}`)
+      log('whatsapp_sent', { waMessageId: outWaId })
     } catch (waErr: any) {
-      console.log(`Webhook Debug: WhatsApp send failed (simulation mode OK): ${waErr.message}`)
+      log('whatsapp_send_failed', { error: waErr.message, note: 'simulation mode OK' })
     }
 
     // Atomic increment — avoids the lost-update race where two concurrent webhooks
@@ -652,7 +672,7 @@ export async function POST(request: NextRequest) {
     try {
       const shouldSendPhotos = wantsPhotos(messageText) || botPromisedPhotos(reply)
       if (process.env.MSG91_MEDIA_LIVE === 'true' && shouldSendPhotos) {
-        console.log('PHOTO: lead wants photos, looking up property...')
+        log('photo_lookup_start')
         const isUUID = (s: any) => typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
         let prop: any = null
 
@@ -662,7 +682,7 @@ export async function POST(request: NextRequest) {
           const { data } = await supabaseAdmin.from('properties')
             .select('id,title,features').eq('id', propId).eq('agent_id', agent.id).maybeSingle()
           prop = data
-          if (prop) console.log(`PHOTO: found via matched_property_id: ${prop.title}`)
+          if (prop) log('photo_matched_property_id', { title: prop.title })
         }
 
         // 2. Fallback: search recent bot messages for property title mentions
@@ -671,7 +691,7 @@ export async function POST(request: NextRequest) {
             .select('id,title,features').eq('agent_id', agent.id).eq('status', 'active').limit(20)
           const allProps = actives || []
           const withMedia = allProps.filter((p: any) => extractPropertyMedia(p).length)
-          console.log(`PHOTO: no matched_property_id. Agent has ${allProps.length} properties, ${withMedia.length} with media`)
+          log('photo_no_matched_id', { totalProperties: allProps.length, withMedia: withMedia.length })
 
           if (withMedia.length > 0) {
             // Search the last few bot messages + current reply for property title mentions
@@ -687,28 +707,28 @@ export async function POST(request: NextRequest) {
             })
             if (titleMatches.length === 1) {
               prop = titleMatches[0]
-              console.log(`PHOTO: matched by title in recent messages: ${prop.title}`)
+              log('photo_matched_by_title', { title: prop.title })
             } else if (titleMatches.length > 1) {
               prop = titleMatches[0]
-              console.log(`PHOTO: multiple title matches (${titleMatches.length}), using most recent: ${prop.title}`)
+              log('photo_multiple_title_matches', { count: titleMatches.length, using: prop.title })
             } else if (withMedia.length === 1) {
               prop = withMedia[0]
-              console.log(`PHOTO: no title match, using only property with media: ${prop.title}`)
+              log('photo_only_media_property', { title: prop.title })
             } else {
-              console.log(`PHOTO: could not determine which property — ${withMedia.length} have media, none matched recent conversation`)
+              log('photo_property_undetermined', { withMediaCount: withMedia.length })
             }
           }
         }
 
         const media = prop ? extractPropertyMedia(prop).slice(0, MAX_IMAGES_PER_SEND) : []
         if (media.length) {
-          console.log(`PHOTO: sending ${media.length} photo(s) for "${prop.title}" (${prop.id})`)
+          log('photo_send_start', { count: media.length, title: prop.title, propertyId: prop.id })
           for (let i = 0; i < media.length; i++) {
             const caption = i === 0 ? (prop.title || 'Property') : undefined
             let mid: string | null = null
             if (incomingProvider === 'msg91') mid = await sendViaMsg91Media(msg91IntegratedNumber, fromPhone, media[i], caption)
             else mid = await sendMetaImage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, media[i], caption)
-            console.log(`PHOTO: image ${i+1}/${media.length} send result: ${mid ? 'OK' : 'FAILED'}`)
+            log('photo_send_result', { index: i + 1, total: media.length, ok: !!mid })
             await supabaseAdmin.from('messages').insert({
               lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
               content: `[photo] ${prop.title || ''}`.trim(), sent_by: 'bot',
@@ -716,11 +736,11 @@ export async function POST(request: NextRequest) {
             })
           }
         } else {
-          console.log(`PHOTO: no photos to send — prop=${prop ? prop.title : 'none found'}, media count=${media.length}`)
+          log('photo_none_to_send', { prop: prop ? prop.title : 'none found', mediaCount: media.length })
         }
       }
     } catch (mediaErr: any) {
-      console.error('Photo share failed (non-critical):', mediaErr?.message)
+      logError('photo_share_failed', { error: mediaErr?.message })
     }
 
     // ── High-priority alerts to the agent (email + WhatsApp) ──
@@ -755,18 +775,19 @@ export async function POST(request: NextRequest) {
             agent_id: agent.id, lead_id: lead.id, type: 'priority_alert',
             title: sig, description: SIGNAL_LABELS[sig],
           })
-          console.log(`Webhook: priority alert sent — ${sig}`)
+          log('priority_alert_sent', { signal: sig })
         }
       }
     } catch (alertErr: any) {
-      console.error('Priority alert failed (non-critical):', alertErr?.message)
+      logError('priority_alert_failed', { error: alertErr?.message })
     }
 
-    console.log(`Webhook Timing: total ${Date.now() - tStart}ms (lead ${lead.phone})`)
+    log('webhook_done', { durationMs: Date.now() - tStart })
     return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'ok' })
 
   } catch (err: any) {
-    console.error('Webhook error:', err)
-    return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'error', message: err.message }, { status: 500 })
+    logError('webhook_uncaught_error', { error: err.message, stack: err.stack })
+    Sentry.captureException(err, { tags: { traceId } })
+    return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'error', message: err.message, traceId }, { status: 500 })
   }
 }

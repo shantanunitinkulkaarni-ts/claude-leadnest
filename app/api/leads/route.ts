@@ -3,6 +3,12 @@ export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { pickFields, requireAgentAccess, requireLeadAccess } from '@/lib/apiAuth'
+import { isPendingAppointmentExpired } from '@/lib/appointmentConfirmation'
+
+// How recent an 'engine_fallback' activity_log row has to be to still count
+// as "the last reply was a fallback" for the inbox health badge. Past this
+// window we assume a later (unlogged) good reply has superseded it.
+const FALLBACK_HEALTH_WINDOW_MS = 15 * 60 * 1000
 
 const CREATE_FIELDS = ['agent_id', 'name', 'phone', 'email', 'source', 'status', 'temperature', 'intent', 'preferred_areas', 'budget_min', 'budget_max', 'timeline', 'notes', 'opted_in', 'opt_in_at', 'opt_in_source', 'consent_confirmed', 'consent_confirmed_at']
 const UPDATE_FIELDS = ['name', 'phone', 'email', 'status', 'temperature', 'intent', 'preferred_areas', 'budget_min', 'budget_max', 'timeline', 'notes', 'bot_paused', 'post_visit_result']
@@ -30,7 +36,31 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ data })
+
+  const leadIds = (data || []).map((l: any) => l.id)
+  let fallbackLeadIds = new Set<string>()
+  if (leadIds.length > 0) {
+    const since = new Date(Date.now() - FALLBACK_HEALTH_WINDOW_MS).toISOString()
+    const { data: fallbacks } = await supabaseAdmin
+      .from('activity_log')
+      .select('lead_id')
+      .eq('agent_id', agentId)
+      .eq('type', 'engine_fallback')
+      .gte('created_at', since)
+      .in('lead_id', leadIds)
+    fallbackLeadIds = new Set((fallbacks || []).map((f: any) => f.lead_id))
+  }
+
+  const withHealth = (data || []).map((lead: any) => ({
+    ...lead,
+    health: fallbackLeadIds.has(lead.id)
+      ? 'fallback'
+      : lead.pending_appointment_time && !isPendingAppointmentExpired(lead.pending_appointment_set_at)
+        ? 'pending_confirmation'
+        : 'ok',
+  }))
+
+  return NextResponse.json({ data: withHealth })
 }
 
 export async function POST(request: NextRequest) {
