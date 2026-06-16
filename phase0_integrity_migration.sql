@@ -3,7 +3,7 @@
 -- Authored: 2026-06-16 | CTO Master Plan — Phase 0
 --
 -- Run in Supabase SQL editor (copy-paste full file, run once).
--- Safe to re-run: all DDL uses IF NOT EXISTS / CREATE OR REPLACE.
+-- Safe to re-run: all DDL uses IF NOT EXISTS / IF EXISTS / CREATE OR REPLACE.
 -- ══════════════════════════════════════════════════════════════════════════════
 
 
@@ -24,12 +24,11 @@ WITH ranked AS (
   WHERE phone IS NOT NULL AND phone != ''
 )
 UPDATE leads
-  SET status = 'closed_lost', notes = COALESCE(notes || ' ', '') || '[dedup: merged into newer row]'
+  SET status = 'closed_lost'
   WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
 
--- Now it is safe to add the unique constraint.
-ALTER TABLE leads
-  ADD CONSTRAINT IF NOT EXISTS leads_agent_phone_unique UNIQUE (agent_id, phone);
+ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_agent_phone_unique;
+ALTER TABLE leads ADD CONSTRAINT leads_agent_phone_unique UNIQUE (agent_id, phone);
 
 
 -- ── 0B: CHECK CONSTRAINTS FOR STATUS FIELDS ──────────────────────────────────
@@ -41,8 +40,8 @@ UPDATE leads SET status = 'new'
   WHERE status IS NULL
      OR status NOT IN ('new','contacted','qualified','visit_booked','visit_done','closed_won','closed_lost');
 
-ALTER TABLE leads
-  ADD CONSTRAINT IF NOT EXISTS leads_status_check
+ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_status_check;
+ALTER TABLE leads ADD CONSTRAINT leads_status_check
   CHECK (status IN ('new','contacted','qualified','visit_booked','visit_done','closed_won','closed_lost'));
 
 -- leads.temperature
@@ -50,32 +49,32 @@ UPDATE leads SET temperature = 'new'
   WHERE temperature IS NULL
      OR temperature NOT IN ('hot','warm','cold','new');
 
-ALTER TABLE leads
-  ADD CONSTRAINT IF NOT EXISTS leads_temperature_check
+ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_temperature_check;
+ALTER TABLE leads ADD CONSTRAINT leads_temperature_check
   CHECK (temperature IN ('hot','warm','cold','new'));
 
 -- leads.intent — nullable; only constrain when present
 UPDATE leads SET intent = NULL
   WHERE intent IS NOT NULL AND intent NOT IN ('buy','rent');
 
-ALTER TABLE leads
-  ADD CONSTRAINT IF NOT EXISTS leads_intent_check
+ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_intent_check;
+ALTER TABLE leads ADD CONSTRAINT leads_intent_check
   CHECK (intent IS NULL OR intent IN ('buy','rent'));
 
 -- properties.type
 UPDATE properties SET type = 'sale'
   WHERE type IS NULL OR type NOT IN ('sale','rental');
 
-ALTER TABLE properties
-  ADD CONSTRAINT IF NOT EXISTS properties_type_check
+ALTER TABLE properties DROP CONSTRAINT IF EXISTS properties_type_check;
+ALTER TABLE properties ADD CONSTRAINT properties_type_check
   CHECK (type IN ('sale','rental'));
 
 -- properties.status
 UPDATE properties SET status = 'active'
   WHERE status IS NULL OR status NOT IN ('active','sold','rented','on_hold');
 
-ALTER TABLE properties
-  ADD CONSTRAINT IF NOT EXISTS properties_status_check
+ALTER TABLE properties DROP CONSTRAINT IF EXISTS properties_status_check;
+ALTER TABLE properties ADD CONSTRAINT properties_status_check
   CHECK (status IN ('active','sold','rented','on_hold'));
 
 
@@ -87,8 +86,8 @@ UPDATE properties
   SET rent_per_month = 0
   WHERE type = 'rental' AND rent_per_month IS NULL;
 
-ALTER TABLE properties
-  ADD CONSTRAINT IF NOT EXISTS properties_rental_price_required
+ALTER TABLE properties DROP CONSTRAINT IF EXISTS properties_rental_price_required;
+ALTER TABLE properties ADD CONSTRAINT properties_rental_price_required
   CHECK (type != 'rental' OR rent_per_month IS NOT NULL);
 
 -- Sale must have price
@@ -96,8 +95,8 @@ UPDATE properties
   SET price = 0
   WHERE type = 'sale' AND price IS NULL;
 
-ALTER TABLE properties
-  ADD CONSTRAINT IF NOT EXISTS properties_sale_price_required
+ALTER TABLE properties DROP CONSTRAINT IF EXISTS properties_sale_price_required;
+ALTER TABLE properties ADD CONSTRAINT properties_sale_price_required
   CHECK (type != 'sale' OR price IS NOT NULL);
 
 -- Budget ordering: min ≤ max when both are present
@@ -108,8 +107,8 @@ UPDATE leads
     AND budget_max IS NOT NULL
     AND budget_min > budget_max;
 
-ALTER TABLE leads
-  ADD CONSTRAINT IF NOT EXISTS leads_budget_order
+ALTER TABLE leads DROP CONSTRAINT IF EXISTS leads_budget_order;
+ALTER TABLE leads ADD CONSTRAINT leads_budget_order
   CHECK (budget_min IS NULL OR budget_max IS NULL OR budget_min <= budget_max);
 
 
