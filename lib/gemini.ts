@@ -5,6 +5,7 @@ import { detectStage, type ConversationStage } from './stageMachine'
 import { filterPropertiesForLead, isValidMatchedProperty } from './propertyMatcher'
 import { validateReply } from './replyValidator'
 import { shouldRefreshSummary, refreshConversationSummary, SUMMARY_OLDER_WINDOW } from './conversationSummary'
+import { formatKnowledgeGapsForPrompt } from './knowledgeGaps'
 
 export { detectStage, type ConversationStage }
 
@@ -332,6 +333,7 @@ LEAD PROFILE:
 - Post-visit outcome: ${lead.post_visit_result || 'No visit completed yet'}
 - Agent's private notes / visit feedback: ${lead.notes || 'None'}
 ${lead.conversation_summary ? `\nEARLIER CONVERSATION SUMMARY (older messages, before the recent history below — use for context, don't repeat it verbatim):\n${lead.conversation_summary}\n` : ''}
+${agent.answeredKnowledgeGapsPrompt || ''}
 ${stageInstructions[stage]}
 
 LANGUAGE RULES (English, हिंदी, मराठी are all first-class — you are fully fluent in each):
@@ -506,7 +508,7 @@ export async function generateBotReply(
   incomingMessage: string
 ): Promise<{ reply: string; metadata: any }> {
 
-  const [agentRes, leadRes, propertiesRes, messagesRes, rescheduleRes, lastStageRes, totalMessagesRes] = await Promise.all([
+  const [agentRes, leadRes, propertiesRes, messagesRes, rescheduleRes, lastStageRes, totalMessagesRes, knowledgeGapsRes] = await Promise.all([
     supabaseAdmin.from('agents').select('*').eq('id', agentId).single(),
     supabaseAdmin.from('leads').select('*').eq('id', leadId).single(),
     supabaseAdmin.from('properties').select('*').eq('agent_id', agentId).eq('status', 'active'),
@@ -517,6 +519,10 @@ export async function generateBotReply(
     // ONLY so we know the TRUE conversation length, to decide whether the
     // rolling summary (see lib/conversationSummary.ts) needs refreshing.
     supabaseAdmin.from('messages').select('*', { count: 'exact', head: true }).eq('lead_id', leadId),
+    // Per-agent FAQ (Phase 4D) — questions the bot once deferred on, now
+    // answered by the agent in the dashboard. Scoped to the agent, not the
+    // lead, so every lead benefits once the agent answers it once.
+    supabaseAdmin.from('knowledge_gaps').select('question, answer').eq('agent_id', agentId).eq('status', 'answered').order('answered_at', { ascending: false }).limit(20),
   ])
 
   const agent = agentRes.data as any
@@ -526,6 +532,8 @@ export async function generateBotReply(
 
   if (!agent) throw new Error('Agent not found')
   if (!lead) throw new Error('Lead not found')
+
+  agent.answeredKnowledgeGapsPrompt = formatKnowledgeGapsForPrompt(knowledgeGapsRes.data || [])
 
   const messageCount = recentMessages.length
   const totalMessageCount = totalMessagesRes.count ?? messageCount
