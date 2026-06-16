@@ -11,6 +11,7 @@ const titles: Record<Screen, string> = {
   properties: 'Properties',
   appointments: 'Appointments',
   analytics: 'ROI Dashboard',
+  knowledge_gaps: 'Train Your Bot',
   balance: 'Billing & Credits',
   settings: 'Settings'
 }

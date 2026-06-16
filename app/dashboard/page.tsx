@@ -14,10 +14,11 @@ import AppointmentsScreen from '@/components/screens/AppointmentsScreen'
 import { ROIScreen } from '@/components/screens/ROIScreen'
 import BalanceScreen from '@/components/screens/BalanceScreen'
 import SettingsScreen from '@/components/screens/SettingsScreen'
+import KnowledgeGapsScreen from '@/components/screens/KnowledgeGapsScreen'
 import SupportChat from '@/components/SupportChat'
 import TutorialWalkthrough from '@/components/TutorialWalkthrough'
 
-export type Screen = 'overview' | 'inbox' | 'leads' | 'properties' | 'appointments' | 'analytics' | 'balance' | 'settings'
+export type Screen = 'overview' | 'inbox' | 'leads' | 'properties' | 'appointments' | 'analytics' | 'knowledge_gaps' | 'balance' | 'settings'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -93,6 +94,7 @@ export default function DashboardPage() {
       case 'properties': return <PropertiesScreen agentId={agentId} />
       case 'appointments': return <AppointmentsScreen agentId={agentId} />
       case 'analytics': return <ROIScreen agentId={agentId} />
+      case 'knowledge_gaps': return <KnowledgeGapsScreen agentId={agentId} />
       case 'balance': return <BalanceScreen agentId={agentId} onTopUp={() => agentId && refreshAgent(agentId)} />
       case 'settings': return <SettingsScreen agentId={agentId} agent={agent} />
       default: return <OverviewScreen agentId={agentId} onNavigate={setScreen} />

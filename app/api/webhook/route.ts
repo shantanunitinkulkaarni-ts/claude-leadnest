@@ -13,6 +13,7 @@ import { resolveAppointmentTime, formatIST } from '@/lib/appointment'
 import { isConfirmationReply, isPendingAppointmentExpired } from '@/lib/appointmentConfirmation'
 import { detectInboundSignals, detectReplyKnowledgeGap, topSignal, SIGNAL_LABELS, type PrioritySignal } from '@/lib/intentSignals'
 import { buildAlertContent, guardrailReply } from '@/lib/priorityAlerts'
+import { recordKnowledgeGap } from '@/lib/knowledgeGaps'
 import { verifySharedSecret } from '@/lib/webhookAuth'
 import { createLogger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rateLimit'
@@ -782,7 +783,10 @@ export async function POST(request: NextRequest) {
       const priorities: PrioritySignal[] = [...inboundSignals.priorities]
       if (metadata.appointment_booked_time) priorities.push('visit_booked')
       if ((metadata.score || 0) >= 8 && !priorities.includes('very_interested')) priorities.push('very_interested')
-      if (detectReplyKnowledgeGap(reply) && !priorities.includes('knowledge_gap')) priorities.push('knowledge_gap')
+      if (detectReplyKnowledgeGap(reply) && !priorities.includes('knowledge_gap')) {
+        priorities.push('knowledge_gap')
+        recordKnowledgeGap(agent.id, lead.id, messageText, reply).catch(err => Sentry.captureException(err))
+      }
 
       const sig = topSignal(priorities)
       if (sig) {

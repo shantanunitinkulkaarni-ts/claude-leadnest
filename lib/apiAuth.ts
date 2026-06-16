@@ -106,6 +106,16 @@ export async function getAppointmentAgentId(appointmentId: string): Promise<stri
   return data?.agent_id || null
 }
 
+export async function getKnowledgeGapAgentId(knowledgeGapId: string): Promise<string | null> {
+  const { data } = await supabaseAdmin
+    .from('knowledge_gaps')
+    .select('agent_id')
+    .eq('id', knowledgeGapId)
+    .maybeSingle()
+
+  return data?.agent_id || null
+}
+
 export async function requireLeadAccess(leadId: string): Promise<(AuthResult & { agentId: string }) | { error: NextResponse }> {
   const agentId = await getLeadAgentId(leadId)
   if (!agentId) return { error: forbidden('Lead not found') }
@@ -125,6 +135,14 @@ export async function requirePropertyAccess(propertyId: string): Promise<(AuthRe
 export async function requireAppointmentAccess(appointmentId: string): Promise<(AuthResult & { agentId: string }) | { error: NextResponse }> {
   const agentId = await getAppointmentAgentId(appointmentId)
   if (!agentId) return { error: forbidden('Appointment not found') }
+  const auth = await requireAgentAccess(agentId)
+  if ('error' in auth) return auth
+  return { ...auth, agentId }
+}
+
+export async function requireKnowledgeGapAccess(knowledgeGapId: string): Promise<(AuthResult & { agentId: string }) | { error: NextResponse }> {
+  const agentId = await getKnowledgeGapAgentId(knowledgeGapId)
+  if (!agentId) return { error: forbidden('Knowledge gap not found') }
   const auth = await requireAgentAccess(agentId)
   if ('error' in auth) return auth
   return { ...auth, agentId }
