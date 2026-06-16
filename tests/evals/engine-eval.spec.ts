@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import fs from 'fs'
 import path from 'path'
 import Groq from 'groq-sdk'
-import { buildEnginePrompt, detectStage, callEngineLLM, parseEngineResponse } from '../../lib/gemini'
+import { buildEnginePrompt, detectStage, callEngineLLM, parseEngineResponse, detectMessageLanguage } from '../../lib/gemini'
 import { baseAgent, sampleProperties, scenarios, slugify } from './scenarios'
 
 /**
@@ -69,15 +69,23 @@ test.describe('Engine eval (AI-judged)', () => {
       const stage = detectStage(s.lead, s.messages.length)
       const lead = { phone: '+910000000000', ...s.lead }
       const lastMessage = s.messages[s.messages.length - 1].content
-      const ctx = { agent: baseAgent, lead, properties: sampleProperties, currentTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), isOfficeHours: true, canSendPhotos: true, reschedulingLocked: false, detectedLang: null as string | null, incomingMessage: lastMessage }
+      // Mirror production (lib/gemini.ts generateBotReply): language is detected
+      // from the incoming message before the prompt is built, not left null —
+      // leaving it null here was masking real detection and forcing a Devanagari
+      // script directive even for Latin-script Marathi/Hindi messages.
+      const detectedLang = detectMessageLanguage(lastMessage, lead.language)
+      const ctx = { agent: baseAgent, lead, properties: sampleProperties, currentTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), isOfficeHours: true, canSendPhotos: true, reschedulingLocked: false, detectedLang, incomingMessage: lastMessage }
       const systemPrompt = buildEnginePrompt(ctx, stage, s.messages.length)
       // Generate via the real provider chain (GLM → Cerebras fallback) — exactly
       // what production runs — then strip the metadata JSON the same way.
       const history = s.messages.slice(0, -1)
       const raw = await callEngineLLM(systemPrompt, history, lastMessage)
-      const { reply } = parseEngineResponse(raw, stage)
-      const verdict = await judge(s.rule, reply)
-      console.log(`\n[${s.name}]\n  REPLY: ${reply}\n  JUDGE: ${verdict.why}`)
+      const { reply, metadata } = parseEngineResponse(raw, stage)
+      // Some rules assert on the JSON metadata (e.g. appointment_booked_time,
+      // matched_property_id) — the judge needs to see it, not just the prose reply.
+      const judgeInput = `${reply}\n\nMETADATA JSON: ${JSON.stringify(metadata)}`
+      const verdict = await judge(s.rule, judgeInput)
+      console.log(`\n[${s.name}]\n  REPLY: ${reply}\n  METADATA: ${JSON.stringify(metadata)}\n  JUDGE: ${verdict.why}`)
 
       if (RECORD) {
         const fixture = { name: s.name, rule: s.rule, stage, raw, reply, judgePass: verdict.pass, judgeWhy: verdict.why, recordedAt: new Date().toISOString() }

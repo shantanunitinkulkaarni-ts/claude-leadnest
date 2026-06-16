@@ -9,7 +9,11 @@ import type { ChatMessage } from './llm'
 // benefit. If this one attempt also fails, the caller's canned reply is the
 // last resort — same as before this fallback existed.
 const CEREBRAS_URL = 'https://api.cerebras.ai/v1/chat/completions'
-export const CEREBRAS_MODEL = 'llama-3.3-70b'
+// llama-3.3-70b was retired from Cerebras's hosted lineup (calls now 404).
+// gpt-oss-120b is a reasoning model — it spends some of max_tokens on a
+// separate "reasoning" field before "content", so we cap reasoning effort to
+// "low" to leave the budget for the actual WhatsApp reply + JSON metadata.
+export const CEREBRAS_MODEL = 'gpt-oss-120b'
 
 export function cerebrasKey(): string | undefined {
   return process.env.CEREBRAS_API_KEY
@@ -27,6 +31,7 @@ export async function cerebrasChat(
       messages,
       max_tokens: opts?.maxTokens ?? 450,
       temperature: opts?.temperature ?? 0.7,
+      reasoning_effort: 'low',
     },
     {
       headers: { Authorization: `Bearer ${cerebrasKey()}`, 'Content-Type': 'application/json' },
