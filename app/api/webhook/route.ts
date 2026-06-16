@@ -725,7 +725,7 @@ export async function POST(request: NextRequest) {
         const propId = metadata.matched_property_id || lead.matched_property_id
         if (isUUID(propId)) {
           const { data } = await supabaseAdmin.from('properties')
-            .select('id,title,features').eq('id', propId).eq('agent_id', agent.id).maybeSingle()
+            .select('id,title,features,property_media').eq('id', propId).eq('agent_id', agent.id).maybeSingle()
           prop = data
           if (prop) log('photo_matched_property_id', { title: prop.title })
         }
@@ -733,7 +733,7 @@ export async function POST(request: NextRequest) {
         // 2. Fallback: search recent bot messages for property title mentions
         if (!prop) {
           const { data: actives } = await supabaseAdmin.from('properties')
-            .select('id,title,features').eq('agent_id', agent.id).eq('status', 'active').limit(20)
+            .select('id,title,features,property_media').eq('agent_id', agent.id).eq('status', 'active').limit(20)
           const allProps = actives || []
           const withMedia = allProps.filter((p: any) => extractPropertyMedia(p).length)
           log('photo_no_matched_id', { totalProperties: allProps.length, withMedia: withMedia.length })

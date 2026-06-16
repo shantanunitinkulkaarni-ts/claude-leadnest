@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const agentId = body.agent_id ? String(body.agent_id) : ''
     const dry = body.dry === true
 
-    let q = supabaseAdmin.from('properties').select('id,agent_id,title,features')
+    let q = supabaseAdmin.from('properties').select('id,agent_id,title,features,property_media')
     if (propertyId) q = q.eq('id', propertyId)
     else if (agentId) q = q.eq('agent_id', agentId)
     const { data: properties, error } = await q
@@ -40,41 +40,59 @@ export async function POST(request: NextRequest) {
     const summary: any[] = []
     let convertedCount = 0
 
+    // Convert one source URL → a freshly stored WhatsApp-safe JPEG URL.
+    // Returns the new URL, or the original URL unchanged on failure/no-op.
+    const convertUrl = async (url: string, title: string): Promise<string> => {
+      if (!/^https?:\/\//i.test(url) || !needsWhatsAppConversion(url)) return url
+      if (dry) { summary.push({ property: title, from: url, action: 'would convert' }); return url }
+      try {
+        const resp = await axios.get(url, { responseType: 'arraybuffer', timeout: 20000 })
+        const jpeg = await toWhatsAppJpeg(Buffer.from(resp.data))
+        const fileName = `${Date.now()}-converted-${Math.random().toString(36).slice(2, 8)}.jpg`
+        const { error: upErr } = await supabaseAdmin.storage
+          .from('property_assets')
+          .upload(fileName, jpeg, { contentType: 'image/jpeg', upsert: false })
+        if (upErr) throw upErr
+        const { data: urlData } = supabaseAdmin.storage.from('property_assets').getPublicUrl(fileName)
+        convertedCount++
+        summary.push({ property: title, from: url, to: urlData.publicUrl, action: 'converted' })
+        return urlData.publicUrl
+      } catch (convErr: any) {
+        console.error(`convert-media: failed for ${url}:`, convErr?.message)
+        summary.push({ property: title, from: url, action: 'FAILED', error: convErr?.message })
+        return url // keep original on failure
+      }
+    }
+
     for (const prop of properties || []) {
-      const feats: any[] = Array.isArray(prop.features) ? prop.features : []
-      let changed = false
-      const newFeats: string[] = []
-
-      for (const f of feats) {
-        if (typeof f !== 'string' || !f.startsWith('media:')) { newFeats.push(f); continue }
-        const url = f.slice(6).trim()
-        if (!/^https?:\/\//i.test(url) || !needsWhatsAppConversion(url)) { newFeats.push(f); continue }
-
-        if (dry) { summary.push({ property: prop.title, from: url, action: 'would convert' }); newFeats.push(f); continue }
-
-        try {
-          const resp = await axios.get(url, { responseType: 'arraybuffer', timeout: 20000 })
-          const jpeg = await toWhatsAppJpeg(Buffer.from(resp.data))
-          const fileName = `${Date.now()}-converted-${Math.random().toString(36).slice(2, 8)}.jpg`
-          const { error: upErr } = await supabaseAdmin.storage
-            .from('property_assets')
-            .upload(fileName, jpeg, { contentType: 'image/jpeg', upsert: false })
-          if (upErr) throw upErr
-          const { data: urlData } = supabaseAdmin.storage.from('property_assets').getPublicUrl(fileName)
-          newFeats.push(`media:${urlData.publicUrl}`)
-          changed = true
-          convertedCount++
-          summary.push({ property: prop.title, from: url, to: urlData.publicUrl, action: 'converted' })
-        } catch (convErr: any) {
-          console.error(`convert-media: failed for ${url}:`, convErr?.message)
-          summary.push({ property: prop.title, from: url, action: 'FAILED', error: convErr?.message })
-          newFeats.push(f) // keep original on failure
-        }
+      // ── Canonical column: property_media (Phase 0F migrated media here) ──
+      const pm: any[] = Array.isArray(prop.property_media) ? prop.property_media : []
+      const newPm: string[] = []
+      let pmChanged = false
+      for (const url of pm) {
+        if (typeof url !== 'string') { newPm.push(url); continue }
+        const out = await convertUrl(url.trim(), prop.title)
+        if (out !== url.trim()) pmChanged = true
+        newPm.push(out)
+      }
+      if (pmChanged && !dry) {
+        const { error: updErr } = await supabaseAdmin.from('properties').update({ property_media: newPm }).eq('id', prop.id)
+        if (updErr) console.error(`convert-media: property_media update failed for ${prop.id}:`, updErr.message)
       }
 
-      if (changed && !dry) {
+      // ── Legacy fallback: unmigrated rows still carry media: entries in features ──
+      const feats: any[] = Array.isArray(prop.features) ? prop.features : []
+      let featsChanged = false
+      const newFeats: string[] = []
+      for (const f of feats) {
+        if (typeof f !== 'string' || !f.startsWith('media:')) { newFeats.push(f); continue }
+        const out = await convertUrl(f.slice(6).trim(), prop.title)
+        if (out !== f.slice(6).trim()) featsChanged = true
+        newFeats.push(`media:${out}`)
+      }
+      if (featsChanged && !dry) {
         const { error: updErr } = await supabaseAdmin.from('properties').update({ features: newFeats }).eq('id', prop.id)
-        if (updErr) console.error(`convert-media: update failed for ${prop.id}:`, updErr.message)
+        if (updErr) console.error(`convert-media: features update failed for ${prop.id}:`, updErr.message)
       }
     }
 
