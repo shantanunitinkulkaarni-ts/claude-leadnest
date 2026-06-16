@@ -1,5 +1,24 @@
 import { test, expect } from '@playwright/test'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { extractPropertyMedia, wantsPhotos, botPromisedPhotos } from '../../lib/media'
+
+// Regression guard (June 2026): Phase 0F moved property photos out of the
+// `features` array into a dedicated `property_media` column, stripping media:
+// entries from features. The photo-SEND path in the webhook kept selecting only
+// `features`, so extractPropertyMedia (which reads property_media first) saw
+// nothing and silently sent zero photos. These tests assert every properties
+// SELECT that feeds extractPropertyMedia includes property_media.
+test.describe('webhook photo-send queries select property_media (Phase 0F regression)', () => {
+  const src = readFileSync(join(__dirname, '../../app/api/webhook/route.ts'), 'utf8')
+  const selects = src.match(/\.select\((['"`])[^'"`]*\bfeatures\b[^'"`]*\1\)/g) || []
+  // Only the photo-lookup selects mention `features`; each must also pull property_media.
+  test('found the photo-lookup selects', () => expect(selects.length).toBeGreaterThan(0))
+  selects.forEach((s, i) => {
+    test(`photo-lookup select #${i + 1} includes property_media`, () =>
+      expect(s.includes('property_media')).toBe(true))
+  })
+})
 
 test.describe('extractPropertyMedia', () => {
   test('extracts http(s) media URLs, strips prefix', () => {
