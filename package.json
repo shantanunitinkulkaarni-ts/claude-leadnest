@@ -28,6 +28,7 @@
     "pg": "^8.21.0",
     "react": "^18",
     "react-dom": "^18",
+    "sharp": "^0.34.5",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
