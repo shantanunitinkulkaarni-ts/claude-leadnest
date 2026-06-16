@@ -429,7 +429,10 @@ export default function InboxScreen({ agentId }: Props) {
               const isSel = selected?.id === lead.id
               return (
                 <div key={lead.id} onClick={() => setSelected(lead)} className="inbox-lead-item" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer', borderBottom: '1px solid rgba(26,25,22,0.06)', borderLeft: `2px solid ${isSel ? '#1A5FA5' : 'transparent'}`, background: isSel ? '#EEF4FC' : 'transparent', transition: 'all 0.15s' }}>
-                  <div style={{ width: 36, height: 36, minWidth: 36, borderRadius: '50%', background: t.bg, color: t.c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 500 }}>{getInitials(lead.name || lead.phone)}</div>
+                  <div style={{ position: 'relative', width: 36, height: 36, minWidth: 36 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: t.bg, color: t.c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 500 }}>{getInitials(lead.name || lead.phone)}</div>
+                    <span title={lead.health === 'fallback' ? 'Last reply was a fallback — AI may have stalled' : lead.health === 'pending_confirmation' ? 'Waiting on lead to confirm a site visit time' : 'Conversation healthy'} style={{ position: 'absolute', bottom: -1, right: -1, width: 9, height: 9, borderRadius: '50%', border: '1.5px solid #fff', background: lead.health === 'fallback' ? '#D64545' : lead.health === 'pending_confirmation' ? '#E0A823' : '#3DA35D' }} />
+                  </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B' }}>{lead.name || 'Unknown User'}</div>
                     {(() => {
