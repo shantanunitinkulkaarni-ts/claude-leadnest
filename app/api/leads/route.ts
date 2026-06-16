@@ -48,7 +48,25 @@ export async function POST(request: NextRequest) {
     }
 
     const safeRows = rows.map((row: any) => pickFields(row, CREATE_FIELDS))
-    
+
+    // For single-row creates from the dashboard, check for duplicate phone under
+    // the same agent before inserting — return 409 with the existing lead so the
+    // UI can surface it to the agent instead of silently creating a duplicate.
+    if (!isArray && safeRows[0].phone && safeRows[0].agent_id) {
+      const { data: existing } = await supabaseAdmin
+        .from('leads')
+        .select('id,name,phone,status,temperature,created_at')
+        .eq('agent_id', safeRows[0].agent_id)
+        .eq('phone', safeRows[0].phone)
+        .maybeSingle()
+      if (existing) {
+        return NextResponse.json(
+          { error: 'A lead with this phone number already exists', existing_lead: existing },
+          { status: 409 }
+        )
+      }
+    }
+
     let query: any = supabaseAdmin
       .from('leads')
       .insert(isArray ? safeRows : safeRows[0])
@@ -60,7 +78,13 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await query
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      if (error.code === '23505') {
+        // Unique constraint hit (race or bulk insert with dupe) — return 409
+        return NextResponse.json({ error: 'Duplicate lead: a lead with this phone already exists for this agent' }, { status: 409 })
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
     return NextResponse.json({ data })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

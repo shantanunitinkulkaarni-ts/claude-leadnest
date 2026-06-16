@@ -12,6 +12,7 @@ import { shouldBotReply } from '@/lib/botGating'
 import { resolveAppointmentTime, formatIST } from '@/lib/appointment'
 import { detectInboundSignals, detectReplyKnowledgeGap, topSignal, SIGNAL_LABELS, type PrioritySignal } from '@/lib/intentSignals'
 import { buildAlertContent, guardrailReply } from '@/lib/priorityAlerts'
+import { verifySharedSecret } from '@/lib/webhookAuth'
 
 const PROVIDER = process.env.WHATSAPP_PROVIDER || 'meta'
 
@@ -29,6 +30,35 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const tStart = Date.now()
   try {
+    // ── Webhook authentication ────────────────────────────────────────────────
+    // MSG91 does not sign payloads with HMAC. Their mechanism is a custom header
+    // you configure in the MSG91 dashboard: set header name "x-webhook-secret"
+    // to the value of MSG91_WEBHOOK_SECRET, and MSG91 echoes it on every POST.
+    //
+    // This check runs BEFORE any body parsing, agent lookup, or DB work.
+    // A forged POST (missing or wrong header) is rejected here with 403.
+    //
+    // TODO (Meta): When Meta App Review completes and the Meta Cloud API path
+    // goes live, add X-Hub-Signature-256 HMAC verification here using
+    // WHATSAPP_APP_SECRET. See the stub + activation checklist in lib/webhookAuth.ts.
+    {
+      const secret = process.env.MSG91_WEBHOOK_SECRET
+      const devBypass =
+        process.env.NODE_ENV !== 'production' &&
+        process.env.SKIP_WEBHOOK_AUTH === 'true'
+
+      if (devBypass) {
+        console.warn('⚠️  WEBHOOK AUTH BYPASS ACTIVE (SKIP_WEBHOOK_AUTH=true) — dev only')
+      } else if (!secret) {
+        console.error('WEBHOOK AUTH: MSG91_WEBHOOK_SECRET is not set — rejecting all requests')
+        return NextResponse.json({ error: 'Webhook auth misconfigured' }, { status: 500 })
+      } else if (!verifySharedSecret(request.headers.get('x-webhook-secret'), secret)) {
+        console.warn('WEBHOOK AUTH: rejected — invalid or missing x-webhook-secret')
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const contentType = request.headers.get('content-type') || ''
     let fromPhone = '', messageText = '', waMessageId = '', phoneNumberId = '', forcedAgentId = ''
     let incomingProvider: 'meta' | 'twilio' | 'msg91' = PROVIDER === 'twilio' ? 'twilio' : 'meta'
@@ -193,15 +223,35 @@ export async function POST(request: NextRequest) {
         // Lead messaged the business first → implied opt-in consent (Meta-compliant)
         opted_in: true, opt_in_at: now, opt_in_source: 'whatsapp_inbound'
       }).select().single()
-      if (leadInsertError || !newLead) {
-        console.error('Webhook: Failed to create lead', leadInsertError)
+
+      if (leadInsertError) {
+        if (leadInsertError.code === '23505') {
+          // Race condition: another concurrent webhook request just created this lead
+          // (hit the unique constraint on agent_id, phone). Fetch the winner row.
+          const { data: raceLead } = await supabaseAdmin.from('leads')
+            .select('*').eq('agent_id', agent.id).eq('phone', fromPhone).maybeSingle()
+          if (!raceLead) {
+            console.error('Webhook: race-condition lead fetch failed', leadInsertError)
+            return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'lead_create_failed' })
+          }
+          lead = raceLead
+          // No activity_log for the race loser — the winner already logged it
+        } else {
+          console.error('Webhook: Failed to create lead', leadInsertError)
+          return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'lead_create_failed' })
+        }
+      } else if (!newLead) {
         return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'lead_create_failed' })
+      } else {
+        lead = newLead
       }
-      lead = newLead
-      await supabaseAdmin.from('activity_log').insert({
-        agent_id: agent.id, lead_id: lead.id, type: 'lead_created',
-        title: 'New lead created', description: `First message from ${fromPhone}`
-      })
+
+      if (lead && !leadInsertError) {
+        await supabaseAdmin.from('activity_log').insert({
+          agent_id: agent.id, lead_id: lead.id, type: 'lead_created',
+          title: 'New lead created', description: `First message from ${fromPhone}`
+        })
+      }
     } else {
       // Lead replied → window reopens AND both follow-up lifecycles reset:
       // the free 3h/10h/23h nudges and the paid template re-engagement. A reply
@@ -555,7 +605,9 @@ export async function POST(request: NextRequest) {
       console.log(`Webhook Debug: WhatsApp send failed (simulation mode OK): ${waErr.message}`)
     }
 
-    await supabaseAdmin.from('agents').update({ messages_used: (agent.messages_used || 0) + 2 }).eq('id', agent.id)
+    // Atomic increment — avoids the lost-update race where two concurrent webhooks
+    // both read messages_used=N and both write N+2, resulting in N+2 instead of N+4.
+    await supabaseAdmin.rpc('increment_messages_used', { p_agent_id: agent.id, p_amount: 2 })
 
     // ── Share property photos when the lead asks (Convorian-held media only) ──
     // Gated by MSG91_MEDIA_LIVE so it stays inert until the media send format is

@@ -1,12 +1,17 @@
 // ─── Property media helpers (pure, testable) ─────────────────────────────────
-// Property photos are stored in `properties.features` as strings prefixed
-// "media:<url>" (same convention the engine prompt reads to show "MEDIA
-// AVAILABLE"). These helpers extract sendable image URLs and detect when a lead
-// is asking for photos, so the webhook can actually send the images Convorian
-// holds for that property.
+// Property photos live in `properties.property_media` (text[] of bare URLs).
+// Legacy: the old `features` array used "media:<url>" prefixed entries.
+// extractPropertyMedia reads the new column first and falls back to parsing
+// features so the bot continues to work on rows not yet migrated.
 
-// Extract sendable image URLs for a property (http/https only).
 export function extractPropertyMedia(property: any): string[] {
+  // New path: property_media is a clean URL array (Phase 0F migration)
+  const mediaCol: any[] = Array.isArray(property?.property_media) ? property.property_media : []
+  if (mediaCol.length > 0) {
+    return mediaCol
+      .filter((url) => typeof url === 'string' && /^https?:\/\//i.test(url))
+  }
+  // Legacy fallback: parse media: prefixed entries from features
   const feats: any[] = Array.isArray(property?.features) ? property.features : []
   return feats
     .filter((f) => typeof f === 'string' && f.startsWith('media:'))
