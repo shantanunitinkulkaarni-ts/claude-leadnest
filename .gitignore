@@ -28,3 +28,8 @@ gist-export/
 # Editor + build artifacts
 .vscode/
 tsconfig.tsbuildinfo
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
