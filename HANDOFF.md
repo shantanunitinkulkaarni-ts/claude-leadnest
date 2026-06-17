@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: 2026-06-17 23:38 IST (18:08 UTC) — session 9*
+*Last updated: 2026-06-18 01:57 IST (20:27 UTC) — session 10*
 > ⏱️ This timestamp is set by hand at each update. If it looks stale vs. recent
 > git history (`git log -1`), assume parts of this doc are out of date and verify
 > against the code before trusting them.
@@ -13,6 +13,32 @@
 ---
 
 ## 1. DONE ✅
+
+- **June 18 SESSION 10 — launch hardening + supervised multi-agent work (Emergent / Copilot):**
+  - **Launch security hardening (PR #114).** `middleware.ts`: removed the
+    `|| SERVICE_ROLE_KEY` fallback (middleware would have run with the RLS-bypassing
+    key if the anon key were ever missing — real auth-bypass footgun). `lib/supabase.ts`:
+    fail-closed, no hardcoded URL/key fallback. `next.config.js`: **CSP in Report-Only
+    mode** (Razorpay/Sentry/Supabase + GLM/Cerebras whitelisted). Rate limits on
+    `/api/auth/register` (5/min/IP) and `/api/support-chat` (20/min/IP). `lib/schema.sql`
+    stale-warning header. `LAUNCH_READY.md` founder runbook.
+  - **Bot fixes (PR #115).** `generateNudge` near-match parity; broadened
+    `CONFIRM_RE` with common Indian affirmatives (ji / haan ji / bilkul / bare theek /
+    chalo / hoy + Devanagari हो/होय/जी/बरं/चला/चल) so Hindi/Marathi confirmations book.
+  - **Fact guard (PR #116).** `lib/factGuard.ts`: blocks fabricated possession dates,
+    direction/vastu, parking specifics not in inventory (rewrites to honest defer).
+    `lib/replyValidator.ts`: price detection broadened beyond ₹-prefixed. Webhook:
+    tighter booking-intent (confirm-verb AND time-signal) + agency-named fallback.
+  - **⚠️ MULTI-AGENT PROCESS LESSON.** Both Emergent and GitHub Copilot were used this
+    session. Both produced *directionally good* work but from **stale/detached snapshots**:
+    Emergent's `emergent_fix` branch has NO git merge base with main (its sandbox
+    re-inits git → "Initial commit"; it pulls FILES, not history) and froze before
+    #113, so merging it directly would have reverted recent work + deleted package-lock
+    + added sandbox junk. Copilot's review invented a missing `convert-media` endpoint
+    (it exists), cited a deleted test file, and told us to "merge PR #93" (long merged).
+    **RULE: never merge an external agent's branch directly. Port the new delta onto live
+    main file-by-file, run typecheck + CI, verify no recent work is reverted.** PRs #114
+    and #116 were both produced this way (Emergent authored, ported + typecheck-fixed here).
 
 - **June 17 SESSION 9 — bot quality fixes, cold-start, security hardening, provider cleanup:**
   - **Webhook security secret (PR was session-8; secret set this session).** `MSG91_WEBHOOK_SECRET`
@@ -232,23 +258,27 @@
 
 ## 2. PENDING ⏳
 
-**🔴 IMMEDIATE — finish the photo fix (session 7, resume here):**
-1. **Merge PR #93** (image→JPEG conversion). #87/#91/#92 already merged to main;
-   #93 deployed to prod but not yet merged to main. `gh pr merge 93 --squash`.
-2. **Fix existing photos** — founder re-uploaded JPEGs but the property edit screen
-   APPENDS (doesn't replace), so old AVIF entries may still be on the property and
-   would still fail. EITHER delete the old AVIF photos in the edit UI, OR run the
-   backfill: `POST https://convorian.in/api/admin/convert-media` with header
-   `Authorization: Bearer leadnest_cron_secret_dev_2026`, body `{"dry":true}` to
-   preview then `{}` to convert.
-3. **Create MSG91 delivery webhook** in dashboard → URL
-   `https://convorian.in/api/webhook/status`, events: on failed, on api failed,
-   on delivered, on sent. (Inbound stays on `/api/webhook`.) Without it we can't
-   see delivery failures.
-4. **Test:** send "photos pls" to the bot → confirm JPEGs arrive; read Vercel logs
-   for `PHOTO:` + `[delivery-status]` lines to confirm `delivered` per image.
-5. (Deferred) When Meta App Review lands, add `sendMetaImageById` (upload bytes →
-   media-ID → send by ID) — the robust path competitors use. See plan file.
+**✅ Photo fix (old session-7 item) — DONE.** PR #93 merged + deployed; photos
+deliver as JPEG; `convert-media` backfill endpoint exists and was enhanced (scans
+`property_media`); MSG91 delivery webhook (`/api/webhook/status`) configured;
+`property_media` read/write fixed across bot + dashboard (session 8). Confirmed live.
+
+**🟡 OPEN ITEMS — founder dashboard actions (not code, ~15 min total):**
+1. **Enable Vercel Fluid Compute** (Project → Settings → Functions). The proper
+   cold-start fix; the keep-warm cron (`.github/workflows/keep-warm.yml`) is the
+   live mitigation until then.
+2. **Flip CSP from Report-Only → enforced** after ~1 clean week. In `next.config.js`,
+   change the header key `Content-Security-Policy-Report-Only` → `Content-Security-Policy`
+   (check Sentry/console for zero violation reports first). Ping CTO for the 1-line change.
+3. (When the business SIM arrives) set `NEXT_PUBLIC_SUPPORT_WHATSAPP` in Vercel.
+
+**🟢 OPEN ITEMS — code polish (low priority, optional):**
+- **factGuard inline-rewrite grammar:** `lib/factGuard.ts` replaces a fabricated
+  fragment in place, which can read awkwardly mid-phrase ("a east-facing flat" →
+  "a let me confirm… flat"). Only fires on a genuine fabrication (rare) and stays
+  honest, so acceptable — refine to sentence-level rewrite later if seen in the wild.
+- (Deferred) When Meta App Review lands, add `sendMetaImageById` (upload bytes →
+  media-ID → send by ID) — the robust media path competitors use. See plan file.
 
 **Gates to first paying client:**
 - App Review approval (then can message REAL leads — currently only 5 test recipients)
