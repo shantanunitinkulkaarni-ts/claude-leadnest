@@ -408,7 +408,13 @@ export async function POST(request: NextRequest) {
       metadata = result.metadata
     } catch (engineErr: any) {
       logError('engine_error_fallback_used', { error: engineErr.message })
-      reply = `Thank you for reaching out! Our team will get back to you shortly. 🙏`
+      // Agency-name-aware fallback. Better than a generic "Thank you" brush-off
+      // when GLM and Cerebras both fail — references the agency so it doesn't
+      // sound like a stranger replying, and explicitly tells the lead a human
+      // teammate will follow up (the priority-alert path further down will
+      // notify the agent so this isn't an empty promise).
+      const agencyName = agent?.agency_name || 'our team'
+      reply = `Thanks for the message! I'm having a brief tech hiccup right now — ${agencyName} will be in touch with you shortly. 🙏`
       metadata = {}
       engineFallback = true
     }
@@ -588,9 +594,17 @@ export async function POST(request: NextRequest) {
       // whenever the model's time was unparseable (the 6:58 PM bug). The resolver
       // tries the model's structured time, then natural language in the model
       // field, then the reply text the lead actually saw — and NEVER guesses.
-      const bookingIntentRe = /(confirm|lock in|schedule|set|book|confirmed|updat|reschedul|chang|perfect|done|pakka|great|sounds good|works)[\s\S]*?(visit|appointment|viewing|tomorrow|today|at\s+\d+|on\s+\d+|sunday|monday|tuesday|wednesday|thursday|friday|saturday|\d+\s*(am|pm))/i
+      // Tightened booking intent detector. Previously matched a positive verb
+      // OR an unrelated time word in isolation, so any cheerful "Perfect,
+      // sounds good!" or "great" got treated as a booking attempt and risked
+      // staging a pending appointment from thin air. The new requirement is
+      // BOTH a confirmatory verb AND an actual time/day signal in the reply.
+      // (The chrono-based resolveAppointmentTime still has the final say.)
+      const POSITIVE_VERB = /(confirm(ed|ing)?|lock\s*in|schedul(ed|ing|e)|book(ed|ing)?|reschedul(ed|ing|e)?|chang(ed|ing)?\s+(to|the)\s+(time|visit)|pakka|pakki|finaliz)/i
+      const TIME_SIGNAL = /(\b\d{1,2}\s*(:\s*\d{2})?\s*(am|pm|baje)\b|\b(today|tomorrow|kal|aaj|parso|day\s+after|next\s+(week|day))\b|\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday|som|mangal|budh|guru|shukra|shani|ravi)\b|\b(morning|evening|afternoon|subah|sham|dopahar|raat)\b)/i
+      const hasBookingIntent = (s: string) => POSITIVE_VERB.test(s) && TIME_SIGNAL.test(s)
       const inboundVisitRe = /(visit|site visit|dekhna|aana|aata|come|tomorrow|kal)\s.*(at\s+\d+|\d+\s*(am|pm)|baje|subah|sham|dopahar)/i
-      const apptIntent = !!metadata.appointment_booked_time || bookingIntentRe.test(reply) || (inboundVisitRe.test(messageText) && bookingIntentRe.test(reply))
+      const apptIntent = !!metadata.appointment_booked_time || hasBookingIntent(reply) || (inboundVisitRe.test(messageText) && hasBookingIntent(reply))
       if (apptIntent) {
         const resolved = resolveAppointmentTime({
           llmTime: metadata.appointment_booked_time,
@@ -604,7 +618,7 @@ export async function POST(request: NextRequest) {
           // No trustworthy time — NEVER fabricate one. If the reply implied a
           // booking, ask the lead to confirm the exact day/time instead.
           log('appt_time_unresolved', { reason: resolved.reason })
-          if (bookingIntentRe.test(reply)) {
+          if (hasBookingIntent(reply)) {
             reply = "Happy to set that up! Could you confirm the exact day and time that works for your visit? For example: “tomorrow at 11:30 AM” or “Saturday at 5 PM”."
           }
           metadata.appointment_booked_time = null
@@ -613,7 +627,7 @@ export async function POST(request: NextRequest) {
 
       log('appt_intent_check', {
         bookedTime: metadata.appointment_booked_time || 'NOT SET',
-        bookingIntentMatched: bookingIntentRe.test(reply),
+        bookingIntentMatched: hasBookingIntent(reply),
         inboundVisitMatched: inboundVisitRe.test(messageText),
       })
 

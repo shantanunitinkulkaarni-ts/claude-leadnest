@@ -4,6 +4,7 @@ import { callLLM } from './llm'
 import { detectStage, type ConversationStage } from './stageMachine'
 import { filterPropertiesForLead, isValidMatchedProperty } from './propertyMatcher'
 import { validateReply } from './replyValidator'
+import { guardReplyFacts } from './factGuard'
 import { shouldRefreshSummary, refreshConversationSummary, SUMMARY_OLDER_WINDOW } from './conversationSummary'
 import { formatKnowledgeGapsForPrompt } from './knowledgeGaps'
 
@@ -679,6 +680,23 @@ export async function generateBotReply(
       extra: { agentId, leadId, stage, quotedPrice: validation.price, reply: result.reply },
     })
     result.reply = "Let me double-check the exact pricing on that and get back to you in a moment!"
+  }
+
+  // Fact guard: catches fabricated possession dates, direction/vastu claims,
+  // and parking specifics that don't exist in the matched property's inventory.
+  // Validator above only handles ₹ prices; this covers the other founder-
+  // reported fabrication classes. Rewrites the offending fragment to an honest
+  // "let me confirm with the team" defer rather than dropping the whole reply.
+  const matchedProp = matchedId && isValidMatchedProperty(matchedId, filteredProperties)
+    ? filteredProperties.find(p => p.id === matchedId) || null
+    : null
+  const factCheck = guardReplyFacts(result.reply, matchedProp)
+  if (factCheck.rewritten) {
+    Sentry.captureMessage('Engine reply contained inventory fabrications', {
+      level: 'warning',
+      extra: { agentId, leadId, stage, fabrications: factCheck.fabrications, original: result.reply, rewritten: factCheck.reply },
+    })
+    result.reply = factCheck.reply
   }
 
   return result

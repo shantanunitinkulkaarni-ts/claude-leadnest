@@ -25,6 +25,40 @@ test.describe('extractPrices', () => {
   test('no rupee figures returns empty array', () => {
     expect(extractPrices('Sure, let me check and get back to you!')).toEqual([])
   })
+
+  // ── Expanded price extraction (Rs / rupees / bare large numbers) ─────────
+  test('Rs-prefixed amounts are extracted', () => {
+    expect(extractPrices('Price is Rs 85 lakh for this 2BHK')).toEqual([8_500_000])
+  })
+
+  test('Rupees-spelled-out amounts are extracted', () => {
+    expect(extractPrices('Around rupees 9500000 final')).toEqual([9_500_000])
+  })
+
+  test('Unit-suffixed amounts without ₹ are extracted', () => {
+    expect(extractPrices('Final is 85 lakh, listed for 1.2 crore')).toEqual([8_500_000, 12_000_000])
+  })
+
+  test('Bare 7-digit rupee figure is extracted', () => {
+    expect(extractPrices('Listed at 9500000 currently')).toEqual([9_500_000])
+  })
+
+  test('sqft figures in lakh are NOT treated as price (sqft proximity guard)', () => {
+    expect(extractPrices('Building has 5 lakh sqft total area')).toEqual([])
+  })
+
+  test('phone numbers (10 digits) are NOT treated as prices', () => {
+    expect(extractPrices('Call me on 9876543210 anytime')).toEqual([])
+  })
+
+  test('sqft bare numbers are NOT treated as prices', () => {
+    expect(extractPrices('Carpet area 1080 sqft, super built-up 1450 sqft')).toEqual([])
+  })
+
+  test('mixed ₹ and unit-suffix in same reply deduplicates correctly', () => {
+    // Both regexes will match "₹79L" — should dedupe by amount.
+    expect(extractPrices('₹79L for this one')).toEqual([7_900_000])
+  })
 })
 
 test.describe('validateReply', () => {
