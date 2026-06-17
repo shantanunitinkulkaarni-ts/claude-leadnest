@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: June 15, 2026 (session 7)*
+*Last updated: June 17, 2026 (session 8)*
 
 > ⚠️ **PARALLEL WORK (June 14 s3):** Another agent (Kiro) is fixing frontend/auth
 > bugs. DO NOT TOUCH (Kiro's lane): a `route.ts` + 3 `page.tsx` (exact paths
@@ -18,6 +18,42 @@
 ---
 
 ## 1. DONE ✅
+
+- **June 17 SESSION 8 — PHOTOS ACTUALLY DELIVER + Phase 0F column-mismatch sweep:**
+  - **🔴 Phase 0F regression (the real reason photos still failed).** The Phase 0
+    migration moved property photos from the `features` array into a new
+    `property_media` column and STRIPPED `media:` entries from `features`. The
+    engine prompt was updated to read `property_media`, so the bot *promised*
+    photos — but multiple consumers still read/wrote the emptied `features`:
+    - **`app/api/webhook/route.ts`** photo-send SELECTs fetched only
+      `id,title,features` → `extractPropertyMedia` (reads `property_media` first)
+      returned [] → bot sent ZERO photos. FIXED (PR #104): both SELECTs now include
+      `property_media`. Regression guard added in `tests/unit/media.spec.ts`.
+    - **`app/api/admin/convert-media`** scanned only `features` (emptied) → its
+      "0 to convert" was a false negative. FIXED (#104): scans `property_media` too.
+    - **`components/screens/PropertiesScreen.tsx`** read images from `features`
+      (card thumbnail + edit form) AND wrote media back into `features` on save,
+      never `property_media`. So a migrated property showed "No photos yet" and any
+      edit diverged further. FIXED (PR #105): reads via `extractPropertyMedia`,
+      saves media to `property_media`, preserves amenities in a new `amenityFeatures`.
+  - **One-time prod data fix (founder-approved):** because the founder re-uploaded
+    new photos using the OLD save code, the new images landed in `features` while
+    old ones stayed in `property_media` (what the bot reads). Promoted the newer
+    `features` media → `property_media` and cleared stale entries for the 2 live
+    properties (Lodha, Lodha Towers). New photos now deliver. ✅ confirmed.
+  - **🔴 Webhook total outage fixed.** `MSG91_WEBHOOK_SECRET` auth gate shipped
+    (Phase 0, commit 9527c7e) without the env var ever being set → every inbound
+    message 500'd (bot fully dark). Generated secret, set in Vercel, redeployed;
+    founder added matching `x-webhook-secret` header in MSG91 dashboard. Now 200
+    with header / 403 without.
+  - **`superadmins` GRANT fix (`superadmin_grant_fix.sql`, founder ran in Supabase):**
+    `grant_privs.sql` granted the table to `authenticated` but NOT `service_role`,
+    so server-side `getAuthContext` got "permission denied" → `isSuperadmin` always
+    false on the server (broke admin-only endpoints + impersonation via APIs).
+    `GRANT ALL ON public.superadmins TO service_role;` — verified fixed.
+    NOTE: the founder's gmail user has NO row in `superadmins` (not actually a
+    superadmin); add a row if `/admin` powers are wanted.
+  - MSG91 delivery-report URL (`/api/webhook/status`) already configured in MSG91.
 
 - **June 15 SESSION 7 — PHOTO SENDING FIXED (root cause: AVIF) + prompt training:**
   - **🔴 ROOT CAUSE of photos never arriving = AVIF format.** WhatsApp/Meta only
