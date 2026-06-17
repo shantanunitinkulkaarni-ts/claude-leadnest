@@ -36,7 +36,7 @@ export function isPendingAppointmentExpired(pendingSetAt: string | null | undefi
 // caller must ALSO gate this on a pending_appointment_time actually existing
 // — a bare "ok"/"haan" said for an unrelated reason must never book a visit.
 const CONFIRM_RE =
-  /^\s*(yes+|yeah+|yep|yup|confirm(ed)?|ok(ay)?|sure|sounds good|works(?: for me)?|done|pakka|haan|han|theek\s*hai|thik\s*hai|sahi\s*hai|barobar|chalega|ho)\b|^\s*(हाँ|हां|ठीक\s*है|ठीक|बरोबर|चालेल|हो)/i
+  /^\s*(yes+|yeah+|yep|yup|confirm(ed)?|ok(ay)?|sure|sounds good|works(?: for me)?|done|pakka|bilkul|haan|han|haan\s*ji|ji\s*haan|ji|theek\s*hai|thik\s*hai|theek|thik|sahi\s*hai|barobar|chalega|chalo|chala|ho|hoy)\b|^\s*(हाँ|हां|हो|होय|जी|ठीक\s*है|ठीक|बरोबर|बरं|चालेल|चला|चल)/i
 
 export function isConfirmationReply(text: string): boolean {
   return CONFIRM_RE.test((text || '').trim())
