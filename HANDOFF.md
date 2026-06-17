@@ -1,19 +1,14 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: June 17, 2026 (session 8)*
-
-> ⚠️ **PARALLEL WORK (June 14 s3):** Another agent (Kiro) is fixing frontend/auth
-> bugs. DO NOT TOUCH (Kiro's lane): a `route.ts` + 3 `page.tsx` (exact paths
-> unconfirmed — treat login/onboarding/dashboard/auth pages as off-limits),
-> `SettingsScreen.tsx`, `LeadsScreen.tsx`, `OverviewScreen.tsx`,
-> `InboxScreen.tsx`, `lib/supabase.ts`. Coordinate before touching `lib/apiAuth.ts`.
-> This session's work stayed in bot/webhook/cron + `lib/{whatsapp,outreach,llm,gemini}.ts`
-> + `app/api/` — no overlap with Kiro.
+*Last updated: 2026-06-17 16:07 IST (10:37 UTC) — session 8*
+> ⏱️ This timestamp is set by hand at each update. If it looks stale vs. recent
+> git history (`git log -1`), assume parts of this doc are out of date and verify
+> against the code before trusting them.
 
 > **This is the single source of truth.** Every new chat: read this first, then update it (Done / Pending / Plan) at the end of the session. Deep business plan lives in `files/CONVORIAN_LAUNCH_BLUEPRINT.md`; user memory at `C:\Users\rahul\.claude\projects\C--LN\memory\`.
 >
 > **What Convorian is:** AI WhatsApp assistant for Indian real-estate agents. Agents connect their WhatsApp; the bot answers, qualifies, nurtures leads & books visits 24/7. SaaS at ₹999/mo. We are a **Tech Provider** (clients connect their own numbers). Category like Wati/Interakt, but niche (real estate) + AI-led.
-> **Stack:** Next.js 14 · Supabase (Postgres) · Groq (Llama 3.3 70B) · **Vercel** (hosting) · Razorpay (payments, LIVE) · Resend (email) · Meta WhatsApp Cloud API. Repo: `C:\LN\claude-leadnest` → GitHub `shantanunitinkulkaarni-ts/claude-leadnest`. Live: **https://convorian.in**.
+> **Stack:** Next.js 14 · Supabase (Postgres) · **LLM: GLM-4.5-Flash primary → Cerebras fallback** (`lib/llm.ts`; NOT Groq/Gemini/Claude) · **Vercel** (hosting) · Razorpay (payments, LIVE) · Resend (email) · WhatsApp via MSG91 BSP (Meta Cloud API per-agent). Repo: `C:\LN\claude-leadnest` → GitHub `shantanunitinkulkaarni-ts/claude-leadnest`. Live: **https://convorian.in**.
 
 ---
 
@@ -54,6 +49,21 @@
     NOTE: the founder's gmail user has NO row in `superadmins` (not actually a
     superadmin); add a row if `/admin` powers are wanted.
   - MSG91 delivery-report URL (`/api/webhook/status`) already configured in MSG91.
+  - **🔴 SECURITY: committed secrets removed + repo hygiene.** `env.yaml` (a leftover
+    gcloud deploy file) was tracked in git with LIVE values: Supabase `service_role`
+    + `anon` keys, Twilio token, Resend key, Gemini key, CRON_SECRET. Root cause it
+    persisted: `.gitignore` had a CORRUPTED line (`e n v . y a m l`, spaces between
+    letters — a bad write) so it never matched. Also `test_appointments.js` hardcoded
+    the `service_role` key and `app/auth/callback/route.ts` hardcoded the `anon` key
+    as fallbacks. FIXED: deleted `env.yaml`/`render.yaml`/`test_appointments.js`,
+    stripped the hardcoded fallbacks from the callback route, repaired `.gitignore`
+    (proper `env.yaml`/`*.env.yaml`/`scratch/`/`gist-export/` patterns). ⚠️ Deleting
+    does NOT scrub git history — the founder must ROTATE the keys ONCE (Supabase
+    service_role+anon, Twilio token, Resend key, Gemini key, CRON_SECRET) to fully
+    close it. Also removed dead `lib/claude.ts` (fallback is Cerebras, not Claude)
+    and junk root one-off scripts (`check_db.js`, `clear_limits*.js`,
+    `create_demo_table.js`, `create_waitlist_table.js`, `integration_test.js`,
+    `test_onboarding.js`, `scratch/`, stray root images).
 
 - **June 15 SESSION 7 — PHOTO SENDING FIXED (root cause: AVIF) + prompt training:**
   - **🔴 ROOT CAUSE of photos never arriving = AVIF format.** WhatsApp/Meta only

@@ -17,8 +17,10 @@ Shantanu — non-developer founder. You are the sole developer (CTO role).
 - Be conservative with tokens/credits (founder is on Pro plan).
 
 ## Stack (current — do not trust older notes)
-- Next.js 14 (App Router, TypeScript) · Supabase Postgres · Groq Llama 3.3 70B
-  (in `lib/gemini.ts` — filename is legacy, it's Groq now)
+- Next.js 14 (App Router, TypeScript) · Supabase Postgres
+- LLM: **GLM-4.5-Flash primary → Cerebras (`gpt-oss-120b`) fallback** — chain in
+  `lib/llm.ts` (`callLLM`); prompt/engine in `lib/gemini.ts` (filename is legacy).
+  Groq, Gemini and Claude/Anthropic are NOT used in the live path.
 - Hosting: **Vercel** (the old Google Cloud Run / gcloud deploy is ABANDONED)
 - Payments: Razorpay LIVE — wallet top-up + ₹999/mo subscriptions (UPI Autopay)
 - Email: Resend (`lib/email.ts`) · Errors: Sentry (org `covorian`, EU region)

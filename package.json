@@ -14,7 +14,6 @@
     "eval:record": "cross-env RUN_EVALS=1 EVAL_RECORD=1 playwright test tests/evals/engine-eval.spec.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.99.0",
     "@google-cloud/vertexai": "^1.12.0",
     "@sentry/nextjs": "^10.56.0",
     "@supabase/ssr": "^0.10.3",
