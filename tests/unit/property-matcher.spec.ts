@@ -1,5 +1,34 @@
 import { test, expect } from '@playwright/test'
-import { filterPropertiesForLead, isValidMatchedProperty } from '../../lib/propertyMatcher'
+import { filterPropertiesForLead, isValidMatchedProperty, areaMatches } from '../../lib/propertyMatcher'
+
+test.describe('areaMatches — typo-tolerant locality matching', () => {
+  test('exact + substring + case-insensitive', () => {
+    expect(areaMatches('Baner, Pune', 'baner')).toBe(true)
+    expect(areaMatches('Baner Road, Pune', 'Baner')).toBe(true)
+    expect(areaMatches('BANER', 'baner')).toBe(true)
+  })
+  test('tolerates a single typo / transposition', () => {
+    expect(areaMatches('Baner, Pune', 'bnaer')).toBe(true) // transposition
+    expect(areaMatches('bnaer, Pune', 'baner')).toBe(true) // typo on the stored side too
+    expect(areaMatches('Wakad', 'wakd')).toBe(true)        // missing letter
+  })
+  test('does NOT match genuinely different localities', () => {
+    expect(areaMatches('Baner, Pune', 'wakad')).toBe(false)
+    expect(areaMatches('Wakad, Pune', 'baner')).toBe(false)
+    expect(areaMatches('Hinjewadi', 'kothrud')).toBe(false)
+  })
+  test('empty area never matches', () => {
+    expect(areaMatches('Baner', '')).toBe(false)
+  })
+})
+
+test.describe('filterPropertiesForLead — typo-tolerant area filter', () => {
+  test('lead area still matches a property whose location was mistyped', () => {
+    const mistyped = { id: 'pX', type: 'sale', location: 'Bnaer, Pune', price: 5000000 }
+    const result = filterPropertiesForLead([mistyped], { preferred_areas: ['Baner'], budget_max: 6000000 })
+    expect(result.map(p => p.id)).toEqual(['pX'])
+  })
+})
 
 const sale2bhkBaner = { id: 'p1', type: 'sale', location: 'Baner, Pune', price: 8000000 }
 const sale4bhkBaner = { id: 'p2', type: 'sale', location: 'Baner, Pune', price: 25000000 }

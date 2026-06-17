@@ -5,6 +5,13 @@ import { extractPropertyMedia } from '@/lib/media'
 
 interface Props { agentId: string }
 
+// Normalise a typed area/locality so the same place isn't stored five ways
+// (" baner ", "Baner  Road") — trims and collapses internal whitespace. The
+// bot's matcher is already case- and typo-tolerant, so we don't force casing.
+function normalizeArea(s: string): string {
+  return (s || '').trim().replace(/\s+/g, ' ')
+}
+
 export default function PropertiesScreen({ agentId }: Props) {
   const [properties, setProperties] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -176,7 +183,7 @@ export default function PropertiesScreen({ agentId }: Props) {
       id: editingId,
       agent_id: agentId,
       title,
-      location,
+      location: normalizeArea(location),
       city,
       price: isNaN(numPrice) ? 0 : numPrice,
       type: type.toLowerCase(),
@@ -507,7 +514,12 @@ export default function PropertiesScreen({ agentId }: Props) {
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 16 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Location Area</label>
-                  <input required value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Baner" style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                  <input required list="known-area-list" value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Baner" style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                  <datalist id="known-area-list">
+                    {Array.from(new Set(properties.map((p: any) => p.location).filter(Boolean))).map((loc: any) => (
+                      <option key={loc} value={loc} />
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>City</label>
