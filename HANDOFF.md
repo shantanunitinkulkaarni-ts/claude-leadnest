@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: 2026-06-18 01:57 IST (20:27 UTC) — session 10*
+*Last updated: 2026-06-18 03:10 IST (21:40 UTC) — session 11*
 > ⏱️ This timestamp is set by hand at each update. If it looks stale vs. recent
 > git history (`git log -1`), assume parts of this doc are out of date and verify
 > against the code before trusting them.
@@ -13,6 +13,29 @@
 ---
 
 ## 1. DONE ✅
+
+- **June 18 SESSION 11 — Hindi/Marathi language-decay fix (PR #118, supervised port of Emergent's "Phase B"):**
+  - **Bug fix in `buildFewShotExamples` (`lib/gemini.ts`):** the few-shot picker was
+    script-blind (`langKey` only ever resolved to `mr`/`hi`), so the Devanagari
+    example was dead code and Devanagari leads were shown a Latin-script example —
+    nudging the model off-script. Now takes a `script` param and selects
+    `mr-latin` / `mr-devanagari` / `hi-latin` / `hi-devanagari` (added the missing
+    Devanagari-Hindi example). Script derived once in `buildEnginePrompt` from the
+    Devanagari Unicode block and reused for both the language directive and the example.
+  - **Closing language reminder:** a short reminder in the lead's OWN language/script,
+    injected right before the few-shot examples, to counter "language decay" (280+ lines
+    of English between the top directive and the output diluting it). 4 variants
+    (mr/hi × latin/devanagari).
+  - **FAMILY APPROVAL de-dup:** removed the duplicated GLOBAL section; the objection-stage
+    version stays. Supervisor preserved the global version's unique nuance ("NOT a request
+    to talk to a human → don't hand off the contact number") by folding it into the
+    objection line — zero loss.
+  - 17 new prompt unit tests (`tests/unit/engine-prompt.spec.ts`). typecheck + CI green.
+  - ⚠️ STRUCTURAL fix only — real Marathi/Hindi quality lift needs **live LLM evals**
+    (founder's GLM key) OR a few days of watching real Marathi conversations. If replies
+    still drift to English, that's the signal for a per-stage translation pass (Phase B+).
+  - Process: ported Emergent's delta (prev tip `c4cb99d` → new tip) by hand onto live main
+    — NOT merged (still a detached stale snapshot). #114/#116 already live, not re-applied.
 
 - **June 18 SESSION 10 — launch hardening + supervised multi-agent work (Emergent / Copilot):**
   - **Launch security hardening (PR #114).** `middleware.ts`: removed the
