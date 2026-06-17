@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test'
  * Critical flow 3: the AI bot replies.
  *
  * The demo-chat endpoint powers the live landing-page chat. We always verify
- * it degrades gracefully (returns JSON, never an HTML crash). When GROQ_API_KEY
+ * it degrades gracefully (returns JSON, never an HTML crash). When GLM_API_KEY
  * is available in the environment, we also assert it returns a real reply.
  */
 
@@ -16,8 +16,8 @@ test.describe('Demo bot endpoint (/api/demo-chat)', () => {
     expect([400, 429, 500]).toContain(res.status())
   })
 
-  test('returns a bot reply when Groq is configured', async ({ request }) => {
-    test.skip(!process.env.GROQ_API_KEY, 'GROQ_API_KEY not set — skipping live bot call')
+  test('returns a bot reply when the LLM is configured', async ({ request }) => {
+    test.skip(!process.env.GLM_API_KEY, 'GLM_API_KEY not set — skipping live bot call')
     const res = await request.post('/api/demo-chat', {
       data: {
         language: 'English',

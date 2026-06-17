@@ -2,12 +2,10 @@ import axios from 'axios'
 import * as Sentry from '@sentry/nextjs'
 import { cerebrasChat } from './cerebras'
 
-// ─── Single LLM provider: GLM-4.5-Flash (Z.ai, free tier) ────────────────────
-// Founder decision (June 13): Gemini removed (key requires paid billing) and
-// Groq removed (100k tokens/day free cap → mid-day outages = canned replies to
-// real leads). GLM is the primary brain; reliability comes from a fast first
-// attempt + one automatic retry with a longer budget, not from provider count.
-// A single Cerebras fallback attempt (callLLM, below) now backs it up.
+// ─── Primary LLM: GLM-4.5-Flash (Z.ai) ───────────────────────────────────────
+// GLM is the primary brain; reliability comes from a fast first attempt + one
+// automatic retry with a longer budget, not from provider count. A single
+// Cerebras fallback attempt (callLLM, below) backs it up if GLM exhausts retries.
 //
 // thinking disabled: GLM-4.5 is a reasoning model by default and would spend
 // the whole token budget "thinking", returning empty text for chat use.

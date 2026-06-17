@@ -13,7 +13,7 @@ import { randomUUID } from 'crypto'
 //
 // Requires, in the test process env:
 //   - NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (real Supabase project)
-//   - TWILIO_TEST_AGENT_ID (an existing agent row to send messages as)
+//   - TEST_AGENT_ID (an existing agent row to send messages as)
 //   - MSG91_WEBHOOK_SECRET set, OR SKIP_WEBHOOK_AUTH=true (the webhook auth gate
 //     dev-bypasses when NODE_ENV !== 'production' — true under `next dev` — AND
 //     SKIP_WEBHOOK_AUTH === 'true')
@@ -26,14 +26,14 @@ import { randomUUID } from 'crypto'
 // messages through the real engine and writes/deletes a real (synthetic) lead.
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-const TEST_AGENT_ID = process.env.TWILIO_TEST_AGENT_ID
+const TEST_AGENT_ID = process.env.TEST_AGENT_ID
 const WEBHOOK_SECRET = process.env.MSG91_WEBHOOK_SECRET
 const AUTH_OPEN = !!WEBHOOK_SECRET || process.env.SKIP_WEBHOOK_AUTH === 'true'
 
 const canRun = !!SUPABASE_URL && SUPABASE_URL !== 'https://dummy.supabase.co' && !!SERVICE_KEY && !!TEST_AGENT_ID && AUTH_OPEN
 
 test.describe('E2E: full lead conversation → confirmed appointment', () => {
-  test.skip(!canRun, 'requires real Supabase creds + TWILIO_TEST_AGENT_ID + open webhook auth — see file header for how to run locally')
+  test.skip(!canRun, 'requires real Supabase creds + TEST_AGENT_ID + open webhook auth — see file header for how to run locally')
 
   test('greeting → discovery → time proposal → confirmation → appointment booked', async ({ request }) => {
     const db = createClient(SUPABASE_URL!, SERVICE_KEY!)

@@ -10,11 +10,9 @@ import { formatKnowledgeGapsForPrompt } from './knowledgeGaps'
 export { detectStage, type ConversationStage }
 
 // ─── Engine LLM call: GLM-4.5-Flash primary, Cerebras one-shot fallback ───────
-// Gemini and Groq were removed (June 13, founder decision): Gemini's key needs
-// paid billing, Groq's free daily cap caused mid-day canned replies to real
-// leads. Reliability = fast first attempt + auto-retry (GLM hedging) and, if
-// GLM exhausts every attempt, one Cerebras call before giving up to the
-// webhook's canned fallback reply (see lib/llm.ts callLLM).
+// Reliability = fast first attempt + auto-retry (GLM hedging) and, if GLM
+// exhausts every attempt, one Cerebras call before giving up to the webhook's
+// canned fallback reply (see lib/llm.ts callLLM).
 export async function callEngineLLM(
   systemPrompt: string,
   chatHistory: { role: 'user' | 'assistant'; content: string }[],

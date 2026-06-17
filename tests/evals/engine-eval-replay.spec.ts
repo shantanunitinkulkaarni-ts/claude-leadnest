@@ -8,12 +8,11 @@ import { scenarios, slugify } from './scenarios'
  * Deterministic replay of the engine eval lab — runs in every `npm test` / CI,
  * never skipped, zero API calls.
  *
- * engine-eval.spec.ts calls the REAL engine + a REAL Groq judge (expensive,
- * gated behind `npm run eval`/`eval:record`, never run in CI). This spec
- * instead replays the committed fixtures captured by the last `eval:record`
- * run: it re-parses each fixture's recorded raw LLM output through the real
- * parseEngineResponse() (catching parser regressions even with no network
- * call) and asserts the judge verdict recorded at record-time was a PASS.
+ * This spec replays committed fixtures (captured previously by the live eval
+ * lab against a real LLM judge): it re-parses each fixture's recorded raw LLM
+ * output through the real parseEngineResponse() (catching parser regressions
+ * even with no network call) and asserts the judge verdict recorded at
+ * record-time was a PASS.
  *
  * This does NOT catch a prompt change that would produce a worse reply —
  * that requires a live LLM call. To verify a prompt change: run
