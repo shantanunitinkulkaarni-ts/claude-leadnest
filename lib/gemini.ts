@@ -114,7 +114,7 @@ function buildFewShotExamples(stage: ConversationStage, lang?: string | null, to
 }
 
 export function buildEnginePrompt(ctx: any, stage: ConversationStage, messageCount: number): string {
-  const { agent, lead, properties } = ctx
+  const { agent, lead, properties, totalActiveCount = 0 } = ctx
 
   const possessionLabel: Record<string, string> = {
     ready_to_move: 'Ready to move', under_construction: 'Under construction',
@@ -321,7 +321,9 @@ PROPERTY TYPES: ${(agent.property_types || []).join(', ')}
 OFFICE HOURS: ${agent.office_open} to ${agent.office_close}
 
 PROPERTY INVENTORY (complete and authoritative — every price/size/detail you ever quote MUST come from here, in ANY stage of the conversation):
-${propertiesList || 'No active properties right now — never invent one; say new options are coming in and you\'ll share details as soon as they land.'}
+${propertiesList || (totalActiveCount > 0
+  ? `IMPORTANT — DO NOT say the inventory is empty. The agency HAS ${totalActiveCount} active listing(s); they just don't match THIS lead's stated criteria (their area / budget / buy-vs-rent). It is FALSE and damaging to tell the lead "no properties" or "nothing in our inventory". Instead: honestly say you don't have something matching their exact ask (area + budget) right now, that new options come in regularly, and proactively offer to either broaden the search (a nearby area, or flexing the budget a little) OR arrange a quick call with the team. Keep it warm and short — never go silent.`
+  : 'No active properties at all right now — never invent one; say new options are coming in and you\'ll share details as soon as they land, and offer to arrange a call with the team.')}
 TONE: ${toneMap[agent.bot_tone] || toneMap.friendly}
 LANGUAGES THIS AGENCY SUPPORTS: ${(agent.languages && agent.languages.length ? agent.languages : ['English', 'Hindi', 'Marathi']).join(', ')} (you are fully fluent in English, Hindi and Marathi regardless)
 
@@ -607,6 +609,9 @@ export async function generateBotReply(
     agent,
     lead,
     properties: filteredProperties,
+    // Full active count (pre lead-filter) so the prompt can tell "no inventory"
+    // apart from "inventory exists but nothing matches THIS lead's criteria".
+    totalActiveCount: properties.length,
     currentTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
     isOfficeHours: isOfficeHours(agent.office_open, agent.office_close),
     // 3+ AI reschedules → a human is coordinating the final time; the bot must
@@ -706,6 +711,7 @@ export async function generateNudge(
 
   const ctx = {
     agent, lead, properties: filteredProperties,
+    totalActiveCount: properties.length,
     currentTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
     isOfficeHours: isOfficeHours(agent.office_open, agent.office_close),
     reschedulingLocked: false,
