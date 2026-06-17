@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: 2026-06-17 16:07 IST (10:37 UTC) — session 8*
+*Last updated: 2026-06-17 23:38 IST (18:08 UTC) — session 9*
 > ⏱️ This timestamp is set by hand at each update. If it looks stale vs. recent
 > git history (`git log -1`), assume parts of this doc are out of date and verify
 > against the code before trusting them.
@@ -13,6 +13,47 @@
 ---
 
 ## 1. DONE ✅
+
+- **June 17 SESSION 9 — bot quality fixes, cold-start, security hardening, provider cleanup:**
+  - **Webhook security secret (PR was session-8; secret set this session).** `MSG91_WEBHOOK_SECRET`
+    auth gate shipped without the env var → every inbound 500'd (bot fully dark). Generated a
+    secret, set in Vercel, founder added the matching `x-webhook-secret` header in MSG91.
+  - **Secrets removed from git (PR #107).** `env.yaml` was committed with LIVE Supabase
+    service_role+anon keys, Twilio, Resend, Gemini, CRON_SECRET — `.gitignore` had a corrupted
+    line (`e n v . y a m l`) so it never matched. Deleted env.yaml/render.yaml/test_appointments.js,
+    stripped hardcoded fallback keys from `app/auth/callback/route.ts`, fixed `.gitignore`, removed
+    dead `lib/claude.ts` + junk scripts. **Founder ROTATED all keys** (Supabase → new `sb_publishable_`/
+    `sb_secret_` keys + revoked legacy HS256; Resend; CRON_SECRET regenerated in Vercel+GitHub).
+  - **Removed Twilio + Gemini + Groq entirely (PR #108).** Decision: stay on MSG91 (cheapest for a
+    service-message-heavy bot — Twilio's per-msg markup taxes even free service msgs; client pays
+    WhatsApp via top-up, so MSG91's flat ₹500/number is the only Convorian-side cost). Kept the
+    form-urlencoded webhook path (powers the dashboard "simulate lead" feature), de-Twilio'd it.
+    Removed groq-sdk + the live Groq-judge eval (replay eval is the CI one); GLM_API_KEY everywhere.
+  - **Bot identity / no-match / typos (PR #109).** Bot now identifies ONLY as the agency, never the
+    agent's personal name (consent). No-match always replies + offers a call. Area matching is
+    typo/transposition-tolerant (`areaMatches`, restricted Damerau-Levenshtein) — "bnaer"≈"Baner".
+    Property form normalizes the area + autocomplete datalist of existing areas.
+  - **Cold-start mitigation (PR #110).** `.github/workflows/keep-warm.yml` pings the webhook every
+    5 min (08:30–23:25 IST) so inbound messages hit a warm lambda. ⚠️ FOUNDER: enable Vercel
+    **Fluid Compute** (Settings → Functions) for the proper fix. Does not touch LLM call latency.
+  - **"No inventory" lie + budget mis-scale (PR #111).** The engine showed the LLM only the
+    lead-FILTERED set; when nothing matched, the empty-list fallback falsely said "no inventory"
+    even with active listings. Now threads `totalActiveCount` → bot distinguishes "no match for you"
+    from "no inventory". Plus `lib/budgetParse.ts`: "50 lakh" was stored as ₹5L (10×); webhook now
+    corrects gross LLM budget mis-scales from the lead's own words.
+  - **🔴 service_role GRANT bug class — CLOSED (PR #112).** Several tables were created without
+    granting `service_role` (the role `supabaseAdmin` uses) → silent "permission denied for table X":
+    confirmed on superadmins, knowledge_gaps, demo_rate_limits, subscription_events (the last two
+    were breaking the landing demo-chat rate limit + Razorpay invoice/event logging). Founder ran
+    `service_role_grants.sql` (grants whole `public` schema + `ALTER DEFAULT PRIVILEGES` so future
+    tables inherit it). Verified all 14 app tables now accessible.
+  - **Stretch options (this PR).** When NOTHING fits the lead's budget, `findNearMatches` surfaces
+    the closest same-area same-type listings up to 2× budget; the bot offers them HONESTLY as
+    above-budget options ("closest in Baner is ~₹90L, above your ₹50L — want to see it or keep
+    looking?"). matched_property_id validation widened to filtered+near so the bot can reference them.
+  - **Test chat wiped (ops).** Founder's test lead "Shantanu" (+91 63932 60332): 408 messages + 2
+    appointments + 56 activity rows deleted, lead reset to fresh `new` for clean re-testing.
+  - Task tray cleared (old Phase 0–4 plan items, incl. Meta-App-Review-blocked 4E, deleted).
 
 - **June 17 SESSION 8 — PHOTOS ACTUALLY DELIVER + Phase 0F column-mismatch sweep:**
   - **🔴 Phase 0F regression (the real reason photos still failed).** The Phase 0
