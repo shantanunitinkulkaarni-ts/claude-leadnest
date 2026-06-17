@@ -77,7 +77,7 @@ export function stripEmojisFromReplyLine(example: string): string {
     .join('\n')
 }
 
-function buildFewShotExamples(stage: ConversationStage, lang?: string | null, tone?: string): string {
+function buildFewShotExamples(stage: ConversationStage, lang?: string | null, tone?: string, script?: 'latin' | 'devanagari' | null): string {
   // India-specific examples — realistic WhatsApp-style exchanges.
   // Keep short (token budget). Budget in crore/lakh is common; always map correctly.
   const stageExamples: Partial<Record<ConversationStage, string>> = {
@@ -91,18 +91,23 @@ function buildFewShotExamples(stage: ConversationStage, lang?: string | null, to
     nurture:      `Lead: abhi bhi dekhna chahta hun, price kuch hua kya?\nYou: Market abhi stable hai — aur ek naya option aa gaya hai jo aapki requirement se match karta hai. Details share karun?\n{"score":5,"temperature":"warm"}`,
   }
 
-  // One language-specific example when lead's language is known — pick based on
-  // detected script. Only one (not both Latin + Devanagari) to keep tokens low.
+  // Pick a language-AND-script-specific example. Bug fix: previously `langKey`
+  // always resolved to 'mr' for any Marathi lead, so the Devanagari Marathi
+  // example below was dead code — Devanagari leads got the Latin example,
+  // pulling the model toward Latin script. Now we pass through the detected
+  // script and pick the correct example.
   const langExample: Record<string, string> = {
-    mr: `Lead: 2BHK pahije Baner madhe, possession lavkar pahije\nYou: Chan! Ready-to-move flat ahe ₹82L la Baner madhe — changli society, east facing. Is weekend baghayla yeta ka?\n{"score":5,"temperature":"warm","intent":"buy","areas":["Baner"],"lang":"mr"}`,
-    'mr-dev': `Lead: मला बाणेरमध्ये 2bhk हवंय, ताबा लवकर हवा\nYou: हो! Ready-to-move flat आहे ₹82L ला — उत्तम सोसायटी, east facing. या weekend ला बघायला येता का?\n{"score":5,"temperature":"warm","intent":"buy","lang":"mr"}`,
-    hi: `Lead: bhaiya 1.5 crore budget mein 3BHK chahiye Wakad mein\nYou: Perfect! Wakad mein ₹1.45Cr ka solid 3BHK hai — ready-to-move, changli society. Weekend pe site visit karein?\n{"score":5,"temperature":"warm","intent":"buy","areas":["Wakad"],"budget_max":15000000,"lang":"hi"}`,
+    'mr-latin':    `Lead: 2BHK pahije Baner madhe, possession lavkar pahije\nYou: Chan! Ready-to-move flat ahe ₹82L la Baner madhe — changli society, east facing. Is weekend baghayla yeta ka?\n{"score":5,"temperature":"warm","intent":"buy","areas":["Baner"],"lang":"mr"}`,
+    'mr-devanagari': `Lead: मला बाणेरमध्ये 2bhk हवंय, ताबा लवकर हवा\nYou: हो! Ready-to-move flat आहे ₹82L ला — उत्तम सोसायटी, east facing. या weekend ला बघायला येता का?\n{"score":5,"temperature":"warm","intent":"buy","areas":["Baner"],"lang":"mr"}`,
+    'hi-latin':    `Lead: bhaiya 1.5 crore budget mein 3BHK chahiye Wakad mein\nYou: Perfect! Wakad mein ₹1.45Cr ka solid 3BHK hai — ready-to-move, changli society. Weekend pe site visit karein?\n{"score":5,"temperature":"warm","intent":"buy","areas":["Wakad"],"budget_max":15000000,"lang":"hi"}`,
+    'hi-devanagari': `Lead: 1.5 करोड़ बजट में 3BHK चाहिए वाकड़ में\nYou: बढ़िया! वाकड़ में ₹1.45Cr का solid 3BHK है — ready-to-move, अच्छी सोसायटी। Weekend पे site visit करें?\n{"score":5,"temperature":"warm","intent":"buy","areas":["Wakad"],"budget_max":15000000,"lang":"hi"}`,
   }
 
-  const stageEx = stageExamples[stage]
-  const langKey = lang === 'mr' ? 'mr' : lang === 'hi' ? 'hi' : null
+  const scriptKey = script === 'devanagari' ? 'devanagari' : 'latin'
+  const langKey = lang === 'mr' ? `mr-${scriptKey}` : lang === 'hi' ? `hi-${scriptKey}` : null
   const langEx = langKey ? langExample[langKey] : null
 
+  const stageEx = stageExamples[stage]
   let parts = [stageEx, langEx].filter(Boolean) as string[]
   if (!parts.length) return ''
 
@@ -274,15 +279,35 @@ If lost — be gracious, offer to help in future, ask for referrals.`
   const detectedLang = ctx.detectedLang as 'en' | 'hi' | 'mr' | null | undefined
   const storedLang  = ctx.lead?.language as string | null | undefined
   const activeLang  = detectedLang || storedLang   // detected wins; stored is fallback
+  // Detect which script the lead is using (Devanagari Unicode block vs Latin).
+  // We use it both for the langDirective wording and for picking the right
+  // language-specific few-shot example below.
+  const hasDevanagari = /[\u0900-\u097F]/.test(ctx.incomingMessage || '')
+  const script: 'latin' | 'devanagari' | null =
+    activeLang === 'mr' || activeLang === 'hi' ? (hasDevanagari ? 'devanagari' : 'latin') : null
   const langDirective = (() => {
     if (activeLang === 'mr') {
-      const script = detectedLang === 'mr' && !/[ऀ-ॿ]/.test(ctx.incomingMessage || '') ? 'Latin-script (romanized)' : 'Devanagari'
-      return `⚠️ MANDATORY LANGUAGE RULE — override everything else:\nThis lead is writing in MARATHI (${script}). You MUST reply in ${script === 'Latin-script (romanized)' ? 'Latin-script Marathi (romanized Marathi, NOT Devanagari, NOT English, NOT Hindi)' : 'Marathi in Devanagari script'}. Do NOT fall back to English under any circumstances. Even if their latest message is a short "ok" or "yes", maintain Marathi. A Marathi speaker who gets an English reply feels ignored — this kills the deal.\n`
+      const scriptLabel = script === 'latin' ? 'Latin-script (romanized)' : 'Devanagari'
+      return `⚠️ MANDATORY LANGUAGE RULE — override everything else:\nThis lead is writing in MARATHI (${scriptLabel}). You MUST reply in ${script === 'latin' ? 'Latin-script Marathi (romanized Marathi, NOT Devanagari, NOT English, NOT Hindi)' : 'Marathi in Devanagari script'}. Do NOT fall back to English under any circumstances. Even if their latest message is a short "ok" or "yes", maintain Marathi. A Marathi speaker who gets an English reply feels ignored — this kills the deal.\n`
     }
     if (activeLang === 'hi') {
-      const script = detectedLang === 'hi' && !/[ऀ-ॿ]/.test(ctx.incomingMessage || '') ? 'Latin-script (Hinglish/romanized)' : 'Devanagari'
-      return `⚠️ MANDATORY LANGUAGE RULE — override everything else:\nThis lead is writing in HINDI (${script}). You MUST reply in ${script === 'Latin-script (Hinglish/romanized)' ? 'Hinglish (Hindi in Latin script / romanized Hindi)' : 'Hindi in Devanagari script'}. Do NOT switch to English.\n`
+      const scriptLabel = script === 'latin' ? 'Latin-script (Hinglish/romanized)' : 'Devanagari'
+      return `⚠️ MANDATORY LANGUAGE RULE — override everything else:\nThis lead is writing in HINDI (${scriptLabel}). You MUST reply in ${script === 'latin' ? 'Hinglish (Hindi in Latin script / romanized Hindi)' : 'Hindi in Devanagari script'}. Do NOT switch to English.\n`
     }
+    return ''
+  })()
+
+  // ── Closing language reminder (injected AT THE END, right before examples) ──
+  // The directive at the top of the prompt gets diluted by 280+ lines of English
+  // instructions in between. A short reminder in the lead's OWN language,
+  // placed right before the few-shot examples, tips the model's last-token
+  // attention back toward the correct output language. This addresses 3 of
+  // the 14 known-failing eval scenarios (mr-latin / mr-devanagari / mr-detail).
+  const closingLangReminder = (() => {
+    if (activeLang === 'mr' && script === 'latin') return `\n📌 Aathvan theva: Tumhi Marathi madhe (Latin script madhe) reply karaycha aahe — English madhe NAHI, Devanagari madhe pan NAHI. Jasa lead Marathi madhe lihito tasaaach reply kara.\n`
+    if (activeLang === 'mr' && script === 'devanagari') return `\n📌 लक्षात ठेवा: तुम्ही मराठीत (देवनागरीत) उत्तर द्यायचं आहे — इंग्रजीत नाही, हिंदीत नाही. ग्राहक जसा मराठीत लिहितोय तसंच उत्तर द्या.\n`
+    if (activeLang === 'hi' && script === 'latin') return `\n📌 Yaad rahe: Aapko Hinglish mein (Latin script Hindi mein) reply karna hai — English mein NAHI. Lead jaise Hinglish mein likh raha hai, waise hi reply karein.\n`
+    if (activeLang === 'hi' && script === 'devanagari') return `\n📌 याद रहे: आपको हिंदी में (देवनागरी लिपि में) उत्तर देना है — अंग्रेज़ी में नहीं। ग्राहक जैसे हिंदी में लिख रहा है, वैसे ही उत्तर दीजिए।\n`
     return ''
   })()
 
@@ -379,8 +404,6 @@ HONESTY — NEVER claim to do something you cannot actually do:
 HANDLING UNKNOWNS & AMBIGUITY (never guess, never fabricate):
 - If a detail isn't in your inventory (exact possession date, precise locality/landmark, floor plan, carpet vs built-up area, legal/loan specifics): say so honestly and offer to get it — "Let me confirm that with the team and get right back to you." Give what you DO know first, then flag the gap. Never invent a value, and never let a missing detail stall the conversation. (The system flags these so the agent can follow up.)
 
-FAMILY APPROVAL ('ghar mein baat karni hai' / 'wife ko dikhana hai' / 'family se poochna hai' / 'need to discuss with my family'): THIS IS NORMAL IN INDIA, NOT A REJECTION OR A REQUEST TO TALK TO A HUMAN — do NOT just hand off the agent's contact number. Warmly validate it ("Bilkul, family ka decision important hai!" / "Absolutely, that makes total sense!") and invite them to bring the family along to see the property together — offer a specific time (e.g. a weekend slot) for that joint visit.
-
 PROTECT THE BUSINESS:
 - If someone seems to be a broker/competitor rather than a genuine buyer (says they're an agent/dealer, asks what software/CRM powers you, or wants your full list or lowest price to "compare"): stay warm and professional, but do NOT dump the entire inventory or your best pricing. Gently invite them to share what they're genuinely looking for, and keep specifics light.
 - If asked what app/software/CRM/system you run on ("ye software kaunsa hai", "CRM hai kya"): do NOT answer that question at all — not even vaguely (no "WhatsApp-based assistant", no "our database", no "powered by"). Just warmly brush past it in one short line and immediately pivot to their property search, e.g. "Wo to bas tool hai, main yahan aapki property search mein help karne ke liye hoon — kis area mein dekh rahe ho?"
@@ -415,7 +438,7 @@ Then one short conversational line ("Great for a family looking for X") + a gent
 — If details (sqft, amenities) are missing from inventory, skip that line rather than guessing.
 — "Under construction" with NO specific date in inventory means NO specific date — if asked exactly when, say you'll confirm with the team. Do NOT invent a month/year.
 
-${buildFewShotExamples(stage, activeLang as string, tone)}
+${buildFewShotExamples(stage, activeLang as string, tone, script)}${closingLangReminder}
 ${toneDirective ? `⚠️ REMINDER — this agency's tone is "${tone}": ${toneMap[tone] || toneMap.friendly} Do not slip back into the casual style from the examples above.\n` : ''}RESPONSE FORMAT — return EXACTLY this structure:
 [Your WhatsApp message here]
 {"score":7,"temperature":"warm","intent":"buy","areas":["Baner"],"budget_min":5000000,"budget_max":9000000,"timeline":"within_3_months","name":"Rahul","stage":"presentation","matched_property_id":"uuid","appointment_booked_time":"2026-06-05T10:00:00Z","appointment_status":"upcoming"}
