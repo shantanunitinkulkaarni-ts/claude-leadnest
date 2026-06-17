@@ -20,6 +20,48 @@ const INTENT_TO_PROPERTY_TYPE: Record<string, string> = {
   rent: 'rental',
 }
 
+// Restricted Damerau-Levenshtein edit distance (handles single transpositions
+// like "bnaer" → "baner" as one edit). Used only as a typo fallback below.
+function editDistance(a: string, b: string): number {
+  const m = a.length, n = b.length
+  if (!m) return n
+  if (!n) return m
+  const d: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  for (let i = 0; i <= m; i++) d[i][0] = i
+  for (let j = 0; j <= n; j++) d[0][j] = j
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost)
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1) // transposition
+      }
+    }
+  }
+  return d[m][n]
+}
+
+function areaTokens(s: string): string[] {
+  return (s || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean)
+}
+
+// True when `area` (lead's requested locality) matches `location` (property's
+// stored location). Plain substring covers the normal case; a tight edit-distance
+// fallback tolerates a single typo/transposition (localities are short and often
+// mistyped — "bnaer"/"Baner") WITHOUT matching genuinely different areas.
+export function areaMatches(location: string, area: string): boolean {
+  const loc = (location || '').toLowerCase()
+  const ar = (area || '').toLowerCase().trim()
+  if (!ar) return false
+  if (loc.includes(ar)) return true
+  for (const t of areaTokens(location)) {
+    if (Math.abs(t.length - ar.length) > 2) continue
+    const threshold = ar.length >= 6 ? 2 : 1
+    if (editDistance(t, ar) <= threshold) return true
+  }
+  return false
+}
+
 // Budget tolerance — leads round their stated budget, and a property 10-20%
 // over asking is often still worth showing (the agent can negotiate). 20%
 // matches the tolerance documented in the master plan.
@@ -33,9 +75,8 @@ export function filterPropertiesForLead(properties: any[], lead: any): any[] {
     }
 
     if (lead.preferred_areas && lead.preferred_areas.length > 0) {
-      const location = (p.location || '').toLowerCase()
       const matchesArea = lead.preferred_areas.some((area: string) =>
-        location.includes((area || '').toLowerCase())
+        areaMatches(p.location, area)
       )
       if (!matchesArea) return false
     }
