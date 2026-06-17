@@ -719,9 +719,13 @@ export async function generateNudge(
   const messageCount = recentMessages.length
   const stage = detectStage(lead, messageCount)
   const filteredProperties = filterPropertiesForLead(properties, lead)
+  // Parity with generateBotReply: if a nudge ever surfaces a property and nothing
+  // fits the budget, give the prompt the same above-budget stretch options.
+  const nearMatches = filteredProperties.length === 0 ? findNearMatches(properties, lead) : []
 
   const ctx = {
     agent, lead, properties: filteredProperties,
+    nearMatches,
     totalActiveCount: properties.length,
     currentTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
     isOfficeHours: isOfficeHours(agent.office_open, agent.office_close),

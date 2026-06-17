@@ -8,6 +8,9 @@ test.describe('isConfirmationReply — affirmative tokens', () => {
     'sounds good', 'works', 'works for me', 'done', 'pakka',
     'haan', 'han', 'theek hai', 'thik hai', 'sahi hai', 'barobar', 'chalega', 'ho',
     'हाँ', 'हां', 'ठीक है', 'ठीक', 'बरोबर', 'चालेल',
+    // Added: common Indian affirmatives that were previously missed
+    'ji', 'haan ji', 'ji haan', 'bilkul', 'theek', 'thik', 'chalo', 'chala', 'hoy',
+    'हो', 'होय', 'जी', 'बरं', 'चला', 'चल',
   ]
   for (const msg of positives) {
     test(`"${msg}" is a confirmation`, () => {
