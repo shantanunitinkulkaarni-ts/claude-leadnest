@@ -6,23 +6,16 @@ import axios from 'axios'
 // bypasses RLS, which is correct for trusted server code.
 import { supabaseAdmin } from './supabase'
 
-// ─── Provider detection ───────────────────────────────────────────────────────
-// Set WHATSAPP_PROVIDER=twilio in env for Twilio, anything else = Meta
-const PROVIDER = process.env.WHATSAPP_PROVIDER || 'meta'
-
 const WA_API_VERSION = 'v19.0'
 const WA_BASE_URL = `https://graph.facebook.com/${WA_API_VERSION}`
 
 // ─── Send plain text message ──────────────────────────────────────────────────
 export async function sendWhatsAppMessage(
-  phoneNumberId: string,  // Meta: phone_number_id | Twilio: ignored (uses env)
-  accessToken: string,    // Meta: access token    | Twilio: ignored (uses env)
+  phoneNumberId: string,  // Meta phone_number_id
+  accessToken: string,    // Meta access token
   toPhone: string,
   message: string
 ): Promise<string | null> {
-  if (PROVIDER === 'twilio') {
-    return sendViaTwilio(toPhone, message)
-  }
   return sendViaMeta(phoneNumberId, accessToken, toPhone, message)
 }
 
@@ -53,37 +46,6 @@ async function sendViaMeta(
     return res.data?.messages?.[0]?.id || null
   } catch (err: any) {
     console.error('Meta send error:', err?.response?.data || err.message)
-    return null
-  }
-}
-
-// ─── Twilio sender ────────────────────────────────────────────────────────────
-async function sendViaTwilio(
-  toPhone: string,
-  message: string
-): Promise<string | null> {
-  try {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID!
-    const authToken = process.env.TWILIO_AUTH_TOKEN!
-    const fromNumber = process.env.TWILIO_WHATSAPP_NUMBER! // whatsapp:+12184757450
-
-    // Ensure numbers are in whatsapp: format
-    const from = fromNumber.startsWith('whatsapp:') ? fromNumber : `whatsapp:${fromNumber}`
-    const to = toPhone.startsWith('whatsapp:') ? toPhone : `whatsapp:${toPhone}`
-
-    const params = new URLSearchParams({ From: from, To: to, Body: message })
-
-    const res = await axios.post(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-      params.toString(),
-      {
-        auth: { username: accountSid, password: authToken },
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-      }
-    )
-    return res.data?.sid || null
-  } catch (err: any) {
-    console.error('Twilio send error:', err?.response?.data || err.message)
     return null
   }
 }
@@ -272,7 +234,7 @@ export async function sendToLead(agent: any, lead: any, message: string): Promis
   return null
 }
 
-// ─── Template message (Meta only — Twilio uses free-form for sandbox) ─────────
+// ─── Template message (Meta Cloud API) ───────────────────────────────────────
 export async function sendWhatsAppTemplate(
   phoneNumberId: string,
   accessToken: string,
@@ -281,12 +243,6 @@ export async function sendWhatsAppTemplate(
   languageCode: string,
   components: any[]
 ): Promise<string | null> {
-  if (PROVIDER === 'twilio') {
-    // Twilio sandbox doesn't support templates — send plain text fallback
-    console.log('Template send skipped (Twilio sandbox) — would send:', templateName)
-    return null
-  }
-
   try {
     const res = await axios.post(
       `${WA_BASE_URL}/${phoneNumberId}/messages`,
@@ -363,17 +319,6 @@ export async function sendAppointmentReminder(
   appointment: any,
   property: any
 ) {
-  if (PROVIDER === 'twilio') {
-    const dateStr = new Date(appointment.scheduled_at).toLocaleDateString('en-IN', {
-      weekday: 'long', day: 'numeric', month: 'long'
-    })
-    const timeStr = new Date(appointment.scheduled_at).toLocaleTimeString('en-IN', {
-      hour: '2-digit', minute: '2-digit'
-    })
-    const message = `Hi ${lead.name || 'there'}! Reminder: your site visit for ${property?.title || 'the property'} is on ${dateStr} at ${timeStr}. See you there! 🏠`
-    return sendViaTwilio(lead.phone, message)
-  }
-
   const components = [
     {
       type: 'body',

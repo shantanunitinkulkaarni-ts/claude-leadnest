@@ -24,8 +24,6 @@ const IP_RATE_LIMIT = 60       // requests / minute / IP
 const AGENT_RATE_LIMIT = 10    // requests / minute / agent
 const RATE_LIMIT_WINDOW_MS = 60_000
 
-const PROVIDER = process.env.WHATSAPP_PROVIDER || 'meta'
-
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const mode = searchParams.get('hub.mode')
@@ -85,13 +83,16 @@ export async function POST(request: NextRequest) {
 
     const contentType = request.headers.get('content-type') || ''
     let fromPhone = '', messageText = '', waMessageId = '', phoneNumberId = '', forcedAgentId = ''
-    let incomingProvider: 'meta' | 'twilio' | 'msg91' = PROVIDER === 'twilio' ? 'twilio' : 'meta'
+    let incomingProvider: 'meta' | 'msg91' = 'meta'
     let msg91IntegratedNumber = ''
     // Meta Cloud API non-text inbound (voice note/image/etc.) — flagged here,
     // handled after agent lookup below since sending the nudge needs agent.wa_access_token.
     let isNonTextMedia = false
 
-    if (PROVIDER === 'twilio' || contentType.includes('application/x-www-form-urlencoded')) {
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      // Form-encoded inbound = the dashboard "simulate lead message" feature
+      // (InboxScreen) and test harnesses, which post From/Body/AgentId. Carries
+      // an explicit AgentId so it's routed via forcedAgentId below.
       const text = await request.text()
       const params = new URLSearchParams(text)
       fromPhone = (params.get('From') || '').replace('whatsapp:', '').trim()
@@ -100,8 +101,8 @@ export async function POST(request: NextRequest) {
       messageText = params.get('Body') || ''
       waMessageId = params.get('MessageSid') || ''
       forcedAgentId = params.get('AgentId') || ''
-      phoneNumberId = 'twilio'
-      if (!messageText || !fromPhone) return new NextResponse('OK', { status: 200 })
+      phoneNumberId = 'simulated'
+      if (!messageText || !fromPhone) return NextResponse.json({ status: 'no_text' })
     } else {
       const body = await request.json()
       // ── MSG91 (BSP) inbound — detected by its distinctive fields ──
@@ -191,15 +192,6 @@ export async function POST(request: NextRequest) {
     } else if (forcedAgentId) {
       const { data } = await supabaseAdmin.from('agents').select('*').eq('id', forcedAgentId).single()
       agent = data
-    } else if (PROVIDER === 'twilio') {
-      const testAgentId = process.env.TWILIO_TEST_AGENT_ID
-      if (testAgentId) {
-        const { data } = await supabaseAdmin.from('agents').select('*').eq('id', testAgentId).single()
-        agent = data
-      } else {
-        const { data } = await supabaseAdmin.from('agents').select('*').eq('bot_active', true).limit(1).single()
-        agent = data
-      }
     } else {
       const { data } = await supabaseAdmin.from('agents').select('*').eq('wa_phone_number_id', phoneNumberId).eq('wa_verified', true).single()
       agent = data
@@ -207,7 +199,7 @@ export async function POST(request: NextRequest) {
 
     if (!agent) {
       log('agent_not_found')
-      return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'agent_not_found' })
+      return NextResponse.json({ status: 'agent_not_found' })
     }
     setContext({ agentId: agent.id })
     Sentry.setContext('webhook', { traceId, agentId: agent.id })
@@ -221,7 +213,7 @@ export async function POST(request: NextRequest) {
       const agentLimit = checkRateLimit(`agent:${agent.id}`, AGENT_RATE_LIMIT, RATE_LIMIT_WINDOW_MS)
       if (!agentLimit.allowed) {
         log('rate_limited_agent', { agentId: agent.id })
-        return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'rate_limited' }, { status: 429 })
+        return NextResponse.json({ status: 'rate_limited' }, { status: 429 })
       }
     }
 
@@ -238,7 +230,7 @@ export async function POST(request: NextRequest) {
       })
       if (!gate.reply) {
         log('bot_gated', { reason: gate.reason })
-        return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: gate.reason })
+        return NextResponse.json({ status: gate.reason })
       }
     }
 
@@ -248,7 +240,7 @@ export async function POST(request: NextRequest) {
     if (waMessageId) {
       const { data: existing } = await supabaseAdmin.from('messages').select('id').eq('wa_message_id', waMessageId).eq('direction', 'inbound').limit(1)
       if (existing && existing.length > 0) {
-        return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'duplicate' })
+        return NextResponse.json({ status: 'duplicate' })
       }
     }
 
@@ -285,16 +277,16 @@ export async function POST(request: NextRequest) {
             .select('*').eq('agent_id', agent.id).eq('phone', fromPhone).maybeSingle()
           if (!raceLead) {
             logError('lead_race_fetch_failed', { error: leadInsertError })
-            return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'lead_create_failed' })
+            return NextResponse.json({ status: 'lead_create_failed' })
           }
           lead = raceLead
           // No activity_log for the race loser — the winner already logged it
         } else {
           logError('lead_create_failed', { error: leadInsertError })
-          return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'lead_create_failed' })
+          return NextResponse.json({ status: 'lead_create_failed' })
         }
       } else if (!newLead) {
-        return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'lead_create_failed' })
+        return NextResponse.json({ status: 'lead_create_failed' })
       } else {
         lead = newLead
       }
@@ -340,9 +332,9 @@ export async function POST(request: NextRequest) {
       const bye = "You're all set — I won't message you again. If you ever need anything, just text here anytime. 🙏"
       try {
         if (incomingProvider === 'msg91') await sendViaMsg91(msg91IntegratedNumber, fromPhone, bye)
-        else await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, PROVIDER === 'twilio' ? `whatsapp:${fromPhone}` : fromPhone, bye)
+        else await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, bye)
       } catch { /* best-effort */ }
-      return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'opted_out' })
+      return NextResponse.json({ status: 'opted_out' })
     }
 
     // Atomic dedup: the unique index on inbound wa_message_id makes this insert
@@ -370,16 +362,16 @@ export async function POST(request: NextRequest) {
     if (inboundInsertError) {
       if (inboundInsertError.code === '23505') {
         log('dedup_hit', { kind: 'unique_index' })
-        return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'duplicate' })
+        return NextResponse.json({ status: 'duplicate' })
       }
       logError('inbound_message_insert_failed', { error: inboundInsertError })
       // Don't reply if we couldn't record the message — a retry will reprocess it cleanly.
-      return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'message_insert_failed' })
+      return NextResponse.json({ status: 'message_insert_failed' })
     }
 
     if (lead.bot_paused) {
       log('manual_mode', { note: 'lead bot_paused' })
-      return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'manual_mode' })
+      return NextResponse.json({ status: 'manual_mode' })
     }
 
     // ── Safety guardrails: deflect NSFW / spam-scam / prompt-injection WITHOUT
@@ -394,7 +386,7 @@ export async function POST(request: NextRequest) {
       try {
         let wid: string | null
         if (incomingProvider === 'msg91') wid = await sendViaMsg91(msg91IntegratedNumber, fromPhone, safeReply)
-        else wid = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, PROVIDER === 'twilio' ? `whatsapp:${fromPhone}` : fromPhone, safeReply)
+        else wid = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, safeReply)
         if (wid && gOut?.id) await supabaseAdmin.from('messages').update({ wa_message_id: wid }).eq('id', gOut.id)
       } catch (e: any) { log('guardrail_send_failed', { error: e?.message }) }
       await supabaseAdmin.from('activity_log').insert({
@@ -402,7 +394,7 @@ export async function POST(request: NextRequest) {
         title: `Guardrail: ${inboundSignals.guardrail}`, description: messageText.slice(0, 140),
       })
       await supabaseAdmin.from('agents').update({ messages_used: (agent.messages_used || 0) + 1 }).eq('id', agent.id)
-      return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'guardrail', kind: inboundSignals.guardrail })
+      return NextResponse.json({ status: 'guardrail', kind: inboundSignals.guardrail })
     }
 
     log('engine_call_start', { messageText })
@@ -692,7 +684,7 @@ export async function POST(request: NextRequest) {
       if (incomingProvider === 'msg91') {
         outWaId = await sendViaMsg91(msg91IntegratedNumber, fromPhone, reply)
       } else {
-        const toPhone = PROVIDER === 'twilio' ? `whatsapp:${fromPhone}` : fromPhone
+        const toPhone = fromPhone
         outWaId = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, toPhone, reply)
       }
       if (outWaId && outboundMsg?.id) {
@@ -831,11 +823,11 @@ export async function POST(request: NextRequest) {
     }
 
     log('webhook_done', { durationMs: Date.now() - tStart })
-    return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'ok' })
+    return NextResponse.json({ status: 'ok' })
 
   } catch (err: any) {
     logError('webhook_uncaught_error', { error: err.message, stack: err.stack })
     Sentry.captureException(err, { tags: { traceId } })
-    return PROVIDER === 'twilio' ? new NextResponse('OK', { status: 200 }) : NextResponse.json({ status: 'error', message: err.message, traceId }, { status: 500 })
+    return NextResponse.json({ status: 'error', message: err.message, traceId }, { status: 500 })
   }
 }

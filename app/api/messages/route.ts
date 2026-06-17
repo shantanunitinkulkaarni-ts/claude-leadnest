@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'WhatsApp not connected' }, { status: 400 })
   }
 
-  // Agents connected via MSG91 send through it; others via Meta/Twilio.
+  // Agents connected via MSG91 send through it; others via Meta Cloud API.
   let waId: string | null
   if (agent.msg91_integrated_number) {
     const { sendViaMsg91 } = await import('@/lib/whatsapp')

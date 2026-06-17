@@ -11,7 +11,7 @@ export async function GET() {
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return new NextResponse('Not found', { status: 404 })
   }
-  const testAgentId = process.env.TWILIO_TEST_AGENT_ID
+  const testAgentId = process.env.TEST_AGENT_ID
   let passed = 0
   let failed = 0
   const logs: string[] = []
