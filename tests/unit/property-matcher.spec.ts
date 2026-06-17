@@ -1,5 +1,29 @@
 import { test, expect } from '@playwright/test'
-import { filterPropertiesForLead, isValidMatchedProperty, areaMatches } from '../../lib/propertyMatcher'
+import { filterPropertiesForLead, findNearMatches, isValidMatchedProperty, areaMatches } from '../../lib/propertyMatcher'
+
+test.describe('findNearMatches — above-budget stretch options', () => {
+  const baner90L = { id: 'n1', type: 'sale', location: 'Baner, Pune', price: 9000000 }
+  const banerInBudget = { id: 'n2', type: 'sale', location: 'Baner, Pune', price: 5500000 }
+  const banerWayOver = { id: 'n3', type: 'sale', location: 'Baner, Pune', price: 20000000 }
+  const wakad90L = { id: 'n4', type: 'sale', location: 'Wakad, Pune', price: 9000000 }
+  const rentalBaner = { id: 'n5', type: 'rental', location: 'Baner, Pune', rent_per_month: 40000 }
+
+  test('surfaces same-area same-type listings just above budget (≤2x)', () => {
+    const r = findNearMatches([baner90L, banerWayOver], { intent: 'buy', preferred_areas: ['Baner'], budget_max: 5000000 })
+    expect(r.map(p => p.id)).toEqual(['n1']) // 90L is within 2x of 50L; 2cr is not
+  })
+  test('excludes in-budget (those are exact matches, not stretch)', () => {
+    const r = findNearMatches([banerInBudget], { intent: 'buy', preferred_areas: ['Baner'], budget_max: 5000000 })
+    expect(r).toHaveLength(0)
+  })
+  test('respects area and intent — different area / wrong type excluded', () => {
+    const r = findNearMatches([wakad90L, rentalBaner], { intent: 'buy', preferred_areas: ['Baner'], budget_max: 5000000 })
+    expect(r).toHaveLength(0)
+  })
+  test('no budget → no stretch options', () => {
+    expect(findNearMatches([baner90L], { intent: 'buy', preferred_areas: ['Baner'] })).toHaveLength(0)
+  })
+})
 
 test.describe('areaMatches — typo-tolerant locality matching', () => {
   test('exact + substring + case-insensitive', () => {

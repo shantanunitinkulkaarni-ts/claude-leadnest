@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/nextjs'
 import { supabaseAdmin } from './supabase'
 import { callLLM } from './llm'
 import { detectStage, type ConversationStage } from './stageMachine'
-import { filterPropertiesForLead, isValidMatchedProperty } from './propertyMatcher'
+import { filterPropertiesForLead, findNearMatches, isValidMatchedProperty } from './propertyMatcher'
 import { validateReply } from './replyValidator'
 import { shouldRefreshSummary, refreshConversationSummary, SUMMARY_OLDER_WINDOW } from './conversationSummary'
 import { formatKnowledgeGapsForPrompt } from './knowledgeGaps'
@@ -114,13 +114,13 @@ function buildFewShotExamples(stage: ConversationStage, lang?: string | null, to
 }
 
 export function buildEnginePrompt(ctx: any, stage: ConversationStage, messageCount: number): string {
-  const { agent, lead, properties, totalActiveCount = 0 } = ctx
+  const { agent, lead, properties, totalActiveCount = 0, nearMatches = [] } = ctx
 
   const possessionLabel: Record<string, string> = {
     ready_to_move: 'Ready to move', under_construction: 'Under construction',
     new_launch: 'New launch', resale: 'Resale',
   }
-  const propertiesList = properties.map((p: any) => {
+  const propLine = (p: any) => {
     const price = p.type === 'rental'
       ? `₹${(p.rent_per_month || p.price || 0).toLocaleString('en-IN')}/month${p.deposit ? ` (deposit ₹${Number(p.deposit).toLocaleString('en-IN')})` : ''}`
       : `₹${((p.price || 0) / 100000).toFixed(0)}L`
@@ -139,7 +139,9 @@ export function buildEnginePrompt(ctx: any, stage: ConversationStage, messageCou
       (p.project_website && p.website_ai_consent) ? `PROJECT SITE (agent-approved, you may reference its public info): ${p.project_website}` : '',
     ].filter(Boolean)
     return parts.join(' | ')
-  }).join('\n')
+  }
+  const propertiesList = properties.map(propLine).join('\n')
+  const nearMatchesList = (nearMatches || []).map(propLine).join('\n')
 
   const stageInstructions: Record<ConversationStage, string> = {
     greeting: `
@@ -321,9 +323,11 @@ PROPERTY TYPES: ${(agent.property_types || []).join(', ')}
 OFFICE HOURS: ${agent.office_open} to ${agent.office_close}
 
 PROPERTY INVENTORY (complete and authoritative — every price/size/detail you ever quote MUST come from here, in ANY stage of the conversation):
-${propertiesList || (totalActiveCount > 0
-  ? `IMPORTANT — DO NOT say the inventory is empty. The agency HAS ${totalActiveCount} active listing(s); they just don't match THIS lead's stated criteria (their area / budget / buy-vs-rent). It is FALSE and damaging to tell the lead "no properties" or "nothing in our inventory". Instead: honestly say you don't have something matching their exact ask (area + budget) right now, that new options come in regularly, and proactively offer to either broaden the search (a nearby area, or flexing the budget a little) OR arrange a quick call with the team. Keep it warm and short — never go silent.`
-  : 'No active properties at all right now — never invent one; say new options are coming in and you\'ll share details as soon as they land, and offer to arrange a call with the team.')}
+${propertiesList || (nearMatchesList
+  ? `Nothing matches the lead's budget exactly. The CLOSEST options below DO match their area + buy/rent type — they are just ABOVE the stated budget. Present them HONESTLY as stretch options: name the property, show the REAL price, frame it like "the closest I have in [area] is around ₹X — a bit above your ₹Y range" and ask if they'd like to see it anyway or prefer you keep looking within budget. You MAY include such a property's matched_property_id. Also offer to arrange a call. NEVER hide/understate the price, NEVER pretend it's within budget, and NEVER say the inventory is empty.\n${nearMatchesList}`
+  : (totalActiveCount > 0
+    ? `IMPORTANT — DO NOT say the inventory is empty. The agency HAS ${totalActiveCount} active listing(s); they just don't match THIS lead's stated criteria (their area / budget / buy-vs-rent). It is FALSE and damaging to tell the lead "no properties" or "nothing in our inventory". Instead: honestly say you don't have something matching their exact ask (area + budget) right now, that new options come in regularly, and proactively offer to either broaden the search (a nearby area, or flexing the budget a little) OR arrange a quick call with the team. Keep it warm and short — never go silent.`
+    : 'No active properties at all right now — never invent one; say new options are coming in and you\'ll share details as soon as they land, and offer to arrange a call with the team.'))}
 TONE: ${toneMap[agent.bot_tone] || toneMap.friendly}
 LANGUAGES THIS AGENCY SUPPORTS: ${(agent.languages && agent.languages.length ? agent.languages : ['English', 'Hindi', 'Marathi']).join(', ')} (you are fully fluent in English, Hindi and Marathi regardless)
 
@@ -599,7 +603,13 @@ export async function generateBotReply(
   // Server-side filter: the LLM only ever sees properties that already match
   // the lead's known intent/areas/budget, so it can't recommend a mismatch.
   const filteredProperties = filterPropertiesForLead(properties, lead)
-  Sentry.setContext('engine', { stage, messageCount, filteredPropertyCount: filteredProperties.length, totalPropertyCount: properties.length })
+  // When NOTHING fits the budget, surface the closest above-budget options (same
+  // area + type) so the bot can offer an honest stretch pick instead of going
+  // empty-handed. Only computed when there are no exact matches.
+  const nearMatches = filteredProperties.length === 0 ? findNearMatches(properties, lead) : []
+  // The LLM is shown filtered + near matches, so both are valid to reference.
+  const shownProperties = [...filteredProperties, ...nearMatches]
+  Sentry.setContext('engine', { stage, messageCount, filteredPropertyCount: filteredProperties.length, nearMatchCount: nearMatches.length, totalPropertyCount: properties.length })
 
   // Server-side language detection — runs before the LLM so we can inject a
   // hard directive. Uses the current message + stored lead.language as fallback.
@@ -609,6 +619,7 @@ export async function generateBotReply(
     agent,
     lead,
     properties: filteredProperties,
+    nearMatches,
     // Full active count (pre lead-filter) so the prompt can tell "no inventory"
     // apart from "inventory exists but nothing matches THIS lead's criteria".
     totalActiveCount: properties.length,
@@ -655,15 +666,15 @@ export async function generateBotReply(
 
   const result = parseEngineResponse(responseText, stage)
 
-  // The LLM was only shown filteredProperties — if it claims a property ID
+  // The LLM was only shown filtered + near matches — if it claims a property ID
   // outside that set, it hallucinated. Discard the field rather than letting
   // the webhook look up (or send photos for) a property the lead never asked
   // about, and alert so we can see how often this happens in production.
   const matchedId = result.metadata?.matched_property_id
-  if (matchedId && !isValidMatchedProperty(matchedId, filteredProperties)) {
+  if (matchedId && !isValidMatchedProperty(matchedId, shownProperties)) {
     Sentry.captureMessage('Engine recommended property outside filtered set', {
       level: 'warning',
-      extra: { agentId, leadId, matchedId, stage, filteredCount: filteredProperties.length },
+      extra: { agentId, leadId, matchedId, stage, filteredCount: filteredProperties.length, nearMatchCount: nearMatches.length },
     })
     delete result.metadata.matched_property_id
   }

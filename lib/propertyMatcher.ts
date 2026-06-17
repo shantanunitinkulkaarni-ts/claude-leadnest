@@ -67,6 +67,12 @@ export function areaMatches(location: string, area: string): boolean {
 // matches the tolerance documented in the master plan.
 const BUDGET_TOLERANCE = 1.2
 
+// Stretch ceiling — when NOTHING fits the budget, a good agent still mentions
+// the closest option even if it's a bit pricier ("₹90L vs your ₹50L"). We only
+// surface stretch options up to 2x the stated budget — beyond that it's not a
+// real alternative, just noise.
+const STRETCH_CEILING = 2.0
+
 export function filterPropertiesForLead(properties: any[], lead: any): any[] {
   return (properties || []).filter((p) => {
     if (lead.intent) {
@@ -87,6 +93,27 @@ export function filterPropertiesForLead(properties: any[], lead: any): any[] {
     }
 
     return true
+  })
+}
+
+// "Near matches" — properties that fit the lead's intent + area but sit ABOVE
+// their budget (between the tolerant cap and the stretch ceiling). Surfaced ONLY
+// when filterPropertiesForLead returns nothing, so the bot can honestly offer
+// the closest option ("a bit above your range") instead of going empty-handed.
+// Never includes anything already returned by the strict filter.
+export function findNearMatches(properties: any[], lead: any): any[] {
+  if (!lead.budget_max) return [] // budget is the binding constraint here
+  return (properties || []).filter((p) => {
+    if (lead.intent) {
+      const wantedType = INTENT_TO_PROPERTY_TYPE[lead.intent]
+      if (wantedType && p.type !== wantedType) return false
+    }
+    if (lead.preferred_areas && lead.preferred_areas.length > 0) {
+      if (!lead.preferred_areas.some((area: string) => areaMatches(p.location, area))) return false
+    }
+    const price = p.type === 'rental' ? p.rent_per_month : p.price
+    if (!price) return false
+    return price > lead.budget_max * BUDGET_TOLERANCE && price <= lead.budget_max * STRETCH_CEILING
   })
 }
 
