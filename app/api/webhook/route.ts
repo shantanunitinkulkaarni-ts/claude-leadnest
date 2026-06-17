@@ -8,6 +8,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { generateBotReply } from '@/lib/gemini'
 import { sendWhatsAppMessage, sendViaMsg91, sendViaMsg91Media, sendMetaImage } from '@/lib/whatsapp'
 import { wantsPhotos, botPromisedPhotos, extractPropertyMedia, MAX_IMAGES_PER_SEND } from '@/lib/media'
+import { parseBudgetRupees, isGrosslyOffBudget } from '@/lib/budgetParse'
 import { shouldBotReply } from '@/lib/botGating'
 import { resolveAppointmentTime, formatIST } from '@/lib/appointment'
 import { isConfirmationReply, isPendingAppointmentExpired } from '@/lib/appointmentConfirmation'
@@ -417,6 +418,18 @@ export async function POST(request: NextRequest) {
         agent_id: agent.id, lead_id: lead.id, type: 'engine_fallback',
         title: 'Engine fallback reply used', description: messageText.slice(0, 140),
       }).then(({ error }: any) => { if (error) Sentry.captureException(error) })
+    }
+
+    // Budget sanity guardrail: if the lead's message states a clear figure
+    // ("50 lakh") but the LLM extracted something an order of magnitude off
+    // (e.g. 5,00,000), trust the lead's words. Prevents mis-qualification +
+    // broken property matching. Keeps budget_min <= budget_max (Phase 0 check).
+    const textBudget = parseBudgetRupees(messageText)
+    if (textBudget && isGrosslyOffBudget(metadata.budget_max, textBudget)) {
+      const wasPoint = metadata.budget_min && metadata.budget_max && metadata.budget_min === metadata.budget_max
+      log('budget_corrected', { fromMax: metadata.budget_max ?? null, to: textBudget })
+      if (wasPoint || (metadata.budget_min && metadata.budget_min > textBudget)) metadata.budget_min = textBudget
+      metadata.budget_max = textBudget
     }
 
     const leadUpdates: any = { updated_at: now, window_nudge_count: 0 }
