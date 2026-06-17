@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import Papa from 'papaparse'
+import { extractPropertyMedia } from '@/lib/media'
 
 interface Props { agentId: string }
 
@@ -40,7 +41,8 @@ export default function PropertiesScreen({ agentId }: Props) {
   
   // Media State
   const [files, setFiles] = useState<File[]>([])
-  const [existingMedia, setExistingMedia] = useState<string[]>([]) // For rendering already uploaded media
+  const [existingMedia, setExistingMedia] = useState<string[]>([]) // bare media URLs already on the property (property_media)
+  const [amenityFeatures, setAmenityFeatures] = useState<string[]>([]) // non-media features[] entries, preserved across save
   const [isUploadingMedia, setIsUploadingMedia] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bulkFileInputRef = useRef<HTMLInputElement>(null)
@@ -92,7 +94,7 @@ export default function PropertiesScreen({ agentId }: Props) {
   const openNewModal = () => {
     setIsEditing(false)
     setEditingId(null)
-    setTitle(''); setLocation(''); setPrice(''); setSizeSqft(''); setDescription(''); setFiles([]); setExistingMedia([])
+    setTitle(''); setLocation(''); setPrice(''); setSizeSqft(''); setDescription(''); setFiles([]); setExistingMedia([]); setAmenityFeatures([])
     setPossessionStatus('ready_to_move'); setPossessionDate(''); setDeposit(''); setProjectWebsite(''); setWebsiteAiConsent(false); setExtraInfo('')
     setPriceWarning(null); setHasConfirmedWarning(false)
     setShowModal(true)
@@ -118,9 +120,11 @@ export default function PropertiesScreen({ agentId }: Props) {
     setWebsiteAiConsent(!!p.website_ai_consent)
     setExtraInfo(p.extra_info || '')
 
-    // Extract media
-    const mediaUrls = p.features?.filter((f: string) => f.startsWith('media:')) || []
-    setExistingMedia(mediaUrls)
+    // Media now lives in property_media (Phase 0F); extractPropertyMedia falls
+    // back to legacy features media: entries for any unmigrated row. Bare URLs.
+    setExistingMedia(extractPropertyMedia(p))
+    // Preserve real amenity features (non-media) so save doesn't wipe them.
+    setAmenityFeatures((p.features || []).filter((f: string) => typeof f === 'string' && !f.startsWith('media:')))
     setFiles([])
 
     setPriceWarning(null)
@@ -145,7 +149,7 @@ export default function PropertiesScreen({ agentId }: Props) {
       try {
         const r = await fetch('/api/properties/upload', { method: 'POST', body: fd })
         const d = await r.json()
-        if (d.url) urls.push(`media:${d.url}`)
+        if (d.url) urls.push(d.url) // bare URL — stored in property_media
       } catch(e) {
         console.error('File upload failed', e)
       }
@@ -180,7 +184,8 @@ export default function PropertiesScreen({ agentId }: Props) {
       bhk,
       size_sqft: parseInt(sizeSqft) || 0,
       description,
-      features: finalMedia,
+      property_media: finalMedia,   // canonical media column (Phase 0F) — bare URLs
+      features: amenityFeatures,      // amenities only; media no longer lives here
       status: status,
       possession_status: possessionStatus,
       possession_date: possessionStatus === 'ready_to_move' ? null : (possessionDate || null),
@@ -374,8 +379,8 @@ export default function PropertiesScreen({ agentId }: Props) {
         {properties.map((p) => {
           const isActive = p.status === 'active'
 
-          const media = p.features?.filter((f: string) => f.startsWith('media:')) || []
-          const firstImage = media.length > 0 ? media[0].split('media:')[1] : null
+          const media = extractPropertyMedia(p)
+          const firstImage = media.length > 0 ? media[0] : null
 
           return (
             <div key={p.id} onClick={() => openEditModal(p)} className="prop-card" style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', opacity: isActive ? 1 : 0.65, transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
