@@ -1,0 +1,30 @@
+name: Keep warm
+
+# Why: on Vercel's serverless runtime, an idle function goes "cold" and the next
+# request pays a spin-up penalty (~1-3s of Node + module init) BEFORE the bot
+# even calls the LLM. For a low-traffic bot that means the first WhatsApp message
+# after a quiet spell feels slow or "stuck". This pings the webhook lambda every
+# few minutes during active hours so a real inbound almost always hits a warm
+# instance. Free; Vercel Hobby cron can't run more than once/day, so we use
+# GitHub Actions (same as nurture-cron.yml).
+#
+# The GET hits the webhook's verify endpoint and returns 403 (no verify token) —
+# that's expected and fine; the point is that the function executes and stays warm.
+# This is a mitigation, not a full fix: also enable Vercel "Fluid Compute"
+# (Project → Settings → Functions) for proper warm-instance reuse.
+
+on:
+  schedule:
+    # Every 5 minutes, 03:00–17:55 UTC ≈ 08:30–23:25 IST (active hours only,
+    # to conserve Actions minutes — leads don't message at 4am).
+    - cron: '*/5 3-17 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping webhook to keep the lambda warm
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "https://convorian.in/api/webhook?warm=1" || echo "000")
+          echo "webhook warm ping -> HTTP $code (403 expected and fine)"
