@@ -6,9 +6,13 @@ export async function middleware(request: NextRequest) {
     request,
   })
 
+  // Fail-closed: never silently fall back to the service-role key in a
+  // cookie/request context. If the anon key is missing, that's a deploy-time
+  // misconfig — surface it loudly instead of running middleware with the
+  // service-role key (which would bypass RLS and be a serious auth-bypass risk).
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {

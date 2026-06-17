@@ -3,11 +3,27 @@ export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { sendWelcomeEmail } from '@/lib/email'
+import { checkRateLimit } from '@/lib/rateLimit'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+// IP-scoped rate limit: registration is rare for a legit user; 5/min/IP is
+// generous for humans and crushes a credential-stuffing or signup-spam loop
+// before it ever hits the DB or fires a welcome email.
+const REGISTER_IP_LIMIT = 5
+const REGISTER_WINDOW_MS = 60_000
+
 // POST /api/auth/register
 export async function POST(request: NextRequest) {
+  // ── Rate limit (cheap, runs before body parse / DB / email) ──
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || request.headers.get('x-real-ip')
+    || 'unknown'
+  const limit = checkRateLimit(`register:${ip}`, REGISTER_IP_LIMIT, REGISTER_WINDOW_MS)
+  if (!limit.allowed) {
+    return NextResponse.json({ error: 'Too many signup attempts. Please try again in a minute.' }, { status: 429 })
+  }
+
   const body = await request.json()
   const { email, name, phone, agency_name, city, state, areas, property_types, bot_tone, languages, office_open, office_close } = body
 
