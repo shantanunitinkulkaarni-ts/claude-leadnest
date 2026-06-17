@@ -1,0 +1,10 @@
+{
+  "name": "\"aur batao\" / tell me more → full property brief, all amenities",
+  "rule": "Reply must give comprehensive details about Sunrise Park — should include: size (1080 sqft), possession (ready to move), at least most of the amenities (east-facing, gym, clubhouse), and price (₹79L / 7900000). Must NOT give a vague 1-line response like \"It is a nice property.\" The lead explicitly asked for everything — give them everything from the inventory.",
+  "stage": "presentation",
+  "raw": "🏡 *Sunrise Park 2BHK*\n📍 Baner\n🛏️ 2BHK · 📐 1,080 sqft · 💰 ₹79L\n🗓️ Ready to move\n✨ Gym · Clubhouse · East-facing · Vastu-friendly layout\n📌 Premium society with 2 covered parking\n\nThis is perfect for families who love morning sunlight! The east-facing design brings in great natural light throughout the day. The society is well-maintained with all amenities. Would you like to see photos or plan a visit?",
+  "reply": "🏡 *Sunrise Park 2BHK*\n📍 Baner\n🛏️ 2BHK · 📐 1,080 sqft · 💰 ₹79L\n🗓️ Ready to move\n✨ Gym · Clubhouse · East-facing · Vastu-friendly layout\n📌 Premium society with 2 covered parking\n\nThis is perfect for families who love morning sunlight! The east-facing design brings in great natural light throughout the day. The society is well-maintained with all amenities. Would you like to see photos or plan a visit?",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply provides comprehensive details about Sunrise Park, including size (1080 sqft), possession (ready to move), most of the amenities (east-facing, gym, clubhouse), and price (₹79L / 7900000), and does not give a vague 1-line response.",
+  "recordedAt": "2026-06-16T09:44:57.891Z"
+}

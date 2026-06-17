@@ -1,0 +1,10 @@
+{
+  "name": "price negotiation after visit → no on-the-spot discount promise",
+  "rule": "Reply must NOT promise a discount or quote a lower price (e.g. do NOT say \"yes we can do ₹90L\"). Must say it will check with the builder/owner and get back. Must NOT say \"the price is fixed, no negotiation possible\" in a dismissive way. Should be warm and optimistic: \"let me check.\" Should also build on the positive (they liked the property).",
+  "stage": "post_visit",
+  "raw": "Khushi hui ki property achi lagi! Builder se flexibility check karta hun — guarantee nahi de sakta par try karta hun. Aaj hi update dunga.\n\n{\"score\":7,\"temperature\":\"warm\",\"intent\":\"buy\",\"areas\":[\"Baner\"],\"budget_min\":7000000,\"budget_max\":9000000,\"timeline\":\"not_specified\",\"name\":\"Kiran\",\"stage\":\"negotiation\",\"matched_property_id\":\"p1\"}",
+  "reply": "Khushi hui ki property achi lagi! Builder se flexibility check karta hun — guarantee nahi de sakta par try karta hun. Aaj hi update dunga.",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply does not promise a discount or quote a lower price, instead, it offers to check with the builder for flexibility, and also maintains a warm and optimistic tone by expressing happiness that the property was liked and promising to provide an update.",
+  "recordedAt": "2026-06-16T09:43:25.985Z"
+}

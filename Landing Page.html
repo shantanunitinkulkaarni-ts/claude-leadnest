@@ -1,0 +1,200 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+.wrap { background: #FAFAF7; color: #1A1916; font-family: var(--font-sans); }
+.nav { background: #FAFAF7; border-bottom: 1px solid #E8E5DF; padding: 12px 28px; display: flex; justify-content: space-between; align-items: center; }
+.logo { display: flex; align-items: center; gap: 8px; }
+.logo-icon { width: 26px; height: 26px; border-radius: 7px; background: #2E8B5F; display: flex; align-items: center; justify-content: center; }
+.nav-links { display: flex; align-items: center; gap: 24px; }
+.nav-link { font-size: 13px; color: #6B6860; text-decoration: none; }
+
+button.g { display: inline-flex; align-items: center; justify-content: center; background-color: #2E8B5F !important; color: #ffffff !important; border: 2px solid #2E8B5F !important; border-radius: 10px; font-size: 14px; font-weight: 500; padding: 12px 28px; cursor: pointer; text-decoration: none; }
+button.o { display: inline-flex; align-items: center; justify-content: center; background-color: #ffffff !important; color: #1A1916 !important; border: 2px solid #1A1916 !important; border-radius: 10px; font-size: 14px; font-weight: 500; padding: 12px 28px; cursor: pointer; }
+button.gs { display: inline-flex; align-items: center; justify-content: center; background-color: #2E8B5F !important; color: #ffffff !important; border: 2px solid #2E8B5F !important; border-radius: 8px; font-size: 13px; font-weight: 500; padding: 8px 18px; cursor: pointer; }
+button.gw { display: inline-flex; align-items: center; justify-content: center; background-color: #2E8B5F !important; color: #ffffff !important; border: 2px solid #2E8B5F !important; border-radius: 8px; font-size: 13px; font-weight: 500; padding: 10px; cursor: pointer; width: 100%; }
+button.ow { display: inline-flex; align-items: center; justify-content: center; background-color: #ffffff !important; color: #1A1916 !important; border: 2px solid #1A1916 !important; border-radius: 8px; font-size: 13px; font-weight: 500; padding: 10px; cursor: pointer; width: 100%; }
+
+.section { padding: 64px 28px; background: #FAFAF7; }
+.section-white { padding: 64px 28px; background: #fff; }
+.container { max-width: 960px; margin: 0 auto; }
+.center { text-align: center; }
+.badge { display: inline-block; padding: 4px 12px; border-radius: 20px; background: #EBF5EE; color: #2E8B5F; font-size: 11px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 18px; }
+h1 { font-size: 46px; font-weight: 500; line-height: 1.15; color: #1A1916; letter-spacing: -0.02em; margin-bottom: 16px; }
+h2 { font-size: 32px; font-weight: 500; line-height: 1.2; color: #1A1916; letter-spacing: -0.02em; margin-bottom: 12px; }
+.lead { font-size: 16px; color: #6B6860; line-height: 1.65; max-width: 580px; margin: 0 auto 28px; }
+.cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px; }
+.trust-row { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; font-size: 12px; color: #6B6860; }
+.trust-item { display: flex; align-items: center; gap: 6px; }
+.grid2 { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.grid3 { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 20px; }
+.card { background: #fff; border: 1px solid #E8E5DF; border-radius: 12px; padding: 22px; }
+.card-title { font-size: 14px; font-weight: 500; color: #1A1916; margin-bottom: 6px; }
+.card-desc { font-size: 12px; color: #6B6860; line-height: 1.6; }
+.problem-banner { margin-top: 28px; padding: 22px 28px; border-radius: 12px; background: #FBF5EA; border: 1px solid #E8D5A0; text-align: center; }
+.feat-num { font-size: 10px; font-weight: 500; color: #2E8B5F; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+.proof-card { background: #EBF5EE; border-left: 3px solid #2E8B5F; border-radius: 10px; padding: 20px; text-align: center; }
+.roi-band { margin-top: 28px; background: #1A1916; border-radius: 12px; padding: 28px 32px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: center; text-align: center; }
+.pricing-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; max-width: 640px; margin: 0 auto; }
+.plan-card { background: #fff; border: 1px solid #E8E5DF; border-radius: 14px; padding: 26px; position: relative; }
+.plan-card.featured { border: 2px solid #2E8B5F; }
+.popular { position: absolute; top: -11px; left: 18px; padding: 3px 12px; border-radius: 20px; background: #2E8B5F; color: #fff; font-size: 10px; font-weight: 500; }
+.feat-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6B6860; margin-bottom: 8px; }
+.addons { margin-top: 16px; padding: 14px 16px; background: #FAFAF7; border-radius: 8px; font-size: 12px; color: #6B6860; text-align: center; border: 1px solid #E8E5DF; }
+.cta-band { background: #EBF5EE; border: 1px solid #C8E6D4; border-radius: 14px; padding: 40px; text-align: center; }
+.footer { padding: 20px 28px; border-top: 1px solid #E8E5DF; background: #fff; text-align: center; font-size: 12px; color: #6B6860; }
+</style>
+
+<h2 class="sr-only">LeadNest landing page</h2>
+<div class="wrap">
+
+<nav class="nav">
+  <div class="logo">
+    <div class="logo-icon"><i class="ti ti-home" style="color:#fff;font-size:13px"></i></div>
+    <span style="font-size:15px;font-weight:500;color:#1A1916;">LeadNest</span>
+  </div>
+  <div class="nav-links">
+    <a href="#" class="nav-link">Features</a>
+    <a href="#" class="nav-link">Pricing</a>
+    <a href="#" class="nav-link">For agents</a>
+    <button class="gs">Get started</button>
+  </div>
+</nav>
+
+<div class="section center" style="padding-top:60px;padding-bottom:60px;">
+  <div class="container">
+    <div class="badge">✦ AI for real estate</div>
+    <h1>Turn every lead<br>into a sale</h1>
+    <p class="lead">LeadNest is an AI sales engine built for Indian real estate agents. Your bot answers leads 24/7, qualifies them, books site visits, and tracks your ROI — automatically.</p>
+    <div class="cta-row">
+      <button class="g">Start free trial</button>
+      <button class="o">See how it works</button>
+    </div>
+    <div class="trust-row">
+      <div class="trust-item"><i class="ti ti-bolt" style="color:#2E8B5F" aria-hidden="true"></i> Zero setup needed</div>
+      <div class="trust-item"><i class="ti ti-robot" style="color:#2E8B5F" aria-hidden="true"></i> AI-powered replies</div>
+      <div class="trust-item"><i class="ti ti-chart-bar" style="color:#2E8B5F" aria-hidden="true"></i> Real ROI tracking</div>
+      <div class="trust-item"><i class="ti ti-message" style="color:#2E8B5F" aria-hidden="true"></i> Hindi &amp; English</div>
+    </div>
+  </div>
+</div>
+
+<div class="section-white">
+  <div class="container">
+    <div class="center" style="margin-bottom:40px;">
+      <h2>The real estate agent's problem</h2>
+      <p class="lead" style="margin-bottom:0;">You get leads. You lose leads. You don't know why.</p>
+    </div>
+    <div class="grid2">
+      <div class="card"><div style="font-size:28px;margin-bottom:12px;">📱</div><div class="card-title">Leads go unanswered</div><div class="card-desc">By the time you reply, they've messaged 3 other agents. First responder wins every time.</div></div>
+      <div class="card"><div style="font-size:28px;margin-bottom:12px;">⏰</div><div class="card-title">Manual work kills margin</div><div class="card-desc">Qualifying, nurturing, scheduling — 20+ hours a week that doesn't need a human.</div></div>
+      <div class="card"><div style="font-size:28px;margin-bottom:12px;">🔄</div><div class="card-title">No follow-up system</div><div class="card-desc">Hot leads go cold. Nobody nurtures them until you remember — often too late.</div></div>
+      <div class="card"><div style="font-size:28px;margin-bottom:12px;">📉</div><div class="card-title">Leads disappear silently</div><div class="card-desc">You never know which leads could have closed or why they went quiet.</div></div>
+    </div>
+    <div class="problem-banner">
+      <div style="font-size:20px;font-weight:500;color:#B8955A;margin-bottom:4px;">Result: you close 2–3 deals/month instead of 6–8</div>
+      <div style="font-size:13px;color:#6B6860;">Lost commission: ₹1.5–2.5L every single month</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="container">
+    <div class="center" style="margin-bottom:40px;">
+      <h2>How LeadNest works</h2>
+      <p class="lead" style="margin-bottom:0;">A sales engine that works while you sleep</p>
+    </div>
+    <div class="grid3">
+      <div><div style="font-size:32px;margin-bottom:10px;">⚡</div><div class="feat-num">Feature 1</div><div class="card-title" style="font-size:15px;">Instant AI replies</div><div class="card-desc">Replies in under 30 seconds. Always. In Hindi, English, or Hinglish.</div></div>
+      <div><div style="font-size:32px;margin-bottom:10px;">🎯</div><div class="feat-num">Feature 2</div><div class="card-title" style="font-size:15px;">Smart qualification</div><div class="card-desc">Asks the right questions. Scores every lead 1–10. No generic responses.</div></div>
+      <div><div style="font-size:32px;margin-bottom:10px;">🏡</div><div class="feat-num">Feature 3</div><div class="card-title" style="font-size:15px;">Property matching</div><div class="card-desc">Knows your listings. Suggests the right property for each lead automatically.</div></div>
+      <div><div style="font-size:32px;margin-bottom:10px;">📅</div><div class="feat-num">Feature 4</div><div class="card-title" style="font-size:15px;">Visit booking</div><div class="card-desc">Books site visits directly in the chat. No back-and-forth needed.</div></div>
+      <div><div style="font-size:32px;margin-bottom:10px;">🌱</div><div class="feat-num">Feature 5</div><div class="card-title" style="font-size:15px;">Lead nurturing</div><div class="card-desc">Smart 23-hour keepalive cuts message costs by 40%. Leads never go cold silently.</div></div>
+      <div><div style="font-size:32px;margin-bottom:10px;">📊</div><div class="feat-num">Feature 6</div><div class="card-title" style="font-size:15px;">ROI dashboard</div><div class="card-desc">Track every lead-to-deal conversion. See your commission. Prove the value.</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="section-white">
+  <div class="container">
+    <div class="center" style="margin-bottom:40px;">
+      <h2>The math that matters</h2>
+      <p class="lead" style="margin-bottom:0;">Real numbers</p>
+    </div>
+    <div class="grid3">
+      <div class="proof-card"><div style="font-size:20px;font-weight:500;color:#2E8B5F;margin-bottom:4px;">3× more leads answered</div><div style="font-size:12px;color:#6B6860;">In first 24 hours</div></div>
+      <div class="proof-card"><div style="font-size:20px;font-weight:500;color:#2E8B5F;margin-bottom:4px;">47% faster qualification</div><div style="font-size:12px;color:#6B6860;">Bot vs manual process</div></div>
+      <div class="proof-card"><div style="font-size:20px;font-weight:500;color:#2E8B5F;margin-bottom:4px;">₹4.5L+ per month</div><div style="font-size:12px;color:#6B6860;">Commission tracked via ROI dashboard</div></div>
+    </div>
+    <div class="roi-band">
+      <div><div style="font-size:26px;font-weight:500;color:#fff;">₹999</div><div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:4px;">Your monthly cost</div></div>
+      <div style="font-size:24px;color:rgba(255,255,255,0.25);">→</div>
+      <div><div style="font-size:26px;font-weight:500;color:#4DB88A;">₹1.125L average</div><div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:4px;">Commission from 1 deal</div></div>
+    </div>
+    <div style="text-align:center;margin-top:14px;font-size:14px;font-weight:500;color:#B8955A;">That's 112× ROI on your first deal alone.</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="container">
+    <div class="center" style="margin-bottom:40px;">
+      <h2>Simple pricing. No surprises.</h2>
+      <p class="lead" style="margin-bottom:0;">5,000 messages/month included. Add more anytime.</p>
+    </div>
+    <div class="pricing-grid">
+      <div class="plan-card">
+        <div style="font-size:15px;font-weight:500;color:#1A1916;margin-bottom:3px;">Monthly</div>
+        <div style="font-size:12px;color:#6B6860;margin-bottom:14px;">Pay as you go</div>
+        <div style="font-size:30px;font-weight:500;color:#1A1916;margin-bottom:2px;">₹999</div>
+        <div style="font-size:11px;color:#6B6860;margin-bottom:18px;">/month</div>
+        <button class="ow">Start free trial</button>
+        <div style="height:16px;"></div>
+        <div class="feat-item"><i class="ti ti-check" style="color:#2E8B5F;font-size:14px" aria-hidden="true"></i>5,000 messages/month</div>
+        <div class="feat-item"><i class="ti ti-check" style="color:#2E8B5F;font-size:14px" aria-hidden="true"></i>Unlimited leads</div>
+        <div class="feat-item"><i class="ti ti-check" style="color:#2E8B5F;font-size:14px" aria-hidden="true"></i>AI bot 24/7</div>
+        <div class="feat-item"><i class="ti ti-check" style="color:#2E8B5F;font-size:14px" aria-hidden="true"></i>Visit booking</div>
+        <div class="feat-item"><i class="ti ti-check" style="color:#2E8B5F;font-size:14px" aria-hidden="true"></i>ROI dashboard</div>
+      </div>
+      <div class="plan-card featured">
+        <div class="popular">Most popular</div>
+        <div style="font-size:15px;font-weight:500;color:#1A1916;margin-bottom:3px;">Annual</div>
+        <div style="font-size:12px;color:#6B6860;margin-bottom:14px;">Best value · save ₹2,400/year</div>
+        <div style="font-size:30px;font-weight:500;color:#1A1916;margin-bottom:2px;">₹799</div>
+        <div style="font-size:11px;color:#6B6860;margin-bottom:18px;">/month · billed ₹9,588/year</div>
+        <button class="gw">Start free trial</button>
+        <div style="height:16px;"></div>
+        <div class="feat-item"><i class="ti ti-check" style="color:#2E8B5F;font-size:14px" aria-hidden="true"></i>5,000 messages/month</div>
+        <div class="feat-item"><i class="ti ti-check" style="color:#2E8B5F;font-size:14px" aria-hidden="true"></i>Unlimited leads</div>
+        <div class="feat-item"><i class="ti ti-check" style="color:#2E8B5F;font-size:14px" aria-hidden="true"></i>AI bot 24/7</div>
+        <div class="feat-item"><i class="ti ti-check" style="color:#2E8B5F;font-size:14px" aria-hidden="true"></i>Visit booking</div>
+        <div class="feat-item"><i class="ti ti-check" style="color:#2E8B5F;font-size:14px" aria-hidden="true"></i>ROI dashboard</div>
+        <div class="feat-item"><i class="ti ti-star" style="color:#B8955A;font-size:14px" aria-hidden="true"></i>Early access to new features</div>
+      </div>
+    </div>
+    <div class="addons">💰 Extra messages — ₹99 for +1K · ₹249 for +3K · ₹399 for +5K · billed when used</div>
+  </div>
+</div>
+
+<div class="section-white">
+  <div class="container">
+    <div class="cta-band">
+      <div style="font-size:30px;font-weight:500;color:#1A1916;letter-spacing:-0.02em;margin-bottom:12px;line-height:1.2;">Your first deal pays for<br>a year of LeadNest</div>
+      <p style="font-size:15px;color:#6B6860;margin-bottom:24px;max-width:500px;margin-left:auto;margin-right:auto;line-height:1.6;">Stop losing leads to time delays. Start closing deals on autopilot.</p>
+      <div class="cta-row" style="margin-bottom:16px;">
+        <button class="g">Start free trial — no card needed</button>
+        <button class="o">Chat on WhatsApp</button>
+      </div>
+      <div style="display:flex;gap:20px;justify-content:center;font-size:12px;color:#6B6860;flex-wrap:wrap;">
+        <span>✓ Free for 14 days</span>
+        <span>✓ No credit card required</span>
+        <span>✓ Cancel anytime</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  © 2026 LeadNest · Built for real estate agents ·
+  <a href="#" style="color:#2E8B5F;text-decoration:none;margin-left:4px;">Terms</a> ·
+  <a href="#" style="color:#2E8B5F;text-decoration:none;margin-left:4px;">Privacy</a>
+</div>
+</div>

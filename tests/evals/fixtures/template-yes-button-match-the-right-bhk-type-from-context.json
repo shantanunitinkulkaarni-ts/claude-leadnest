@@ -1,0 +1,10 @@
+{
+  "name": "template \"yes\" button → match the right BHK type from context",
+  "rule": "Reply must show the Wakad property — Green Valley 2BHK ₹72L (7200000) — since the template mentioned Wakad 2BHK. Must NOT show a Baner property or a 3BHK. Should give specific details like price and at least one feature. RERA registered is in the description and is a strong selling point to mention.",
+  "stage": "qualification",
+  "raw": "🏡 *Green Valley*\n📍 Wakad\n🛏️ 2BHK · 📐 1050 sqft · 💰 ₹72L\n🗓️ Under construction (possession by Jun 2026)\n✨ Gym · West-facing · Reputed builder · RERA registered\n\nThis is a great option if you're looking for a newer property in Wakad. Would you like to schedule a site visit to see it in person?",
+  "reply": "🏡 *Green Valley*\n📍 Wakad\n🛏️ 2BHK · 📐 1050 sqft · 💰 ₹72L\n🗓️ Under construction (possession by Jun 2026)\n✨ Gym · West-facing · Reputed builder · RERA registered\n\nThis is a great option if you're looking for a newer property in Wakad. Would you like to schedule a site visit to see it in person?",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply mentions the Wakad property, Green Valley, with 2BHK, and provides specific details such as price (₹72L), features (Gym, West-facing), and mentions that it is RERA registered, without showing a Baner property or a 3BHK.",
+  "recordedAt": "2026-06-16T09:44:53.722Z"
+}

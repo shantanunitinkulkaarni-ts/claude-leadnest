@@ -1,0 +1,56 @@
+export const dynamic = "force-dynamic"
+
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase'
+import { sendEmail } from '@/lib/email'
+
+const SUPPORT_INBOX = 'support@convorian.in'
+
+// Raise a support ticket: store it + email the team. Public (logged-out users
+// on /help can use it too) — light validation, no auth required.
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const subject = String(body.subject || '').trim()
+    const message = String(body.message || '').trim()
+    const email = String(body.email || '').trim()
+    const name = String(body.name || '').trim()
+    const agent_id = typeof body.agent_id === 'string' ? body.agent_id : null
+
+    if (!subject || !message) return NextResponse.json({ error: 'Subject and message are required.' }, { status: 400 })
+    if (subject.length > 200 || message.length > 4000) return NextResponse.json({ error: 'Message too long.' }, { status: 400 })
+
+    const { data: ticket, error } = await supabaseAdmin.from('support_tickets').insert({
+      agent_id, email: email || null, name: name || null, subject, message,
+      source: body.source === 'support_chat' ? 'support_chat' : 'help_page',
+    }).select('id').single()
+
+    if (error) {
+      console.error('Ticket insert failed:', error.message)
+      return NextResponse.json({ error: 'Could not raise ticket. Please email ' + SUPPORT_INBOX }, { status: 500 })
+    }
+
+    // Email the team (best-effort) + acknowledge the user if we have their email.
+    try {
+      await sendEmail({
+        to: SUPPORT_INBOX,
+        replyTo: email || undefined,
+        subject: `[Ticket] ${subject}`,
+        html: `<p><strong>From:</strong> ${name || 'Unknown'} ${email ? `&lt;${email}&gt;` : ''}</p><p><strong>Agent ID:</strong> ${agent_id || '—'}</p><p><strong>Ticket:</strong> ${ticket?.id}</p><hr/><p>${message.replace(/\n/g, '<br/>')}</p>`,
+      })
+      if (email) {
+        await sendEmail({
+          to: email,
+          subject: 'We received your request — Convorian Support',
+          html: `<p>Hi ${name || 'there'},</p><p>Thanks for reaching out. We've logged your request and our team will get back to you soon.</p><p><strong>Your message:</strong><br/>${message.replace(/\n/g, '<br/>')}</p><p>— Team Convorian</p>`,
+        })
+      }
+    } catch (mailErr: any) {
+      console.error('Ticket email failed (non-critical):', mailErr?.message)
+    }
+
+    return NextResponse.json({ ok: true, ticket_id: ticket?.id })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
+}

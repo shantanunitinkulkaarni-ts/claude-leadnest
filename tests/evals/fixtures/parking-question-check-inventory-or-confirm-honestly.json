@@ -1,0 +1,10 @@
+{
+  "name": "parking question → check inventory or confirm honestly",
+  "rule": "Skyline Residency (p1) has \"2 covered parking\" in its description field. Reply MUST mention the parking — specifically that there are 2 covered parking spots. Must NOT say \"I'll check\" when the information IS in the property description. Should position covered parking as a strong value add. Must not make up details beyond what's in the inventory.",
+  "stage": "presentation",
+  "raw": "Haan, Skyline Residency mein 2 covered parking hai! Perfect for your two cars. 🚗🚗\n\nThe property is:\n🏡 3BHK Skyline Residency\n📍 Baner\n🛏️ 3BHK · 📐 1450 sqft · 💰 ₹95L\n🗓️ Ready to move\n✨ Gym · Pool · East-facing · Premium society\n📌 Great for families with cars — covered parking is included\n\nPhotos dekhna chahoge?",
+  "reply": "Haan, Skyline Residency mein 2 covered parking hai! Perfect for your two cars. 🚗🚗\n\nThe property is:\n🏡 3BHK Skyline Residency\n📍 Baner\n🛏️ 3BHK · 📐 1450 sqft · 💰 ₹95L\n🗓️ Ready to move\n✨ Gym · Pool · East-facing · Premium society\n📌 Great for families with cars — covered parking is included\n\nPhotos dekhna chahoge?",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply mentions the 2 covered parking spots as per the property description, positions it as a strong value add by stating it's \"Perfect for your two cars\" and \"Great for families with cars — covered parking is included\", without saying \"I'll check\" or making up additional details.",
+  "recordedAt": "2026-06-16T09:45:32.078Z"
+}

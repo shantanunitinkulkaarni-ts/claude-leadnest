@@ -1,0 +1,7 @@
+{
+  "extends": "next/core-web-vitals",
+  "ignorePatterns": ["scratch/**", "*.js", "tests/**"],
+  "rules": {
+    "react/no-unescaped-entities": "warn"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "crore budget → correct rupee mapping, show matching property",
+  "rule": "Reply should present the Baner properties priced within or near ₹1 crore (₹1,00,00,000). The 3BHK at ₹95L (9500000) and 2BHK at ₹79L (7900000) both qualify. Must NOT say \"nothing available\" or quote a wrong price. Should present at least one option.",
+  "stage": "greeting",
+  "raw": "Hi Amit! Welcome to SK Properties 😊\n\nWith a 1 crore budget in Baner, I can show you some excellent options. Let me share a couple of properties that fit your budget:\n\n🏡 *3BHK Skyline Residency*\n📍 Baner\n🛏️ 3BHK · 📐 1450 sqft · 💰 ₹95L\n🗓️ Ready to move\n✨ Gym · Pool · East-facing · Clubhouse · Premium society, 2 covered parking\n\n🏡 *2BHK Sunrise Park*\n📍 Baner\n🛏️ 2BHK · 📐 1080 sqft · 💰 ₹79L\n🗓️ Ready to move\n✨ Gym · Clubhouse · East-facing · Vastu-friendly layout\n\nWould you like more details about either of these properties, or would you prefer to see them in person?",
+  "reply": "Hi Amit! Welcome to SK Properties 😊\n\nWith a 1 crore budget in Baner, I can show you some excellent options. Let me share a couple of properties that fit your budget:\n\n🏡 *3BHK Skyline Residency*\n📍 Baner\n🛏️ 3BHK · 📐 1450 sqft · 💰 ₹95L\n🗓️ Ready to move\n✨ Gym · Pool · East-facing · Clubhouse · Premium society, 2 covered parking\n\n🏡 *2BHK Sunrise Park*\n📍 Baner\n🛏️ 2BHK · 📐 1080 sqft · 💰 ₹79L\n🗓️ Ready to move\n✨ Gym · Clubhouse · East-facing · Vastu-friendly layout\n\nWould you like more details about either of these properties, or would you prefer to see them in person?",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply presents two properties, a 3BHK at ₹95L and a 2BHK at ₹79L, both of which are priced within or near ₹1 crore, thus satisfying the rule.",
+  "recordedAt": "2026-06-16T09:42:24.658Z"
+}

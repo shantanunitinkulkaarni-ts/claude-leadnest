@@ -1,0 +1,10 @@
+{
+  "name": "\"sure tell me\" → show properties, NOT push visit",
+  "rule": "Reply MUST show at least one property from inventory with details (name, price, location). Must NOT jump to \"let me set up a visit\" or ask for a visit time. The lead has NOT seen any property yet — showing properties comes FIRST, visit comes AFTER they show interest in a specific property. Failing to show property details is an automatic FAIL.",
+  "stage": "presentation",
+  "raw": "Perfect! Here are the available properties in Baner:\n\n🏡 **3BHK Skyline Residency**\n📍 Baner\n🛏️ 3BHK · 📐 1450 sqft · 💰 ₹95L\n🗓️ Ready to move\n✨ Gym · Pool · East-facing · 2 covered parking\n📌 Premium society, great for families looking for space and amenities\n\n🏡 **2BHK Sunrise Park**\n📍 Baner\n🛏️ 2BHK · 📐 1080 sqft · 💰 ₹79L\n🗓️ Ready to move\n✨ Gym · Clubhouse · East-facing · Vastu-friendly layout\n📌 East-facing, beautiful morning light\n\nWhich one catches your eye? I can share more details or photos for either property.",
+  "reply": "Perfect! Here are the available properties in Baner:\n\n🏡 **3BHK Skyline Residency**\n📍 Baner\n🛏️ 3BHK · 📐 1450 sqft · 💰 ₹95L\n🗓️ Ready to move\n✨ Gym · Pool · East-facing · 2 covered parking\n📌 Premium society, great for families looking for space and amenities\n\n🏡 **2BHK Sunrise Park**\n📍 Baner\n🛏️ 2BHK · 📐 1080 sqft · 💰 ₹79L\n🗓️ Ready to move\n✨ Gym · Clubhouse · East-facing · Vastu-friendly layout\n📌 East-facing, beautiful morning light\n\nWhich one catches your eye? I can share more details or photos for either property.",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply shows at least one property from inventory with details (name, price, location) and does not jump to setting up a visit, allowing the lead to show interest in a specific property first.",
+  "recordedAt": "2026-06-16T09:45:40.712Z"
+}

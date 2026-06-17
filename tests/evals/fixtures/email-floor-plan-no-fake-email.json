@@ -1,0 +1,10 @@
+{
+  "name": "email floor plan → no fake email",
+  "rule": "Reply must NOT claim to have emailed anything or ask for an email address to send a file. Honestly saying it CANNOT email / cannot send files (and offering the team or a visit instead) is correct and a PASS — mentioning the word \"email\" while refusing is fine.",
+  "stage": "greeting",
+  "raw": "Hi Rahul! Welcome to SK Properties 😊\n\nI'd be happy to help you with the floor plan. Could you please specify which property you're interested in? I have a few options in Baner available.\n\nAlso, I can chat in English, हिंदी or मराठी — whichever is comfortable for you!\n{\"score\":2,\"temperature\":\"new\",\"name\":\"Rahul\",\"stage\":\"greeting\"}",
+  "reply": "Hi Rahul! Welcome to SK Properties 😊\n\nI'd be happy to help you with the floor plan. Could you please specify which property you're interested in? I have a few options in Baner available.\n\nAlso, I can chat in English, हिंदी or मराठी — whichever is comfortable for you!",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply does not claim to have emailed anything or ask for an email address to send a file, and it directly addresses the user's query within the WhatsApp chat.",
+  "recordedAt": "2026-06-16T09:41:05.202Z"
+}

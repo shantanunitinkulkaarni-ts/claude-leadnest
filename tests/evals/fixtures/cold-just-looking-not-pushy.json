@@ -1,0 +1,10 @@
+{
+  "name": "cold \"just looking\" → not pushy",
+  "rule": "Reply must be relaxed and NOT push hard for a site visit. It should give space / offer to help when ready.",
+  "stage": "greeting",
+  "raw": "No problem at all! It's always good to explore options when you're not in a rush 😊\n\nMay I know your name? And by the way, I can chat in English, हिंदी or मराठी — whichever is comfortable for you!\n\n{\"score\":1,\"temperature\":\"cold\",\"intent\":\"exploring\",\"areas\":[],\"name\":null,\"stage\":\"greeting\"}",
+  "reply": "No problem at all! It's always good to explore options when you're not in a rush 😊\n\nMay I know your name? And by the way, I can chat in English, हिंदी or मराठी — whichever is comfortable for you!",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply is relaxed, doesn't push for a site visit, and offers a comfortable communication medium, giving space to the user to respond at their own pace.",
+  "recordedAt": "2026-06-16T09:41:42.076Z"
+}

@@ -1,0 +1,10 @@
+{
+  "name": "\"photos pls\" in commitment → send photos, not push visit",
+  "rule": "Reply must confirm photo sharing warmly (e.g. \"Sure, sending the photos now!\"). Must NOT redirect to visit booking. Must NOT say \"I cannot send photos\" (since photo sending is enabled). Must NOT say \"system will send\" — use \"I\" or \"our team\". Must NOT ask another question before confirming the photo send.",
+  "stage": "commitment",
+  "raw": "Sure, let me share the photos with you!\n{\"score\":7,\"temperature\":\"new\",\"intent\":\"buy\",\"areas\":[\"Baner\"],\"budget_min\":null,\"budget_max\":null,\"timeline\":null,\"name\":\"Pooja\",\"stage\":\"presentation\",\"matched_property_id\":\"p3\",\"appointment_booked_time\":null,\"appointment_status\":null}",
+  "reply": "Sure, let me share the photos with you!",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply confirms photo sharing warmly and uses \"me\" (implied \"I\"), without redirecting to visit booking, saying \"I cannot send photos\", or asking another question before confirming the photo send.",
+  "recordedAt": "2026-06-16T09:46:07.143Z"
+}

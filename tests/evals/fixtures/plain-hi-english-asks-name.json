@@ -1,0 +1,10 @@
+{
+  "name": "plain hi → English + asks name",
+  "rule": "Reply is in English, warm, concise, and asks for the lead's name. It must NOT dump property listings or prices.",
+  "stage": "greeting",
+  "raw": "Hi! Welcome to SK Properties 😊 May I know your good name? And by the way, I can chat in English, हिंदी or मराठी — jo comfortable ho!",
+  "reply": "Hi! Welcome to SK Properties 😊 May I know your good name? And by the way, I can chat in English, हिंदी or मराठी — jo comfortable ho!",
+  "judgePass": true,
+  "judgeWhy": "PASS - The reply is in English, warm, concise, and asks for the lead's name without dumping property listings or prices, while also offering language options in a friendly manner.",
+  "recordedAt": "2026-06-16T09:40:53.891Z"
+}
