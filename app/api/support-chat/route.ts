@@ -3,6 +3,7 @@ import { glmChat, glmKey } from '@/lib/llm'
 import { faqAsText } from '@/lib/faq'
 import { supportWhatsappConfigured } from '@/lib/support'
 import { supabaseAdmin } from '@/lib/supabase'
+import { checkRateLimit } from '@/lib/rateLimit'
 
 export const maxDuration = 30
 export const dynamic = 'force-dynamic'
@@ -14,8 +15,25 @@ export const dynamic = 'force-dynamic'
 
 const MAX_MESSAGES = 12 // guardrail: cap conversation length per request
 
+// IP-scoped rate limit: 20 req/min/IP. Each request can fire an LLM call —
+// without this, one bad actor can drain GLM credits and spam support_chat_logs.
+const SUPPORT_IP_LIMIT = 20
+const SUPPORT_WINDOW_MS = 60_000
+
 export async function POST(req: Request) {
   try {
+    // ── Rate limit (runs before LLM / DB / token spend) ──
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || req.headers.get('x-real-ip')
+      || 'unknown'
+    const limit = checkRateLimit(`support:${ip}`, SUPPORT_IP_LIMIT, SUPPORT_WINDOW_MS)
+    if (!limit.allowed) {
+      return NextResponse.json({
+        response: "You're sending messages a bit too fast. Give it a moment and try again — or tap “Contact support” for a human.",
+        escalate: true,
+      }, { status: 429 })
+    }
+
     const { messages, agent_id } = await req.json()
     if (!Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: 'messages required' }, { status: 400 })
