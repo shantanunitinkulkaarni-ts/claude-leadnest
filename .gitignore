@@ -24,3 +24,7 @@ gist-export/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Editor + build artifacts
+.vscode/
+tsconfig.tsbuildinfo
