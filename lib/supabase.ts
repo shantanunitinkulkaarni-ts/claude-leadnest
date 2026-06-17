@@ -37,11 +37,14 @@ export function getSupabaseAdmin(): ConvorianSupabaseClient {
 
 export function getSupabase(): ConvorianSupabaseClient {
   if (!_supabase) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hinqahjhtgsmljrrozql.supabase.co'
-    // Fallback is the public publishable key (safe to ship to browser; RLS protects data).
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_MPhyLd2gZVgKDVn0zKYwmQ_9epTOzrr'
-    if (!url || !key) throw new Error('Supabase env vars missing')
-    
+    // Fail-closed: no hardcoded URL / publishable-key fallback. If env is
+    // missing in production, surface the misconfig loudly. (CLAUDE.md rule:
+    // "All URLs ... come from environment variables only. Omit defaults so
+    // missing config fails fast.")
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!url || !key) throw new Error('Supabase env vars missing (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY)')
+
     // Use createBrowserClient so sessions are automatically synced to cookies!
     // This allows middleware.ts to see the user and not kick them to /login
     _supabase = createBrowserClient<Database>(url, key)

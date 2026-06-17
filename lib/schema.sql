@@ -1,5 +1,31 @@
--- LeadNest Database Schema
--- Run this entire file in Supabase SQL editor
+-- ─────────────────────────────────────────────────────────────────────────────
+-- ⚠️  STALE — DO NOT USE THIS FILE TO BOOTSTRAP A FRESH DB.
+--
+-- This is a v1 snapshot from the early days of LeadNest/Convorian. The actual
+-- live schema is the cumulative result of THIS file PLUS the 25+ migration
+-- files at the repo root (`*_migration.sql`, `*_fix.sql`, etc.). Tables &
+-- columns missing from this file include (non-exhaustive):
+--   - property_media (Phase 0F)
+--   - team_members, superadmins
+--   - knowledge_gaps, support_chat_logs, support_tickets
+--   - subscription_events, demo_rate_limits
+--   - messages.wa_message_id partial unique index (dedup)
+--   - leads.last_nudge_at / window_nudge_count / nurture_state / template_touches
+--     / opted_in / consent_*
+--   - agents.msg91_integrated_number / outreach_intensity / nurture_emails_sent
+--     / consent_terms / consent_marketing / plan_status='trial' etc.
+--   - service_role grants (`service_role_grants.sql`) — REQUIRED for app
+--     to read without "permission denied for table X" errors
+--   - RLS lockdown + tenant policies (`rls_lockdown_migration.sql`,
+--     `rls_tenant_policies_migration.sql`)
+--
+-- To bring a fresh database to prod parity, you must apply migration files in
+-- chronological order (see git log). This file is kept ONLY as historical
+-- reference for the original table shape. The next engineering-maturity task
+-- is to move these into a real Supabase CLI migrations folder.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- LeadNest Database Schema (v1 — see warning above)
 
 -- Enable UUID extension
 create extension if not exists "uuid-ossp";
