@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: 2026-06-18 03:10 IST (21:40 UTC) — session 11*
+*Last updated: 2026-06-18 14:25 IST (08:55 UTC) — session 12*
 > ⏱️ This timestamp is set by hand at each update. If it looks stale vs. recent
 > git history (`git log -1`), assume parts of this doc are out of date and verify
 > against the code before trusting them.
@@ -13,6 +13,37 @@
 ---
 
 ## 1. DONE ✅
+
+- **June 18 SESSION 12 — price-accuracy hardening (PR #120, supervised port of Emergent):**
+  Emergent pushed a price-accuracy fix to `emergent_fix`. Reviewed the delta as
+  supervisor; **took the 3 genuine bug fixes, rejected the bundled reverts** of
+  recent main work (the branch is the usual detached/stale snapshot — no merge base).
+  - **Race-condition budget fix (`lib/gemini.ts`):** the persisted `lead` reflects
+    the PREVIOUS turn (extraction runs AFTER the LLM call). A lead stating a fresh
+    budget in the current message was filtered against stale criteria — that's how
+    Lodha ₹90L got shown for a ₹70L ask. Now re-parse budget inline
+    (`parseBudgetRupees(incomingMessage)`) → `augmentedLead` → used for both
+    `filterPropertiesForLead` AND the `findNearMatches` stretch band.
+  - **High-precision `validateReply` (`lib/replyValidator.ts`):** only flag a quoted
+    ₹ figure that's a real property-price CLAIM. Skips budget echoes (±10%),
+    comparator/delta phrases ("just ₹20L over", "₹15L cheaper", "₹50k booking"),
+    and sub-₹10k noise. Stops the prod loop where benign replies got nuked 3 turns
+    running. New optional 3rd arg `lead?`; 7 new unit tests.
+  - **Soft-flag instead of nuke (`lib/gemini.ts`):** on a failed price check, append
+    a small "(Let me re-confirm the exact figure with the team.)" footer instead of
+    replacing the whole reply.
+  - **Photo-promise honesty intercept (webhook):** when `MSG91_MEDIA_LIVE!=true` but
+    the bot promised photos, rewrite to an honest deferral pointing to the agent.
+    (Inert in prod today — media is LIVE — but a correct safety net. Fixed a
+    Sentry-ordering bug in Emergent's version that logged the rewritten text as `original`.)
+  - **REJECTED (stale-snapshot regressions, kept on main):** deletion of
+    `findNearMatches`/stretch options (#112 — actually complementary to the race fix);
+    removal of FAMILY-APPROVAL "not a request for a human" nuance (#118); narrowing of
+    `CONFIRM_RE` Hindi/Marathi affirmatives (#115); package-lock deletion + `.emergent/`
+    junk. Also kept `Array.from` around `matchAll` (tsconfig target es5 — removal breaks build).
+  - typecheck + lint clean; **601/601 unit tests pass**. CI green, merged, deployed
+    (`vercel deploy --prod`), convorian.in 200. ⚠️ `emergent_fix` branch is still a
+    detached stale snapshot — next Emergent push will again need delta-porting, not merging.
 
 - **June 18 SESSION 11 — Hindi/Marathi language-decay fix (PR #118, supervised port of Emergent's "Phase B"):**
   - **Bug fix in `buildFewShotExamples` (`lib/gemini.ts`):** the few-shot picker was
