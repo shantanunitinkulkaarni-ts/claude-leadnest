@@ -5,15 +5,14 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getAuthContext } from '@/lib/apiAuth'
 import { toWhatsAppJpeg } from '@/lib/imageConvert'
 
-// We accept a wide range of source formats (agents often grab AVIF/HEIC images
-// straight off listing sites) but ALWAYS re-encode to JPEG before storing.
-// WhatsApp/Meta only delivers JPEG/PNG images — an AVIF link is silently dropped
-// by Meta even though MSG91 returns "success", which is exactly why property
-// photos never arrived. Converting here makes every stored image WhatsApp-safe.
-const ALLOWED_TYPES = [
-  'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
-  'image/avif', 'image/heic', 'image/heif', 'image/tiff',
-]
+// FOOLPROOF PHOTO POLICY (founder decision): accept ONLY .jpeg/.jpg uploads —
+// reject every other format outright. WhatsApp/Meta silently drop non-JPEG images
+// (AVIF/HEIC/WebP…), which is why property photos used to never arrive. We STILL
+// run the re-encode below (resize + strip EXIF + baseline JPEG) as a second
+// safety layer, but the hard front-door rule is: JPEG only. Two layers = photo
+// sending can't be broken by a bad upload.
+const ALLOWED_TYPES = ['image/jpeg', 'image/jpg']
+const JPEG_EXT_RE = /\.jpe?g$/i
 const MAX_SIZE_BYTES = 15 * 1024 * 1024 // 15MB source cap (output is shrunk below)
 
 export async function POST(request: NextRequest) {
@@ -28,10 +27,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    // Accept by declared type when present; some browsers send AVIF/HEIC with an
-    // empty/odd type, so fall back to letting sharp try to decode it below.
-    if (file.type && !ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json({ error: 'Invalid file type — please upload an image' }, { status: 400 })
+    // Hard gate: filename must end in .jpg/.jpeg AND (if a type is declared) it
+    // must be image/jpeg. Some browsers send an empty type — the extension check
+    // still catches non-JPEGs, and the re-encode below is the final backstop.
+    const isJpegExt = JPEG_EXT_RE.test(file.name || '')
+    const isJpegType = !file.type || ALLOWED_TYPES.includes(file.type.toLowerCase())
+    if (!isJpegExt || !isJpegType) {
+      return NextResponse.json({ error: 'Only JPEG photos are allowed. Please upload a .jpg or .jpeg image.' }, { status: 400 })
     }
 
     if (file.size > MAX_SIZE_BYTES) {

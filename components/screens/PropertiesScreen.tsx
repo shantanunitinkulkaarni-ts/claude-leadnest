@@ -141,7 +141,14 @@ export default function PropertiesScreen({ agentId }: Props) {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setFiles(prev => [...prev, ...Array.from(e.target.files!)])
+      // JPEG only — keeps WhatsApp photo delivery foolproof (the server enforces
+      // this too). Non-JPEG files are dropped with a clear heads-up.
+      const picked = Array.from(e.target.files)
+      const jpegs = picked.filter(f => /\.jpe?g$/i.test(f.name) && (!f.type || f.type === 'image/jpeg' || f.type === 'image/jpg'))
+      if (jpegs.length < picked.length) {
+        alert('Only JPEG photos can be added (.jpg / .jpeg). Other files were skipped.')
+      }
+      if (jpegs.length) setFiles(prev => [...prev, ...jpegs])
     }
   }
 
@@ -582,9 +589,9 @@ export default function PropertiesScreen({ agentId }: Props) {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Attachments (Photos, Floor Plans)</label>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Photos (JPEG only)</label>
                 <div className="file-drop" onClick={() => fileInputRef.current?.click()} style={{ border: '1px dashed rgba(26,25,22,0.2)', borderRadius: 8, padding: '24px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s', background: '#fff' }}>
-                  <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/*,video/*,application/pdf" />
+                  <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept="image/jpeg,.jpg,.jpeg" />
                   <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8, color: '#9E9B92' }}>
                     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
                   </div>
