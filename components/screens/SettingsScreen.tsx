@@ -169,9 +169,12 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
   const rows = [
     { key: 'agency_name', label: 'Agency name', value: d?.agency_name || '\u2014', type: 'text' as const },
     { key: 'city', label: 'City', value: [d?.city, d?.state].filter(Boolean).join(', ') || '\u2014', type: 'text' as const },
+    { key: 'office_address', label: 'Office address', value: d?.office_address || '\u2014', type: 'text' as const },
     { key: 'areas', label: 'Areas covered', value: Array.isArray(d?.areas) ? d.areas.join(', ') : '\u2014', type: 'tags' as const },
     { key: 'bot_tone', label: 'Bot tone', value: d?.bot_tone ? cap(d.bot_tone) : '\u2014', type: 'select' as const },
     { key: 'office_hours', label: 'Office hours', value: `${d?.office_open || '09:00'} \u2013 ${d?.office_close || '19:00'}`, type: 'time-range' as const },
+    { key: 'weekly_off', label: 'Weekly off', value: d?.weekly_off || '\u2014', type: 'text' as const },
+    { key: 'holidays', label: 'Holidays', value: d?.holidays || '\u2014', type: 'text' as const },
     { key: 'languages', label: 'Languages', value: Array.isArray(d?.languages) ? d.languages.map(cap).join(', ') : '\u2014', type: 'tags' as const },
   ]
 
