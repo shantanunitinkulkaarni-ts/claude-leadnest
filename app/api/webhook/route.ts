@@ -9,6 +9,7 @@ import { generateBotReply } from '@/lib/gemini'
 import { sendWhatsAppMessage, sendViaMsg91, sendViaMsg91Media, sendMetaImage, sendWithRetry } from '@/lib/whatsapp'
 import { wantsPhotos, botPromisedPhotos, extractPropertyMedia, MAX_IMAGES_PER_SEND } from '@/lib/media'
 import { buildAgentContactCard } from '@/lib/fallbackCard'
+import { callLLM } from '@/lib/llm'
 import { parseBudgetRupees, isGrosslyOffBudget } from '@/lib/budgetParse'
 import { shouldBotReply } from '@/lib/botGating'
 import { resolveAppointmentTime, formatIST } from '@/lib/appointment'
@@ -942,6 +943,73 @@ export async function POST(request: NextRequest) {
       }
     } catch (alertErr: any) {
       logError('priority_alert_failed', { error: alertErr?.message })
+    }
+
+    // ── 3b. Bot-fallback escalation (the card was shown → bot couldn't answer) ──
+    // For US (superadmins) to investigate + train the bot. Records a /admin event
+    // (read by the superadmin panel — item 3c) with the last 2-3 messages + a
+    // short AI "what likely went wrong" summary, and emails the superadmin desk.
+    // Agent notification: knowledge_gap already alerts the agent via the priority
+    // alert above (email + WhatsApp template); engine-down also emails the agent.
+    // All best-effort — never blocks the customer reply.
+    if (fallbackReason) {
+      try {
+        const { data: recent } = await supabaseAdmin.from('messages')
+          .select('direction, content, created_at').eq('lead_id', lead.id)
+          .order('created_at', { ascending: false }).limit(3)
+        const lastMessages = (recent || []).reverse().map((m: any) => ({
+          from: m.direction === 'inbound' ? 'customer' : 'bot', text: (m.content || '').slice(0, 300),
+        }))
+
+        // Short AI summary of the likely cause (best-effort; falls back to a default).
+        let aiSummary = ''
+        try {
+          const convo = lastMessages.map(m => `${m.from}: ${m.text}`).join('\n')
+          aiSummary = (await callLLM(
+            [
+              { role: 'system', content: 'You are a QA assistant for a real-estate WhatsApp bot. In ONE short sentence, state the most likely reason the bot could not answer, so the team can fix/train it. Be specific and practical.' },
+              { role: 'user', content: `Reason flag: ${fallbackReason}\n\nConversation:\n${convo}\n\nCustomer's last message: ${messageText}` },
+            ],
+            { maxTokens: 80, deadlineMs: 12000 },
+          )).slice(0, 300)
+        } catch {
+          aiSummary = fallbackReason === 'engine_down'
+            ? 'AI engine was unavailable (both providers failed).'
+            : "Bot had no confident answer for the customer's question."
+        }
+
+        await supabaseAdmin.from('activity_log').insert({
+          agent_id: agent.id, lead_id: lead.id, type: 'bot_fallback',
+          title: fallbackReason === 'engine_down' ? 'Bot fallback: engine down' : 'Bot fallback: could not answer',
+          description: messageText.slice(0, 140),
+          metadata: { reason: fallbackReason, question: messageText.slice(0, 500), botReply: engineReply.slice(0, 500), lastMessages, aiSummary },
+        })
+
+        const { sendEmail } = await import('@/lib/email')
+        const esc = (s: string) => String(s || '').replace(/[<>]/g, '')
+        const convoHtml = lastMessages.map(m => `<p style="margin:2px 0"><strong>${m.from}:</strong> ${esc(m.text)}</p>`).join('')
+        // Superadmin desk — always.
+        await sendEmail({
+          to: 'support@convorian.in',
+          subject: `🤖 Bot fallback (${fallbackReason}) — ${esc(agent.agency_name || agent.name || agent.id)}`,
+          html: `<p><strong>Agency:</strong> ${esc(agent.agency_name || agent.name || agent.id)}</p>`
+            + `<p><strong>Reason:</strong> ${fallbackReason}</p>`
+            + `<p><strong>Likely cause:</strong> ${esc(aiSummary)}</p>`
+            + `<p><strong>Last messages:</strong></p>${convoHtml}`
+            + `<p style="color:#888;font-size:12px">Lead ${lead.id} · agent ${agent.id}</p>`,
+        }).catch(() => {})
+        // Agent email for engine-down (knowledge_gap already emailed the agent above).
+        if (fallbackReason === 'engine_down' && agent.email) {
+          await sendEmail({
+            to: agent.email,
+            subject: `Action needed: your AI assistant had a tech issue on a lead`,
+            html: `<p>Hi ${esc(agent.name || '')},</p><p>Your Convorian assistant hit a brief technical issue and couldn't reply to <strong>${esc(lead.name || lead.phone)}</strong>. We've shared your contact card with them — please reach out directly so the lead isn't lost.</p>`,
+          }).catch(() => {})
+        }
+        log('bot_fallback_escalated', { reason: fallbackReason })
+      } catch (escErr: any) {
+        logError('bot_fallback_escalation_failed', { error: escErr?.message })
+      }
     }
 
     log('webhook_done', { durationMs: Date.now() - tStart })
