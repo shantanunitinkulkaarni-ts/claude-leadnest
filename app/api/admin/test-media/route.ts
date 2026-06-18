@@ -25,8 +25,8 @@ export async function POST(request: NextRequest) {
     if (!integrated || !to || !url) {
       return NextResponse.json({ error: 'integrated_number, to and url are required' }, { status: 400 })
     }
-    const reqId = await sendViaMsg91Media(integrated, to, url, caption)
-    return NextResponse.json({ ok: !!reqId, requestId: reqId })
+    const r = await sendViaMsg91Media(integrated, to, url, caption)
+    return NextResponse.json({ ok: !!r.id, requestId: r.id, error: r.error })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

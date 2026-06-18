@@ -6,8 +6,9 @@ export const maxDuration = 60
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { generateBotReply } from '@/lib/gemini'
-import { sendWhatsAppMessage, sendViaMsg91, sendViaMsg91Media, sendMetaImage } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, sendViaMsg91, sendViaMsg91Media, sendMetaImage, sendWithRetry } from '@/lib/whatsapp'
 import { wantsPhotos, botPromisedPhotos, extractPropertyMedia, MAX_IMAGES_PER_SEND } from '@/lib/media'
+import { buildAgentContactCard } from '@/lib/fallbackCard'
 import { parseBudgetRupees, isGrosslyOffBudget } from '@/lib/budgetParse'
 import { shouldBotReply } from '@/lib/botGating'
 import { resolveAppointmentTime, formatIST } from '@/lib/appointment'
@@ -385,11 +386,25 @@ export async function POST(request: NextRequest) {
         lead_id: lead.id, agent_id: agent.id, direction: 'outbound', content: safeReply, sent_by: 'bot',
       }).select('id').single()
       try {
-        let wid: string | null
-        if (incomingProvider === 'msg91') wid = await sendViaMsg91(msg91IntegratedNumber, fromPhone, safeReply)
-        else wid = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, safeReply)
-        if (wid && gOut?.id) await supabaseAdmin.from('messages').update({ wa_message_id: wid }).eq('id', gOut.id)
-      } catch (e: any) { log('guardrail_send_failed', { error: e?.message }) }
+        let wid: string | null = null
+        let gErr: string | null = null
+        if (incomingProvider === 'msg91') { const r = await sendWithRetry(() => sendViaMsg91(msg91IntegratedNumber, fromPhone, safeReply)); wid = r.id; gErr = r.error }
+        else { wid = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, safeReply); if (!wid) gErr = 'meta_send_returned_null' }
+        if (gOut?.id) {
+          if (wid) await supabaseAdmin.from('messages').update({ wa_message_id: wid }).eq('id', gOut.id)
+          else {
+            // Send rejected — record reason for superadmins only (item #1).
+            await supabaseAdmin.from('messages').update({
+              status: 'failed', delivery_status: 'failed',
+              delivery_error: (gErr || 'send_failed').slice(0, 500),
+              delivery_updated_at: new Date().toISOString(),
+            }).eq('id', gOut.id)
+            Sentry.captureMessage('WhatsApp guardrail reply send failed', {
+              level: 'error', extra: { agentId: agent.id, leadId: lead.id, reason: gErr },
+            })
+          }
+        }
+      } catch (e: any) { logError('guardrail_send_failed', { error: e?.message }) }
       await supabaseAdmin.from('activity_log').insert({
         agent_id: agent.id, lead_id: lead.id, type: 'guardrail',
         title: `Guardrail: ${inboundSignals.guardrail}`, description: messageText.slice(0, 140),
@@ -720,6 +735,23 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // ── Safe fallback CARD (messaging plan #3) ──────────────────────────────
+    // When the bot can't safely answer, don't guess — reply with the agent's
+    // contact card instead. Triggers:
+    //   • engine fully down (both LLMs failed), or
+    //   • the bot couldn't answer the question (knowledge gap / deferral).
+    // The ORIGINAL engine reply is preserved (engineReply) so the knowledge-gap
+    // recorder below still learns the right Q→A. (Price/possession fabrications
+    // are already handled honestly inside the engine via validateReply/factGuard.)
+    const engineReply = reply
+    const isKnowledgeGap = !engineFallback && detectReplyKnowledgeGap(reply)
+    const fallbackReason: 'engine_down' | 'knowledge_gap' | null =
+      engineFallback ? 'engine_down' : (isKnowledgeGap ? 'knowledge_gap' : null)
+    if (fallbackReason) {
+      reply = buildAgentContactCard(agent)
+      log('fallback_card_used', { reason: fallbackReason })
+    }
+
     // Save bot reply to DB first — ensures simulation mode always shows the reply
     const { data: outboundMsg } = await supabaseAdmin.from('messages').insert({
       lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
@@ -728,22 +760,45 @@ export async function POST(request: NextRequest) {
 
     // Then attempt WhatsApp delivery (non-blocking — simulation works even if this fails)
     try {
-      let outWaId: string | null
+      let outWaId: string | null = null
+      let sendError: string | null = null
       if (incomingProvider === 'msg91') {
-        outWaId = await sendViaMsg91(msg91IntegratedNumber, fromPhone, reply)
+        // Retry momentary glitches up to 2 extra times (item #2); permanent
+        // rejections (bad number / closed window) fail fast and fall to #1/#4.
+        const r = await sendWithRetry(() => sendViaMsg91(msg91IntegratedNumber, fromPhone, reply))
+        outWaId = r.id; sendError = r.error
       } else {
-        const toPhone = fromPhone
-        outWaId = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, toPhone, reply)
+        outWaId = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, reply)
+        if (!outWaId) sendError = 'meta_send_returned_null'
       }
-      if (outWaId && outboundMsg?.id) {
-        // Stamp the exact row we just inserted (order/limit are not valid on updates).
-        await supabaseAdmin.from('messages')
-          .update({ wa_message_id: outWaId })
-          .eq('id', outboundMsg.id)
+      if (outboundMsg?.id) {
+        if (outWaId) {
+          // Stamp the exact row we just inserted (order/limit are not valid on updates).
+          await supabaseAdmin.from('messages').update({ wa_message_id: outWaId }).eq('id', outboundMsg.id)
+        } else {
+          // The send was REJECTED. Record the real reason so WE (superadmins) can see
+          // and fix it — this is NOT shown to the agent (the inbox doesn't render
+          // message delivery status). Messaging-reliability item #1. (Retries + agent
+          // alerts + after-24h template fallback are later items, not done here.)
+          await supabaseAdmin.from('messages').update({
+            status: 'failed', delivery_status: 'failed',
+            delivery_error: (sendError || 'send_failed').slice(0, 500),
+            delivery_updated_at: new Date().toISOString(),
+          }).eq('id', outboundMsg.id)
+        }
       }
-      log('whatsapp_sent', { waMessageId: outWaId })
+      if (outWaId) {
+        log('whatsapp_sent', { waMessageId: outWaId })
+      } else {
+        logError('whatsapp_send_failed', { reason: sendError })
+        Sentry.captureMessage('WhatsApp reply send failed', {
+          level: 'error',
+          extra: { agentId: agent.id, leadId: lead.id, provider: incomingProvider, reason: sendError, messageRowId: outboundMsg?.id },
+        })
+      }
     } catch (waErr: any) {
-      log('whatsapp_send_failed', { error: waErr.message, note: 'simulation mode OK' })
+      logError('whatsapp_send_failed', { error: waErr.message })
+      Sentry.captureException(waErr, { extra: { agentId: agent.id, leadId: lead.id, where: 'reply_send' } })
     }
 
     // Atomic increment — avoids the lost-update race where two concurrent webhooks
@@ -811,13 +866,23 @@ export async function POST(request: NextRequest) {
           for (let i = 0; i < media.length; i++) {
             const caption = i === 0 ? (prop.title || 'Property') : undefined
             let mid: string | null = null
-            if (incomingProvider === 'msg91') mid = await sendViaMsg91Media(msg91IntegratedNumber, fromPhone, media[i], caption)
-            else mid = await sendMetaImage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, media[i], caption)
+            let mErr: string | null = null
+            if (incomingProvider === 'msg91') { const r = await sendWithRetry(() => sendViaMsg91Media(msg91IntegratedNumber, fromPhone, media[i], caption)); mid = r.id; mErr = r.error }
+            else { mid = await sendMetaImage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, media[i], caption); if (!mid) mErr = 'meta_media_returned_null' }
             log('photo_send_result', { index: i + 1, total: media.length, ok: !!mid })
             await supabaseAdmin.from('messages').insert({
               lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
               content: `[photo] ${prop.title || ''}`.trim(), sent_by: 'bot',
               wa_message_id: typeof mid === 'string' ? mid : null,
+              // Record a failed photo send for superadmins only (item #1).
+              ...(mid ? {} : {
+                status: 'failed', delivery_status: 'failed',
+                delivery_error: (mErr || 'send_failed').slice(0, 500),
+                delivery_updated_at: new Date().toISOString(),
+              }),
+            })
+            if (!mid) Sentry.captureMessage('WhatsApp photo send failed', {
+              level: 'warning', extra: { agentId: agent.id, leadId: lead.id, reason: mErr, propertyId: prop.id },
             })
           }
         } else {
@@ -836,9 +901,12 @@ export async function POST(request: NextRequest) {
       const priorities: PrioritySignal[] = [...inboundSignals.priorities]
       if (metadata.appointment_booked_time) priorities.push('visit_booked')
       if ((metadata.score || 0) >= 8 && !priorities.includes('very_interested')) priorities.push('very_interested')
-      if (detectReplyKnowledgeGap(reply) && !priorities.includes('knowledge_gap')) {
+      // Use the precomputed gap flag — `reply` may now be the fallback card, so
+      // re-detecting on it would miss the gap. Record the ORIGINAL deferral
+      // (engineReply) so the agent/superadmin sees what the bot actually said.
+      if (isKnowledgeGap && !priorities.includes('knowledge_gap')) {
         priorities.push('knowledge_gap')
-        recordKnowledgeGap(agent.id, lead.id, messageText, reply).catch(err => Sentry.captureException(err))
+        recordKnowledgeGap(agent.id, lead.id, messageText, engineReply).catch(err => Sentry.captureException(err))
       }
 
       const sig = topSignal(priorities)
@@ -852,7 +920,7 @@ export async function POST(request: NextRequest) {
           const content = buildAlertContent(sig, {
             leadName: lead.name || metadata.name, leadPhone: lead.phone,
             agentName: agent.name, lastMessage: messageText,
-            botReply: sig === 'knowledge_gap' ? reply : null,
+            botReply: sig === 'knowledge_gap' ? engineReply : null,
           })
           await sendHighPriorityAlert(agent, {
             subject: content.subject, html: content.html,
