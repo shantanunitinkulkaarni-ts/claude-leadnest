@@ -90,12 +90,96 @@ export interface ValidationResult {
   price?: number
 }
 
+// ─── Suspicion heuristics ──────────────────────────────────────────────────
+// Tightened after a production loop where the bot's reply was nuked 3 turns
+// in a row because validateReply caught the LEAD'S budget echo ("₹70L") and
+// a delta ("₹20L over your budget") as fabricated prices. The validator must
+// ONLY flag prices that look like a property-attribution claim, not budget
+// echoes or comparator/delta language.
+
+// True if the price reads as a DELTA (a difference/comparison amount) rather
+// than a property-price claim. Two patterns:
+//
+//   INTRO: a delta-introducing word IMMEDIATELY BEFORE the price (within ~12
+//          chars). "just ₹20L", "only ₹5L", "by ₹10L", "approximately ₹50K",
+//          "around ₹15L", "extra ₹5L". These unambiguously mark a delta.
+//
+//   OUTRO: a comparison/fee word IMMEDIATELY AFTER the price (within ~15
+//          chars). "₹15L cheaper", "₹20L more", "₹5L difference", "₹50k
+//          booking", "₹2L token", "₹35k GST/registration/brokerage".
+//
+// We deliberately EXCLUDE "over/above/under/below" from these lists — those
+// describe the position of the price relative to something else, but the
+// PRICE itself is still a real property-price claim ("Lodha is at ₹90L, above
+// your budget" — ₹90L is the property price, not a delta).
+const DELTA_INTRO_RE = /\b(just|only|by|extra|additional|approx\.?|approximately|around|plus|minus)\s*[^\d]{0,6}$/i
+const DELTA_OUTRO_RE = /^[^\w]{0,3}\s*(cheaper|costlier|higher|lower|more|less|difference|booking|token|deposit|advance|fee|gst|registration|stamp|brokerage|maintenance|emi|premium|charges?)\b/i
+
+function priceIsDeltaContext(reply: string, price: number): boolean {
+  if (!reply) return false
+  // Build plausible string forms of the price so we can locate it. Includes:
+  //   • unit-suffixed ("90 lakh" / "90l" / "1.2 crore")
+  //   • plain ("9000000")
+  //   • Indian-comma ("50,000" / "90,00,000") — the form the bot actually
+  //     emits, missing this caused booking-amount deltas to be unfindable
+  //     and fall through to the inventory check.
+  const candidates: string[] = []
+  if (price >= CRORE) {
+    const cr = (price / CRORE).toFixed(2).replace(/\.?0+$/, '')
+    candidates.push(`${cr} crore`, `${cr}cr`)
+  }
+  if (price >= LAKH) {
+    const lk = Math.round(price / LAKH).toString()
+    candidates.push(`${lk} lakh`, `${lk}l`, `${lk} l`)
+  }
+  candidates.push(`${price}`)
+  try { candidates.push(price.toLocaleString('en-IN')) } catch { /* best-effort */ }
+  const lower = reply.toLowerCase()
+  for (const c of candidates) {
+    const idx = lower.indexOf(c.toLowerCase())
+    if (idx < 0) continue
+    const before = lower.slice(Math.max(0, idx - 15), idx)
+    if (DELTA_INTRO_RE.test(before)) return true
+    const after = lower.slice(idx + c.length, Math.min(lower.length, idx + c.length + 15))
+    if (DELTA_OUTRO_RE.test(after)) return true
+  }
+  return false
+}
+
+function priceMatchesLeadBudget(price: number, lead: any): boolean {
+  if (!lead) return false
+  const tol = 0.10 // 10% — leads round their stated budget verbally
+  for (const k of ['budget_min', 'budget_max'] as const) {
+    const b = lead?.[k]
+    if (typeof b === 'number' && b > 0 && Math.abs(b - price) <= b * tol) return true
+  }
+  return false
+}
+
 // Checks every rupee figure quoted in `reply` against the agent's actual
-// property inventory (rent_per_month for rentals, price for sales), within a
-// 5% tolerance to absorb rounding ("₹80L" for a ₹78.5L property is fine).
-export function validateReply(reply: string, properties: any[]): ValidationResult {
+// property inventory. A price is FLAGGED only when ALL the following are true:
+//   1. It is ≥ ₹10k (avoids token amounts, GST digits, page-footer noise)
+//   2. It is NOT in a comparator/delta context ("just/by/cheaper/booking")
+//   3. It does NOT match the lead's stated budget (echoing budget is fine)
+//   4. It does NOT match any inventory property's price (within 5%)
+// This is high-precision: false positives erode the bot's helpfulness and
+// caused a production loop where every reply got nuked to a canned fallback.
+export function validateReply(reply: string, properties: any[], lead?: any): ValidationResult {
   const quotedPrices = extractPrices(reply)
   for (const price of quotedPrices) {
+    // (1) Skip trivially small amounts — under ₹10k is almost always a token
+    // amount, GST percentage written as plain digits, page footer, or noise.
+    // Rentals (₹15k–₹2L/month) and sales (₹25L+) both clear this floor; only
+    // genuine non-property numbers get filtered.
+    if (price < 10_000) continue
+
+    // (2) Skip if the price appears in a comparator/delta phrase.
+    if (priceIsDeltaContext(reply, price)) continue
+
+    // (3) Skip if the price echoes the lead's stated budget (within 10%).
+    if (priceMatchesLeadBudget(price, lead)) continue
+
+    // (4) Must match some inventory price within 5%, otherwise FLAG.
     const matchesInventory = (properties || []).some((p) => {
       const actual = p.type === 'rental' ? p.rent_per_month : p.price
       if (!actual) return false
