@@ -419,6 +419,27 @@ export async function POST(request: NextRequest) {
       engineFallback = true
     }
     log('engine_call_done', { durationMs: Date.now() - tEngine, reply, metadata, fallback: engineFallback })
+
+    // ── Honesty intercept: rewrite photo-send promises when we can't actually send ──
+    // The bot's prompt says don't promise photos when canSendPhotos=false, but the
+    // model still complies with the lead's "send pics" request because compliance
+    // is the path of least resistance. Without this server-side guard, the lead
+    // hears "Sure, let me share the photos!" and then NO photos arrive — a textbook
+    // trust-killer. We rewrite the offending sentence to an honest deferral that
+    // points to the agent. (Mirrors the photo-send gate at line ~738 below.)
+    if (process.env.MSG91_MEDIA_LIVE !== 'true' && botPromisedPhotos(reply)) {
+      const advisorName = agent?.name || 'our advisor'
+      const advisorPhone = agent?.phone || null
+      const honest = advisorPhone
+        ? `I don't have direct photo-sharing enabled yet, but ${advisorName} can WhatsApp them to you straight away — reach them on ${advisorPhone}. Want me to flag this for them right now?`
+        : `I don't have direct photo-sharing enabled yet — let me have ${advisorName} send them to you shortly. Anything specific you'd like a look at first?`
+      logError('photo_promise_intercepted', { original: reply, replacement: honest })
+      reply = honest
+      Sentry.captureMessage('Photo promise intercepted (canSendPhotos=false)', {
+        level: 'warning',
+        extra: { agentId: agent.id, leadId: lead.id, original: reply },
+      })
+    }
     if (engineFallback) {
       supabaseAdmin.from('activity_log').insert({
         agent_id: agent.id, lead_id: lead.id, type: 'engine_fallback',

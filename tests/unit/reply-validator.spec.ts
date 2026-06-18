@@ -101,8 +101,59 @@ test.describe('validateReply', () => {
   })
 
   test('rental price never matches against sale price field and vice versa', () => {
-    // p3 is rental with rent_per_month 30,000 — its `price` field is undefined,
-    // so a sale-style large figure must not accidentally match it.
-    expect(validateReply('₹30,000', [{ id: 'p4', type: 'sale', price: undefined }]).valid).toBe(false)
+    // p4 is sale with no price set; ₹30L is large enough to be a property
+    // claim (above the ₹10L delta threshold), so the unmatched price still
+    // gets flagged. (Previous test used ₹30,000 — below the new threshold.)
+    expect(validateReply('₹30L', [{ id: 'p4', type: 'sale', price: undefined }]).valid).toBe(false)
+  })
+
+  // ─── New behaviors (post production-loop fix) ─────────────────────────────
+
+  test('small amounts below ₹10L are skipped (deltas, fees, GST)', () => {
+    // ₹5L referenced as a delta — not a property claim — should NOT fail.
+    expect(validateReply('Just ₹5L over your budget', properties).valid).toBe(true)
+    expect(validateReply('₹50,000 booking amount', properties).valid).toBe(true)
+  })
+
+  test('prices in comparator/delta context are skipped (just/over/under/above)', () => {
+    // "₹20L over" is a delta, not a property price claim — must not fail
+    // even though ₹20L ≥ ₹10L threshold.
+    expect(validateReply('Just ₹20L over your budget', properties).valid).toBe(true)
+    expect(validateReply('₹15L cheaper than market', properties).valid).toBe(true)
+    expect(validateReply('above ₹15L difference', properties).valid).toBe(true)
+  })
+
+  test("echoing the lead's stated budget is always valid (within 10%)", () => {
+    const lead = { budget_max: 7_000_000 } // ₹70L
+    // Bot says "your budget is ₹70L" — must not fail even though no property
+    // exists at exactly ₹70L in this inventory.
+    expect(validateReply('Your budget is ₹70L', properties, lead).valid).toBe(true)
+    // 10% wobble — "around ₹75L budget" close enough.
+    expect(validateReply('Around ₹75L budget', properties, lead).valid).toBe(true)
+  })
+
+  test('echoing budget_min is also allowed', () => {
+    const lead = { budget_min: 5_000_000, budget_max: 8_000_000 }
+    expect(validateReply('Starting from ₹50L', properties, lead).valid).toBe(true)
+  })
+
+  test('flagging still works for genuine fabrications outside both budget and inventory', () => {
+    const lead = { budget_max: 7_000_000 }
+    // ₹40L is not in inventory (7.9M/14.5M), not near lead's ₹70L budget,
+    // and not in a delta context — must STILL be flagged.
+    const result = validateReply('Final price ₹40L', properties, lead)
+    expect(result.valid).toBe(false)
+    expect(result.price).toBe(4_000_000)
+  })
+
+  test("regression: the production transcript bug no longer fires", () => {
+    // Real production message that triggered the validator-nuke loop.
+    // Lead's budget was ₹70L, Lodha is ₹90L (in inventory). Bot's reply
+    // referenced both the budget echo and a delta — neither of which
+    // should be flagged.
+    const lead = { budget_max: 7_000_000 }
+    const inv = [{ id: 'lodha', type: 'sale', price: 9_000_000 }]
+    const reply = 'Lodha is at ₹90L — just ₹20L over your ₹70L budget, but it has great amenities.'
+    expect(validateReply(reply, inv, lead).valid).toBe(true)
   })
 })

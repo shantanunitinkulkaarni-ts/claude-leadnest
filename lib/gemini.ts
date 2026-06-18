@@ -7,6 +7,7 @@ import { validateReply } from './replyValidator'
 import { guardReplyFacts } from './factGuard'
 import { shouldRefreshSummary, refreshConversationSummary, SUMMARY_OLDER_WINDOW } from './conversationSummary'
 import { formatKnowledgeGapsForPrompt } from './knowledgeGaps'
+import { parseBudgetRupees } from './budgetParse'
 
 export { detectStage, type ConversationStage }
 
@@ -622,8 +623,21 @@ export async function generateBotReply(
 
   // Server-side filter: the LLM only ever sees properties that already match
   // the lead's known intent/areas/budget, so it can't recommend a mismatch.
-  const filteredProperties = filterPropertiesForLead(properties, lead)
-  Sentry.setContext('engine', { stage, messageCount, filteredPropertyCount: filteredProperties.length, totalPropertyCount: properties.length })
+  //
+  // RACE-CONDITION FIX: the persisted `lead` reflects criteria up to the
+  // PREVIOUS turn. The lead's current message may state a new budget/area we
+  // haven't persisted yet (extraction happens AFTER the LLM call). Without
+  // this inline augmentation, a lead saying "Baner, budget 70 lakhs" on their
+  // first criteria-revealing turn gets the full unfiltered inventory shown
+  // back — which is how Lodha at ₹90L ended up framed as fitting a ₹70L
+  // budget in production. We re-parse the latest message inline and merge.
+  const inlineBudget = parseBudgetRupees(incomingMessage)
+  const augmentedLead = {
+    ...lead,
+    budget_max: lead.budget_max || (inlineBudget ?? undefined),
+  }
+  const filteredProperties = filterPropertiesForLead(properties, augmentedLead)
+  Sentry.setContext('engine', { stage, messageCount, filteredPropertyCount: filteredProperties.length, totalPropertyCount: properties.length, inlineBudgetParsed: inlineBudget, augmentedBudgetMax: augmentedLead.budget_max })
 
   // Server-side language detection — runs before the LLM so we can inject a
   // hard directive. Uses the current message + stored lead.language as fallback.
@@ -692,17 +706,24 @@ export async function generateBotReply(
     delete result.metadata.matched_property_id
   }
 
-  // Last line of defense: every rupee figure the LLM just wrote must match a
-  // real property in the agent's inventory (within 5% tolerance). Checked
-  // against the FULL inventory, not just filteredProperties — the ground
-  // truth is "does this price exist anywhere," not "was it in what we showed."
-  const validation = validateReply(result.reply, properties)
+  // Last line of defense: every rupee figure the LLM just wrote must match
+  // either (a) an inventory property within 5%, (b) the lead's stated budget
+  // within 10% (budget echoes are fine), or (c) sit in a comparator/delta
+  // context (deltas like "₹5L over" are not price claims). When a price
+  // fails ALL three, we SOFT-FLAG: log to Sentry and append a tiny
+  // confirmation footer to the bot's reply rather than nuking the whole
+  // message. Production had a 3-turn-in-a-row "double-check" loop because
+  // the previous "replace the whole reply" behavior triggered on benign
+  // budget-echo / delta language.
+  const validation = validateReply(result.reply, properties, augmentedLead)
   if (!validation.valid) {
     Sentry.captureMessage('Reply contained a price not found in inventory', {
       level: 'warning',
       extra: { agentId, leadId, stage, quotedPrice: validation.price, reply: result.reply },
     })
-    result.reply = "Let me double-check the exact pricing on that and get back to you in a moment!"
+    if (!/confirm|double[\s-]?check/i.test(result.reply)) {
+      result.reply = result.reply.trimEnd() + "\n\n(Let me re-confirm the exact figure with the team.)"
+    }
   }
 
   // Fact guard: catches fabricated possession dates, direction/vastu claims,
