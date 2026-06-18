@@ -57,7 +57,7 @@ export async function sendHighPriorityAlert(
       if (!waId) {
         const integrated = String(agent.msg91_integrated_number || opts.msg91IntegratedNumber || '').replace(/\D/g, '')
         if (integrated) {
-          waId = await sendViaMsg91(integrated, agentPhone, opts.whatsappText)
+          waId = (await sendViaMsg91(integrated, agentPhone, opts.whatsappText)).id
         } else if (agent.wa_phone_number_id && agent.wa_access_token) {
           waId = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, agentPhone, opts.whatsappText)
         }

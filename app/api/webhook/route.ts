@@ -6,8 +6,10 @@ export const maxDuration = 60
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { generateBotReply } from '@/lib/gemini'
-import { sendWhatsAppMessage, sendViaMsg91, sendViaMsg91Media, sendMetaImage } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, sendViaMsg91, sendViaMsg91Media, sendMetaImage, sendWithRetry, sendViaMsg91Template, deductWABalance } from '@/lib/whatsapp'
 import { wantsPhotos, botPromisedPhotos, extractPropertyMedia, MAX_IMAGES_PER_SEND } from '@/lib/media'
+import { buildAgentContactCard } from '@/lib/fallbackCard'
+import { callLLM } from '@/lib/llm'
 import { parseBudgetRupees, isGrosslyOffBudget } from '@/lib/budgetParse'
 import { shouldBotReply } from '@/lib/botGating'
 import { resolveAppointmentTime, formatIST } from '@/lib/appointment'
@@ -307,6 +309,12 @@ export async function POST(request: NextRequest) {
         window_nudge_count: 0, last_nudge_at: null,
         template_touches: 0, last_template_at: null, nurture_state: 'active',
       }).eq('id', lead.id)
+      // Also reset nurture-flow v2 state (a reply restarts the timeline in-window).
+      // Separate + tolerant: these columns may not exist until 02_nurture_flow.sql
+      // is applied — a failure here must not break inbound handling.
+      try {
+        await supabaseAdmin.from('leads').update({ nurture_plan: null, plan_d_touches: 0 }).eq('id', lead.id)
+      } catch { /* columns not present yet — safe to ignore */ }
     }
     setContext({ leadId: lead.id })
     Sentry.setContext('webhook', { traceId, agentId: agent.id, leadId: lead.id })
@@ -385,11 +393,25 @@ export async function POST(request: NextRequest) {
         lead_id: lead.id, agent_id: agent.id, direction: 'outbound', content: safeReply, sent_by: 'bot',
       }).select('id').single()
       try {
-        let wid: string | null
-        if (incomingProvider === 'msg91') wid = await sendViaMsg91(msg91IntegratedNumber, fromPhone, safeReply)
-        else wid = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, safeReply)
-        if (wid && gOut?.id) await supabaseAdmin.from('messages').update({ wa_message_id: wid }).eq('id', gOut.id)
-      } catch (e: any) { log('guardrail_send_failed', { error: e?.message }) }
+        let wid: string | null = null
+        let gErr: string | null = null
+        if (incomingProvider === 'msg91') { const r = await sendWithRetry(() => sendViaMsg91(msg91IntegratedNumber, fromPhone, safeReply)); wid = r.id; gErr = r.error }
+        else { wid = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, safeReply); if (!wid) gErr = 'meta_send_returned_null' }
+        if (gOut?.id) {
+          if (wid) await supabaseAdmin.from('messages').update({ wa_message_id: wid }).eq('id', gOut.id)
+          else {
+            // Send rejected — record reason for superadmins only (item #1).
+            await supabaseAdmin.from('messages').update({
+              status: 'failed', delivery_status: 'failed',
+              delivery_error: (gErr || 'send_failed').slice(0, 500),
+              delivery_updated_at: new Date().toISOString(),
+            }).eq('id', gOut.id)
+            Sentry.captureMessage('WhatsApp guardrail reply send failed', {
+              level: 'error', extra: { agentId: agent.id, leadId: lead.id, reason: gErr },
+            })
+          }
+        }
+      } catch (e: any) { logError('guardrail_send_failed', { error: e?.message }) }
       await supabaseAdmin.from('activity_log').insert({
         agent_id: agent.id, lead_id: lead.id, type: 'guardrail',
         title: `Guardrail: ${inboundSignals.guardrail}`, description: messageText.slice(0, 140),
@@ -720,6 +742,23 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // ── Safe fallback CARD (messaging plan #3) ──────────────────────────────
+    // When the bot can't safely answer, don't guess — reply with the agent's
+    // contact card instead. Triggers:
+    //   • engine fully down (both LLMs failed), or
+    //   • the bot couldn't answer the question (knowledge gap / deferral).
+    // The ORIGINAL engine reply is preserved (engineReply) so the knowledge-gap
+    // recorder below still learns the right Q→A. (Price/possession fabrications
+    // are already handled honestly inside the engine via validateReply/factGuard.)
+    const engineReply = reply
+    const isKnowledgeGap = !engineFallback && detectReplyKnowledgeGap(reply)
+    const fallbackReason: 'engine_down' | 'knowledge_gap' | null =
+      engineFallback ? 'engine_down' : (isKnowledgeGap ? 'knowledge_gap' : null)
+    if (fallbackReason) {
+      reply = buildAgentContactCard(agent)
+      log('fallback_card_used', { reason: fallbackReason })
+    }
+
     // Save bot reply to DB first — ensures simulation mode always shows the reply
     const { data: outboundMsg } = await supabaseAdmin.from('messages').insert({
       lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
@@ -728,22 +767,45 @@ export async function POST(request: NextRequest) {
 
     // Then attempt WhatsApp delivery (non-blocking — simulation works even if this fails)
     try {
-      let outWaId: string | null
+      let outWaId: string | null = null
+      let sendError: string | null = null
       if (incomingProvider === 'msg91') {
-        outWaId = await sendViaMsg91(msg91IntegratedNumber, fromPhone, reply)
+        // Retry momentary glitches up to 2 extra times (item #2); permanent
+        // rejections (bad number / closed window) fail fast and fall to #1/#4.
+        const r = await sendWithRetry(() => sendViaMsg91(msg91IntegratedNumber, fromPhone, reply))
+        outWaId = r.id; sendError = r.error
       } else {
-        const toPhone = fromPhone
-        outWaId = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, toPhone, reply)
+        outWaId = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, reply)
+        if (!outWaId) sendError = 'meta_send_returned_null'
       }
-      if (outWaId && outboundMsg?.id) {
-        // Stamp the exact row we just inserted (order/limit are not valid on updates).
-        await supabaseAdmin.from('messages')
-          .update({ wa_message_id: outWaId })
-          .eq('id', outboundMsg.id)
+      if (outboundMsg?.id) {
+        if (outWaId) {
+          // Stamp the exact row we just inserted (order/limit are not valid on updates).
+          await supabaseAdmin.from('messages').update({ wa_message_id: outWaId }).eq('id', outboundMsg.id)
+        } else {
+          // The send was REJECTED. Record the real reason so WE (superadmins) can see
+          // and fix it — this is NOT shown to the agent (the inbox doesn't render
+          // message delivery status). Messaging-reliability item #1. (Retries + agent
+          // alerts + after-24h template fallback are later items, not done here.)
+          await supabaseAdmin.from('messages').update({
+            status: 'failed', delivery_status: 'failed',
+            delivery_error: (sendError || 'send_failed').slice(0, 500),
+            delivery_updated_at: new Date().toISOString(),
+          }).eq('id', outboundMsg.id)
+        }
       }
-      log('whatsapp_sent', { waMessageId: outWaId })
+      if (outWaId) {
+        log('whatsapp_sent', { waMessageId: outWaId })
+      } else {
+        logError('whatsapp_send_failed', { reason: sendError })
+        Sentry.captureMessage('WhatsApp reply send failed', {
+          level: 'error',
+          extra: { agentId: agent.id, leadId: lead.id, provider: incomingProvider, reason: sendError, messageRowId: outboundMsg?.id },
+        })
+      }
     } catch (waErr: any) {
-      log('whatsapp_send_failed', { error: waErr.message, note: 'simulation mode OK' })
+      logError('whatsapp_send_failed', { error: waErr.message })
+      Sentry.captureException(waErr, { extra: { agentId: agent.id, leadId: lead.id, where: 'reply_send' } })
     }
 
     // Atomic increment — avoids the lost-update race where two concurrent webhooks
@@ -811,13 +873,23 @@ export async function POST(request: NextRequest) {
           for (let i = 0; i < media.length; i++) {
             const caption = i === 0 ? (prop.title || 'Property') : undefined
             let mid: string | null = null
-            if (incomingProvider === 'msg91') mid = await sendViaMsg91Media(msg91IntegratedNumber, fromPhone, media[i], caption)
-            else mid = await sendMetaImage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, media[i], caption)
+            let mErr: string | null = null
+            if (incomingProvider === 'msg91') { const r = await sendWithRetry(() => sendViaMsg91Media(msg91IntegratedNumber, fromPhone, media[i], caption)); mid = r.id; mErr = r.error }
+            else { mid = await sendMetaImage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, media[i], caption); if (!mid) mErr = 'meta_media_returned_null' }
             log('photo_send_result', { index: i + 1, total: media.length, ok: !!mid })
             await supabaseAdmin.from('messages').insert({
               lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
               content: `[photo] ${prop.title || ''}`.trim(), sent_by: 'bot',
               wa_message_id: typeof mid === 'string' ? mid : null,
+              // Record a failed photo send for superadmins only (item #1).
+              ...(mid ? {} : {
+                status: 'failed', delivery_status: 'failed',
+                delivery_error: (mErr || 'send_failed').slice(0, 500),
+                delivery_updated_at: new Date().toISOString(),
+              }),
+            })
+            if (!mid) Sentry.captureMessage('WhatsApp photo send failed', {
+              level: 'warning', extra: { agentId: agent.id, leadId: lead.id, reason: mErr, propertyId: prop.id },
             })
           }
         } else {
@@ -836,9 +908,12 @@ export async function POST(request: NextRequest) {
       const priorities: PrioritySignal[] = [...inboundSignals.priorities]
       if (metadata.appointment_booked_time) priorities.push('visit_booked')
       if ((metadata.score || 0) >= 8 && !priorities.includes('very_interested')) priorities.push('very_interested')
-      if (detectReplyKnowledgeGap(reply) && !priorities.includes('knowledge_gap')) {
+      // Use the precomputed gap flag — `reply` may now be the fallback card, so
+      // re-detecting on it would miss the gap. Record the ORIGINAL deferral
+      // (engineReply) so the agent/superadmin sees what the bot actually said.
+      if (isKnowledgeGap && !priorities.includes('knowledge_gap')) {
         priorities.push('knowledge_gap')
-        recordKnowledgeGap(agent.id, lead.id, messageText, reply).catch(err => Sentry.captureException(err))
+        recordKnowledgeGap(agent.id, lead.id, messageText, engineReply).catch(err => Sentry.captureException(err))
       }
 
       const sig = topSignal(priorities)
@@ -852,7 +927,7 @@ export async function POST(request: NextRequest) {
           const content = buildAlertContent(sig, {
             leadName: lead.name || metadata.name, leadPhone: lead.phone,
             agentName: agent.name, lastMessage: messageText,
-            botReply: sig === 'knowledge_gap' ? reply : null,
+            botReply: sig === 'knowledge_gap' ? engineReply : null,
           })
           await sendHighPriorityAlert(agent, {
             subject: content.subject, html: content.html,
@@ -868,6 +943,94 @@ export async function POST(request: NextRequest) {
       }
     } catch (alertErr: any) {
       logError('priority_alert_failed', { error: alertErr?.message })
+    }
+
+    // ── 3b. Bot-fallback escalation (the card was shown → bot couldn't answer) ──
+    // For US (superadmins) to investigate + train the bot. Records a /admin event
+    // (read by the superadmin panel — item 3c) with the last 2-3 messages + a
+    // short AI "what likely went wrong" summary, and emails the superadmin desk.
+    // Agent notification: knowledge_gap already alerts the agent via the priority
+    // alert above (email + WhatsApp template); engine-down also emails the agent.
+    // All best-effort — never blocks the customer reply.
+    if (fallbackReason) {
+      try {
+        const { data: recent } = await supabaseAdmin.from('messages')
+          .select('direction, content, created_at').eq('lead_id', lead.id)
+          .order('created_at', { ascending: false }).limit(3)
+        const lastMessages = (recent || []).reverse().map((m: any) => ({
+          from: m.direction === 'inbound' ? 'customer' : 'bot', text: (m.content || '').slice(0, 300),
+        }))
+
+        // Short AI summary of the likely cause (best-effort; falls back to a default).
+        let aiSummary = ''
+        try {
+          const convo = lastMessages.map(m => `${m.from}: ${m.text}`).join('\n')
+          aiSummary = (await callLLM(
+            [
+              { role: 'system', content: 'You are a QA assistant for a real-estate WhatsApp bot. In ONE short sentence, state the most likely reason the bot could not answer, so the team can fix/train it. Be specific and practical.' },
+              { role: 'user', content: `Reason flag: ${fallbackReason}\n\nConversation:\n${convo}\n\nCustomer's last message: ${messageText}` },
+            ],
+            { maxTokens: 80, deadlineMs: 12000 },
+          )).slice(0, 300)
+        } catch {
+          aiSummary = fallbackReason === 'engine_down'
+            ? 'AI engine was unavailable (both providers failed).'
+            : "Bot had no confident answer for the customer's question."
+        }
+
+        await supabaseAdmin.from('activity_log').insert({
+          agent_id: agent.id, lead_id: lead.id, type: 'bot_fallback',
+          title: fallbackReason === 'engine_down' ? 'Bot fallback: engine down' : 'Bot fallback: could not answer',
+          description: messageText.slice(0, 140),
+          metadata: { reason: fallbackReason, question: messageText.slice(0, 500), botReply: engineReply.slice(0, 500), lastMessages, aiSummary },
+        })
+
+        const { sendEmail } = await import('@/lib/email')
+        const esc = (s: string) => String(s || '').replace(/[<>]/g, '')
+        const convoHtml = lastMessages.map(m => `<p style="margin:2px 0"><strong>${m.from}:</strong> ${esc(m.text)}</p>`).join('')
+        // Superadmin desk — always.
+        await sendEmail({
+          to: 'support@convorian.in',
+          subject: `🤖 Bot fallback (${fallbackReason}) — ${esc(agent.agency_name || agent.name || agent.id)}`,
+          html: `<p><strong>Agency:</strong> ${esc(agent.agency_name || agent.name || agent.id)}</p>`
+            + `<p><strong>Reason:</strong> ${fallbackReason}</p>`
+            + `<p><strong>Likely cause:</strong> ${esc(aiSummary)}</p>`
+            + `<p><strong>Last messages:</strong></p>${convoHtml}`
+            + `<p style="color:#888;font-size:12px">Lead ${lead.id} · agent ${agent.id}</p>`,
+        }).catch(() => {})
+        // Agent email for engine-down (knowledge_gap already emailed the agent above).
+        if (fallbackReason === 'engine_down' && agent.email) {
+          await sendEmail({
+            to: agent.email,
+            subject: `Action needed: your AI assistant had a tech issue on a lead`,
+            html: `<p>Hi ${esc(agent.name || '')},</p><p>Your Convorian assistant hit a brief technical issue and couldn't reply to <strong>${esc(lead.name || lead.phone)}</strong>. We've shared your contact card with them — please reach out directly so the lead isn't lost.</p>`,
+          }).catch(() => {})
+        }
+
+        // Agent WhatsApp handoff via the approved `agent_bot_handoff` template.
+        // Sent from the AGENT's own MSG91 number → billed to the AGENT (their lead,
+        // their work). Numbered template vars in order: agent_name, customer_name,
+        // customer_phone, question. Credits-gated; best-effort.
+        try {
+          const HANDOFF_TEMPLATE = process.env.MSG91_AGENT_HANDOFF_TEMPLATE || 'agent_bot_handoff'
+          const agentPhone = String(agent.phone || '').replace(/\D/g, '')
+          const HANDOFF_COST = Number(process.env.MSG91_TEMPLATE_COST || '1')
+          if (agent.msg91_integrated_number && agentPhone && Number(agent.wa_balance || 0) >= HANDOFF_COST) {
+            const vals = [
+              (agent.name || 'there').trim().split(/\s+/)[0] || 'there',
+              lead.name || 'a lead',
+              lead.phone || '',
+              messageText.slice(0, 160),
+            ]
+            const rid = await sendViaMsg91Template(agent.msg91_integrated_number, agentPhone, HANDOFF_TEMPLATE, vals, 'en')
+            if (rid) await deductWABalance(agent.id, HANDOFF_COST, `Agent handoff alert — ${lead.name || lead.phone}`, HANDOFF_TEMPLATE, lead.id)
+          }
+        } catch (hErr: any) { logError('agent_handoff_whatsapp_failed', { error: hErr?.message }) }
+
+        log('bot_fallback_escalated', { reason: fallbackReason })
+      } catch (escErr: any) {
+        logError('bot_fallback_escalation_failed', { error: escErr?.message })
+      }
     }
 
     log('webhook_done', { durationMs: Date.now() - tStart })

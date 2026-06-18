@@ -9,6 +9,58 @@ import { supabaseAdmin } from './supabase'
 const WA_API_VERSION = 'v19.0'
 const WA_BASE_URL = `https://graph.facebook.com/${WA_API_VERSION}`
 
+// Result of an MSG91 send: the provider message id on success, or the real
+// failure reason on rejection. Previously these helpers returned just `string |
+// null`, throwing away WHY a send failed — so a rejected reply looked identical
+// to a sent one and nobody could see it. See messaging-reliability item #1.
+// `retryable` marks failures worth retrying (momentary glitches) — item #2.
+export type SendOutcome = { id: string | null; error: string | null; retryable?: boolean }
+
+// Extract a short, human-readable reason from an axios/MSG91 error.
+export function msg91ErrorReason(err: any): string {
+  const data = err?.response?.data
+  if (data) {
+    if (typeof data === 'string') return data.slice(0, 300)
+    const msg = data.message || data.error || data.errors
+    return (typeof msg === 'string' ? msg : JSON.stringify(data)).slice(0, 300)
+  }
+  return String(err?.message || 'unknown send error').slice(0, 300)
+}
+
+// Is a failed send worth retrying? Only momentary glitches — NOT permanent
+// rejections. A permanent 4xx (bad/blocked number, closed window, unapproved
+// template) will fail identically on retry, so retrying just wastes time and
+// risks a duplicate; we go straight to "inform" (item #4) for those.
+//   • no HTTP response (network/DNS/timeout)  → retry
+//   • 429 (rate limited) or 5xx (server)       → retry
+//   • any other 4xx                            → don't retry (permanent)
+export function isRetryableSendError(err: any): boolean {
+  const status = err?.response?.status
+  if (status === undefined || status === null) return true
+  if (status === 429 || status >= 500) return true
+  return false
+}
+
+// Run a send up to `attempts` times, pausing `gapMs` between tries, but ONLY
+// retrying momentary-glitch failures. Returns as soon as it succeeds, or on the
+// first permanent failure. Pure/testable — the send fn is injected. Item #2.
+export async function sendWithRetry(
+  send: () => Promise<SendOutcome>,
+  opts: { attempts?: number; gapMs?: number; sleep?: (ms: number) => Promise<void> } = {}
+): Promise<SendOutcome> {
+  const attempts = opts.attempts ?? 3 // 1 initial + 2 retries
+  const gapMs = opts.gapMs ?? 1200
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>(r => setTimeout(r, ms)))
+  let last: SendOutcome = { id: null, error: 'not attempted' }
+  for (let i = 0; i < attempts; i++) {
+    last = await send()
+    if (last.id) return last            // delivered to the provider — done
+    if (last.retryable === false) return last // permanent — don't waste retries
+    if (i < attempts - 1) await sleep(gapMs)
+  }
+  return last
+}
+
 // ─── Send plain text message ──────────────────────────────────────────────────
 export async function sendWhatsAppMessage(
   phoneNumberId: string,  // Meta phone_number_id
@@ -57,10 +109,10 @@ export async function sendViaMsg91(
   integratedNumber: string,
   toPhone: string,
   message: string
-): Promise<string | null> {
+): Promise<SendOutcome> {
   try {
     const authkey = process.env.MSG91_AUTHKEY
-    if (!authkey) { console.error('MSG91 send: MSG91_AUTHKEY not set'); return null }
+    if (!authkey) { console.error('MSG91 send: MSG91_AUTHKEY not set'); return { id: null, error: 'MSG91_AUTHKEY not set', retryable: false } }
     const to = toPhone.replace(/^\+/, '')
     // NOTE: the /bulk/ variant of this endpoint accepts ONLY templates
     // ("for now, only template is supported for bulk"). Free-text session
@@ -88,10 +140,12 @@ export async function sendViaMsg91(
     // delivery-report webhook (matched by wa_message_id) can attribute reports.
     // The old order returned 'sent' for every send, making delivery reports
     // un-matchable (we were blind to failures).
-    return res.data?.data?.message_uuid || res.data?.data?.[0]?.requestId || res.data?.requestId || res.data?.request_id || 'sent'
+    const id = res.data?.data?.message_uuid || res.data?.data?.[0]?.requestId || res.data?.requestId || res.data?.request_id || 'sent'
+    return { id, error: null }
   } catch (err: any) {
-    console.error('MSG91 send ERROR:', JSON.stringify(err?.response?.data || err?.message).slice(0, 600))
-    return null
+    const reason = msg91ErrorReason(err)
+    console.error('MSG91 send ERROR:', reason)
+    return { id: null, error: reason, retryable: isRetryableSendError(err) }
   }
 }
 
@@ -107,11 +161,11 @@ export async function sendViaMsg91Media(
   toPhone: string,
   mediaUrl: string,
   caption?: string
-): Promise<string | null> {
+): Promise<SendOutcome> {
   try {
     const authkey = process.env.MSG91_AUTHKEY
-    if (!authkey) { console.error('MSG91 media: MSG91_AUTHKEY not set'); return null }
-    if (!/^https?:\/\//i.test(mediaUrl)) { console.error('MSG91 media: invalid url', mediaUrl); return null }
+    if (!authkey) { console.error('MSG91 media: MSG91_AUTHKEY not set'); return { id: null, error: 'MSG91_AUTHKEY not set', retryable: false } }
+    if (!/^https?:\/\//i.test(mediaUrl)) { console.error('MSG91 media: invalid url', mediaUrl); return { id: null, error: 'invalid media url', retryable: false } }
     const to = toPhone.replace(/^\+/, '')
     const res = await axios.post(
       'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/',
@@ -128,10 +182,12 @@ export async function sendViaMsg91Media(
     // Capture data.message_uuid FIRST (see sendViaMsg91) so media delivery
     // reports can be matched to the [photo] message row and we can finally see
     // why a photo failed to deliver instead of guessing.
-    return res.data?.data?.message_uuid || res.data?.data?.[0]?.requestId || res.data?.requestId || res.data?.request_id || 'sent'
+    const id = res.data?.data?.message_uuid || res.data?.data?.[0]?.requestId || res.data?.requestId || res.data?.request_id || 'sent'
+    return { id, error: null }
   } catch (err: any) {
-    console.error('MSG91 media ERROR:', JSON.stringify(err?.response?.data || err?.message).slice(0, 600))
-    return null
+    const reason = msg91ErrorReason(err)
+    console.error('MSG91 media ERROR:', reason)
+    return { id: null, error: reason, retryable: isRetryableSendError(err) }
   }
 }
 
@@ -225,7 +281,7 @@ export async function sendViaMsg91Template(
 export async function sendToLead(agent: any, lead: any, message: string): Promise<string | null> {
   const integrated = String(agent?.msg91_integrated_number || '').replace(/\D/g, '')
   if (integrated) {
-    return sendViaMsg91(integrated, lead.phone, message)
+    return (await sendWithRetry(() => sendViaMsg91(integrated, lead.phone, message))).id
   }
   if (agent?.wa_phone_number_id && agent?.wa_access_token) {
     return sendViaMeta(agent.wa_phone_number_id, agent.wa_access_token, lead.phone, message)

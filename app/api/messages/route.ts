@@ -46,10 +46,12 @@ export async function POST(request: NextRequest) {
   }
 
   // Agents connected via MSG91 send through it; others via Meta Cloud API.
-  let waId: string | null
+  let waId: string | null = null
+  let sendError: string | null = null
   if (agent.msg91_integrated_number) {
-    const { sendViaMsg91 } = await import('@/lib/whatsapp')
-    waId = await sendViaMsg91(agent.msg91_integrated_number, body.phone, body.content)
+    const { sendViaMsg91, sendWithRetry } = await import('@/lib/whatsapp')
+    const r = await sendWithRetry(() => sendViaMsg91(agent.msg91_integrated_number, body.phone, body.content))
+    waId = r.id; sendError = r.error
   } else {
     const { sendWhatsAppMessage } = await import('@/lib/whatsapp')
     waId = await sendWhatsAppMessage(
@@ -58,6 +60,7 @@ export async function POST(request: NextRequest) {
       body.phone,
       body.content
     )
+    if (!waId) sendError = 'meta_send_returned_null'
   }
 
   const { data, error } = await supabaseAdmin
@@ -68,7 +71,13 @@ export async function POST(request: NextRequest) {
       direction: 'outbound',
       content: body.content,
       wa_message_id: waId,
-      sent_by: 'agent'
+      sent_by: 'agent',
+      // Record a rejected send (reason kept for superadmins). Item #1.
+      ...(waId ? {} : {
+        status: 'failed', delivery_status: 'failed',
+        delivery_error: (sendError || 'send_failed').slice(0, 500),
+        delivery_updated_at: new Date().toISOString(),
+      }),
     })
     .select()
     .single()
