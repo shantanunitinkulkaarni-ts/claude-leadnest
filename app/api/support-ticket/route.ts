@@ -3,13 +3,26 @@ export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { sendEmail } from '@/lib/email'
+import { checkRateLimit } from '@/lib/rateLimit'
 
 const SUPPORT_INBOX = 'support@convorian.in'
+
+// Public endpoint (logged-out users on /help can raise tickets), so it must be
+// abuse-capped: without this an attacker could flood support_tickets + spam the
+// team inbox (and torch our email sender reputation). Per-IP sliding window.
+const TICKET_IP_LIMIT = 5
+const TICKET_WINDOW_MS = 60_000
 
 // Raise a support ticket: store it + email the team. Public (logged-out users
 // on /help can use it too) — light validation, no auth required.
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || request.headers.get('x-real-ip') || 'unknown'
+    if (!checkRateLimit(`ticket:${ip}`, TICKET_IP_LIMIT, TICKET_WINDOW_MS).allowed) {
+      return NextResponse.json({ error: 'Too many requests. Please try again in a minute.' }, { status: 429 })
+    }
+
     const body = await request.json()
     const subject = String(body.subject || '').trim()
     const message = String(body.message || '').trim()

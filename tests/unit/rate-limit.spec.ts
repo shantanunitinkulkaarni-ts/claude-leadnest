@@ -41,3 +41,25 @@ test.describe('checkRateLimit', () => {
     expect(r.allowed).toBe(true)
   })
 })
+
+// Locks in the per-IP caps the public POST endpoints enforce, so an accidental
+// change to a limit shows up as a failing test. Mirrors the constants in
+// app/api/{support-ticket,support-feedback,notify-signup}/route.ts.
+test.describe('public endpoint rate-limit caps', () => {
+  test.beforeEach(() => _resetRateLimits())
+
+  const cases = [
+    { name: 'support-ticket', key: 'ticket:1.2.3.4', limit: 5 },
+    { name: 'support-feedback', key: 'feedback:1.2.3.4', limit: 20 },
+    { name: 'notify-signup', key: 'notify-signup:1.2.3.4', limit: 10 },
+  ]
+
+  for (const c of cases) {
+    test(`${c.name}: allows ${c.limit}/min/IP then blocks the next`, () => {
+      for (let i = 0; i < c.limit; i++) {
+        expect(checkRateLimit(c.key, c.limit, 60_000, 1000).allowed).toBe(true)
+      }
+      expect(checkRateLimit(c.key, c.limit, 60_000, 1000).allowed).toBe(false)
+    })
+  }
+})

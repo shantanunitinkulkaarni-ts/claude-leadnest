@@ -49,8 +49,24 @@ async function handle(body: any) {
   return { ok: true, matched }
 }
 
+// Shared-secret gate. MSG91's delivery webhook can't send a custom header, so we
+// authenticate via a secret URL query param (?token=...). Rollout is safe: while
+// MSG91_STATUS_SECRET is UNSET the endpoint stays open (unchanged behaviour);
+// once it's set in Vercel AND the MSG91 delivery-report URL is updated to include
+// ?token=<secret>, all unauthenticated callers (fake delivered/failed reports)
+// get 401'd. Without this, anyone could POST bogus delivery statuses for any msg.
+function statusAuthed(request: NextRequest): boolean {
+  const secret = process.env.MSG91_STATUS_SECRET
+  if (!secret) return true // not configured yet — see note above
+  const token = request.nextUrl.searchParams.get('token')
+  return token === secret
+}
+
 export async function POST(request: NextRequest) {
   try {
+    if (!statusAuthed(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
     let body: any
     const ct = request.headers.get('content-type') || ''
     if (ct.includes('application/json')) {

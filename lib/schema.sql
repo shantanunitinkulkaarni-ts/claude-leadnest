@@ -1,5 +1,9 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- ⚠️  STALE — DO NOT USE THIS FILE TO BOOTSTRAP A FRESH DB.
+-- ⚠️  STALE / LEGACY — NOT THE SOURCE OF TRUTH.
+--
+-- 👉 The canonical, up-to-date schema is `db/schema.sql` (generated from the LIVE
+--    database). See `db/README.md` for how to change the schema. This file is a
+--    v1 snapshot kept only so old references don't break — do not trust it.
 --
 -- This is a v1 snapshot from the early days of LeadNest/Convorian. The actual
 -- live schema is the cumulative result of THIS file PLUS the 25+ migration
