@@ -6,7 +6,7 @@ export const maxDuration = 60
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { generateBotReply } from '@/lib/gemini'
-import { sendWhatsAppMessage, sendViaMsg91, sendViaMsg91Media, sendMetaImage, sendWithRetry } from '@/lib/whatsapp'
+import { sendWhatsAppMessage, sendViaMsg91, sendViaMsg91Media, sendMetaImage, sendWithRetry, sendViaMsg91Template, deductWABalance } from '@/lib/whatsapp'
 import { wantsPhotos, botPromisedPhotos, extractPropertyMedia, MAX_IMAGES_PER_SEND } from '@/lib/media'
 import { buildAgentContactCard } from '@/lib/fallbackCard'
 import { callLLM } from '@/lib/llm'
@@ -1006,6 +1006,27 @@ export async function POST(request: NextRequest) {
             html: `<p>Hi ${esc(agent.name || '')},</p><p>Your Convorian assistant hit a brief technical issue and couldn't reply to <strong>${esc(lead.name || lead.phone)}</strong>. We've shared your contact card with them — please reach out directly so the lead isn't lost.</p>`,
           }).catch(() => {})
         }
+
+        // Agent WhatsApp handoff via the approved `agent_bot_handoff` template.
+        // Sent from the AGENT's own MSG91 number → billed to the AGENT (their lead,
+        // their work). Numbered template vars in order: agent_name, customer_name,
+        // customer_phone, question. Credits-gated; best-effort.
+        try {
+          const HANDOFF_TEMPLATE = process.env.MSG91_AGENT_HANDOFF_TEMPLATE || 'agent_bot_handoff'
+          const agentPhone = String(agent.phone || '').replace(/\D/g, '')
+          const HANDOFF_COST = Number(process.env.MSG91_TEMPLATE_COST || '1')
+          if (agent.msg91_integrated_number && agentPhone && Number(agent.wa_balance || 0) >= HANDOFF_COST) {
+            const vals = [
+              (agent.name || 'there').trim().split(/\s+/)[0] || 'there',
+              lead.name || 'a lead',
+              lead.phone || '',
+              messageText.slice(0, 160),
+            ]
+            const rid = await sendViaMsg91Template(agent.msg91_integrated_number, agentPhone, HANDOFF_TEMPLATE, vals, 'en')
+            if (rid) await deductWABalance(agent.id, HANDOFF_COST, `Agent handoff alert — ${lead.name || lead.phone}`, HANDOFF_TEMPLATE, lead.id)
+          }
+        } catch (hErr: any) { logError('agent_handoff_whatsapp_failed', { error: hErr?.message }) }
+
         log('bot_fallback_escalated', { reason: fallbackReason })
       } catch (escErr: any) {
         logError('bot_fallback_escalation_failed', { error: escErr?.message })
