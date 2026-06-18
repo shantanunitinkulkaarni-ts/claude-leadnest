@@ -6,6 +6,7 @@ import { sendAppointmentReminder, sendToLead, sendViaMsg91Template, deductWABala
 import { generateNudge } from '@/lib/gemini'
 import { runNurtureEmails } from '@/lib/nurture'
 import { decideOutreach, pickTemplate, renderTemplate } from '@/lib/outreach'
+import { decideNurtureStep, type NurturePlan } from '@/lib/nurtureFlow'
 
 export const maxDuration = 60
 
@@ -36,7 +37,17 @@ export async function GET(request: NextRequest) {
     const TEMPLATES_LIVE = process.env.MSG91_TEMPLATES_LIVE === 'true'
     const TEMPLATE_COST = Number(process.env.MSG91_TEMPLATE_COST || '1') // ₹ per send
 
-    if (withinQuietHours) {
+    // ── Nurture-flow v2 (full timeline engine) — DARK until flipped on. ──
+    // When NURTURE_FLOW_V2=true, the new engine (lib/nurtureFlow) drives BOTH the
+    // in-window nudges (3/6/12/23h) AND the post-window plans A→B→C→D, replacing
+    // sections 1 + 1b below. Off by default so prod behaviour is unchanged until
+    // reviewed on staging. Sections 2-4 (reminders, post-visit, emails) run either way.
+    const NURTURE_V2 = process.env.NURTURE_FLOW_V2 === 'true'
+    if (NURTURE_V2) {
+      await runNurtureFlowV2(now, TEMPLATES_LIVE, TEMPLATE_COST, results)
+    }
+
+    if (!NURTURE_V2 && withinQuietHours) {
       // Window still open (lead messaged in the last 24h), not closed/paused/opted-out.
       const windowOpenAfter = new Date(now - H(24)).toISOString()
       const { data: quietLeads } = await supabaseAdmin
@@ -111,7 +122,7 @@ export async function GET(request: NextRequest) {
     // (lib/outreach), capped by agent intensity, credits-gated. The right
     // template + language + named variables are chosen per lead by pickTemplate.
     // Gated by MSG91_TEMPLATES_LIVE so it can be flipped on after a test send.
-    if (TEMPLATES_LIVE && withinQuietHours) {
+    if (!NURTURE_V2 && TEMPLATES_LIVE && withinQuietHours) {
       const windowClosedBefore = new Date(now - H(24)).toISOString()
       const { data: dormantCandidates } = await supabaseAdmin
         .from('leads')
@@ -291,4 +302,105 @@ export async function GET(request: NextRequest) {
     console.error('Cron error:', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
+}
+
+// ── Nurture-flow v2 executor (used when NURTURE_FLOW_V2=true) ─────────────────
+// Drives both phases via the pure engine. In-window = free-text nudge (works in
+// the 24h window). Post-window = approved paid template for the chosen plan
+// (credits-gated). Plans whose template isn't approved yet are simply skipped
+// (logged) until the template exists — see planTemplateForFlow.
+type CronResults = { nudges: number; templates: number; reminders: number; errors: number; nurture: any }
+
+async function runNurtureFlowV2(nowMs: number, templatesLive: boolean, templateCost: number, results: CronResults) {
+  const { data: leads } = await supabaseAdmin
+    .from('leads')
+    .select('*, agents(*)')
+    .eq('bot_paused', false)
+    .eq('opted_in', true)
+    .or('nurture_state.is.null,nurture_state.eq.active')
+    .not('status', 'in', '("closed_won","closed_lost","visit_booked","visit_done")')
+    .not('last_message_at', 'is', null)
+    .limit(100)
+
+  for (const lead of (leads || []) as any[]) {
+    try {
+      const agent = lead.agents
+      if (!agent?.bot_active) continue
+
+      const decision = decideNurtureStep(lead, agent, nowMs)
+      if (!decision.send) continue
+
+      if (decision.phase === 'in_window') {
+        // Only nudge if it's our turn (lead hasn't already replied & is waiting).
+        const { data: lastMsg } = await supabaseAdmin
+          .from('messages').select('direction').eq('lead_id', lead.id)
+          .order('created_at', { ascending: false }).limit(1)
+        if (lastMsg?.[0]?.direction === 'inbound') continue
+
+        const intensity = decision.band <= 3 ? 'soft' : decision.band <= 12 ? 'value' : 'window_save'
+        const newCount = (lead.window_nudge_count || 0) + 1
+        const text = await generateNudge(agent.id, lead.id, intensity as any)
+        if (!text) {
+          await supabaseAdmin.from('leads').update({ window_nudge_count: newCount, last_nudge_at: new Date().toISOString() }).eq('id', lead.id)
+          continue
+        }
+        const waId = await sendToLead(agent, lead, text)
+        await supabaseAdmin.from('messages').insert({
+          lead_id: lead.id, agent_id: agent.id, direction: 'outbound', content: text, sent_by: 'bot', wa_message_id: waId || null,
+        })
+        await supabaseAdmin.from('leads').update({ window_nudge_count: newCount, last_nudge_at: new Date().toISOString() }).eq('id', lead.id)
+        await supabaseAdmin.from('activity_log').insert({
+          agent_id: agent.id, lead_id: lead.id, type: 'nudge_sent',
+          title: `Follow-up sent (in-window ${decision.band}h)`, description: text.slice(0, 140),
+        })
+        results.nudges++
+      } else {
+        // Post-window: approved paid template only.
+        if (!templatesLive) continue
+        if (!agent.msg91_integrated_number) continue
+        if (Number(agent.wa_balance || 0) < templateCost) continue
+
+        let lang = lead.language || 'en'
+        if (!lead.language) {
+          const { data: lastIn } = await supabaseAdmin.from('messages').select('content').eq('lead_id', lead.id).eq('direction', 'inbound').order('created_at', { ascending: false }).limit(1)
+          if (/[ऀ-ॿ]/.test(lastIn?.[0]?.content || '')) lang = 'hi'
+        }
+        const tmpl = planTemplateForFlow(decision.plan, lead, agent, lang)
+        if (!tmpl) {
+          // Plan's template not approved yet (e.g. open-question / offer). Skip the
+          // send; the lead waits here until the template exists. Logged for visibility.
+          console.log(`[nurture-v2] plan ${decision.plan} template pending approval — lead ${lead.id} held`)
+          continue
+        }
+        const reqId = await sendViaMsg91Template(agent.msg91_integrated_number, lead.phone, tmpl.name, tmpl.values, tmpl.language)
+        if (!reqId) { results.errors++; continue }
+        await deductWABalance(agent.id, templateCost, `Nurture plan ${decision.plan} (${tmpl.name}) — ${lead.name || lead.phone}`, tmpl.name, lead.id)
+        await supabaseAdmin.from('messages').insert({
+          lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
+          content: renderTemplate(tmpl.name, tmpl.language, tmpl.values), sent_by: 'bot',
+          wa_message_id: typeof reqId === 'string' ? reqId : null,
+        })
+        const upd: any = { nurture_plan: decision.plan, last_template_at: new Date().toISOString() }
+        if (decision.plan === 'D') upd.plan_d_touches = (lead.plan_d_touches || 0) + 1
+        await supabaseAdmin.from('leads').update(upd).eq('id', lead.id)
+        await supabaseAdmin.from('activity_log').insert({
+          agent_id: agent.id, lead_id: lead.id, type: 'template_sent',
+          title: `Nurture plan ${decision.plan} sent`, description: `${tmpl.name} (${tmpl.language})`,
+        })
+        results.templates++
+      }
+    } catch (e) {
+      results.errors++
+      console.error('[nurture-v2] error for lead', lead.id, e)
+    }
+  }
+}
+
+// Map a post-window plan to an approved template. Plans B (open question) and C
+// (offer) need their own templates approved in MSG91 first — until then they
+// return null and the lead waits. A (re-approach) and D (routine) reuse the
+// already-approved suite via pickTemplate.
+function planTemplateForFlow(plan: NurturePlan, lead: any, agent: any, lang: string) {
+  if (plan === 'A' || plan === 'D') return pickTemplate(lead, agent, lang)
+  return null // B / C: pending template approval (agent_open_question / agent_offer)
 }

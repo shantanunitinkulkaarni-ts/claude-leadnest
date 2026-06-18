@@ -308,6 +308,12 @@ export async function POST(request: NextRequest) {
         window_nudge_count: 0, last_nudge_at: null,
         template_touches: 0, last_template_at: null, nurture_state: 'active',
       }).eq('id', lead.id)
+      // Also reset nurture-flow v2 state (a reply restarts the timeline in-window).
+      // Separate + tolerant: these columns may not exist until 02_nurture_flow.sql
+      // is applied — a failure here must not break inbound handling.
+      try {
+        await supabaseAdmin.from('leads').update({ nurture_plan: null, plan_d_touches: 0 }).eq('id', lead.id)
+      } catch { /* columns not present yet — safe to ignore */ }
     }
     setContext({ leadId: lead.id })
     Sentry.setContext('webhook', { traceId, agentId: agent.id, leadId: lead.id })
