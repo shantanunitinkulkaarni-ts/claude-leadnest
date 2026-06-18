@@ -6,7 +6,7 @@
 -- to change the schema, write a numbered migration in db/migrations/, apply it
 -- to the live DB, then regenerate this file. See db/README.md.
 --
--- Tables: 15. RLS + policies + grants summarized at the bottom.
+-- Tables: 14. RLS + policies summarized at the bottom.
 -- ============================================================================
 
 
@@ -298,20 +298,6 @@ create table if not exists wa_transactions (
 --   fk: agent_id -> agents(id) on delete cascade
 --   fk: lead_id -> leads(id) on delete no action
 
--- ─── waitlist ────────────────────────────────────────────────────
-create table if not exists waitlist (
-  id uuid not null default uuid_generate_v4(),
-  name text not null,
-  email text not null,
-  phone text not null,
-  agency_name text,
-  current_crm text,
-  pain_points text,
-  feature_requests text,
-  created_at timestamptz default now(),
-  primary key (id)
-);
-
 
 -- ============================================================================
 -- INDEXES
@@ -357,7 +343,6 @@ CREATE UNIQUE INDEX support_chat_logs_pkey ON public.support_chat_logs USING btr
 CREATE UNIQUE INDEX support_tickets_pkey ON public.support_tickets USING btree (id);
 CREATE UNIQUE INDEX team_members_pkey ON public.team_members USING btree (id);
 CREATE UNIQUE INDEX wa_transactions_pkey ON public.wa_transactions USING btree (id);
-CREATE UNIQUE INDEX waitlist_pkey ON public.waitlist USING btree (id);
 
 
 -- ============================================================================
@@ -374,10 +359,9 @@ CREATE UNIQUE INDEX waitlist_pkey ON public.waitlist USING btree (id);
 -- RLS ON   subscription_events
 -- RLS ON   superadmins
 -- RLS ON   support_chat_logs
--- RLS OFF  support_tickets
+-- RLS ON   support_tickets
 -- RLS ON   team_members
 -- RLS ON   wa_transactions
--- RLS OFF  waitlist
 
 -- policy agents.Authenticated users can create workspaces [INSERT] roles={authenticated}
 --    USING -  WITH CHECK true
@@ -421,6 +405,12 @@ CREATE UNIQUE INDEX waitlist_pkey ON public.waitlist USING btree (id);
   WHERE (team_members.auth_user_id = auth.uid())))
 -- policy superadmins.Read own superadmin row [SELECT] roles={public}
 --    USING (auth_user_id = auth.uid())  WITH CHECK -
+-- policy support_tickets.tenant_all_support_tickets [ALL] roles={authenticated}
+--    USING (agent_id IN ( SELECT team_members.agent_id
+   FROM team_members
+  WHERE (team_members.auth_user_id = auth.uid())))  WITH CHECK (agent_id IN ( SELECT team_members.agent_id
+   FROM team_members
+  WHERE (team_members.auth_user_id = auth.uid())))
 -- policy team_members.Delete team members safely [DELETE] roles={authenticated}
 --    USING is_agency_admin(agent_id)  WITH CHECK -
 -- policy team_members.Insert team members safely [INSERT] roles={authenticated}

@@ -31,9 +31,10 @@ hand-applied migrations from before this folder existed. They are kept for the r
 
 ## Known facts (captured at first introspection)
 
-- Tables (15): agents, leads, messages, properties, appointments, wa_transactions,
+- Tables (14): agents, leads, messages, properties, appointments, wa_transactions,
   activity_log, knowledge_gaps, subscription_events, support_chat_logs, support_tickets,
-  team_members, superadmins, demo_rate_limits, waitlist.
+  team_members, superadmins, demo_rate_limits. (The legacy `waitlist` table was
+  dropped in `db/migrations/01_data_safety.sql` — feature removed.)
 - `service_role` has full privileges on every table (the server runs as `service_role`, which
   bypasses RLS — so RLS is defense-in-depth, and the **real** tenant isolation is the
   `requireAgentAccess`/`requireLeadAccess` guards in `lib/apiAuth.ts`).

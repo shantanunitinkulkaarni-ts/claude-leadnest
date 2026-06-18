@@ -9,7 +9,8 @@
 --   🔴 waitlist        : RLS OFF *and* anon+authenticated had FULL CRUD grants.
 --                        The anon key ships in client JS → anyone on the internet
 --                        could read/insert/update/DELETE every waitlist row
---                        (name/email/phone). 1 row present at audit time.
+--                        (name/email/phone). Dead feature (the /waitlist route was
+--                        removed; the page only redirected to /onboarding).
 --   🟠 support_tickets : RLS OFF. Not currently readable via API (anon/authenticated
 --                        lack a SELECT grant) but inconsistent — enable for defence
 --                        in depth.
@@ -18,13 +19,10 @@
 -- properties) already have RLS on + tenant_all_* policies.
 -- ============================================================================
 
--- ── waitlist: revoke public access + enable RLS (default-deny) ───────────────
--- (Table is legacy/disabled — /waitlist redirects to /onboarding — but the row(s)
---  are real PII. We lock it rather than drop it so the emails aren't lost.)
-revoke all on table waitlist from anon;
-revoke all on table waitlist from authenticated;
-alter table waitlist enable row level security;
--- No policy for anon/authenticated → default-deny. service_role still bypasses RLS.
+-- ── waitlist: DROP the table entirely (founder decision) ─────────────────────
+-- The waitlist feature is gone (route + page removed). Dropping the table closes
+-- the public-exposure hole for good — no table, nothing to expose.
+drop table if exists waitlist;
 
 -- ── support_tickets: enable RLS + tenant-scoped policy (defence in depth) ────
 alter table support_tickets enable row level security;

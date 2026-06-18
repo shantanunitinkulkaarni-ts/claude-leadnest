@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import '../app/waitlist/waitlist.css'
+import './LiveChatDemo.css'
 
 const WELCOME_MESSAGES: Record<string, string> = {
   'English': "Hi! I'm Aisha, your AI assistant for The Azure Villas. How can I help you today?",
