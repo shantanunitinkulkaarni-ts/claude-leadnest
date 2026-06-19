@@ -92,9 +92,23 @@ export function noMatchText(): string {
 
 // Nearby intro — produces the prefix when properties come from adjacent areas.
 // Example: "I don't have anything in Baner right now, but here's Aundh:"
+// Stable marker phrases — used BOTH to build the intro and to detect it later
+// (the orchestrator's follow-up check). Co-located so the two can never drift
+// apart (a test pins the round-trip: nearbyIntro() output → isNearbyIntro() true).
+const NEARBY_INTRO_HEAD = "I don't have anything in"
+const NEARBY_INTRO_TAIL = 'but here are'
+
 export function nearbyIntro(requestedAreas: string[], nearbyAreas: string[]): string {
   const requested = (requestedAreas || []).map(a => a.replace(/\b\w/g, c => c.toUpperCase())).join(' or ')
   const nearby = (nearbyAreas || []).join(', ')
-  if (!nearby) return `I don't have anything in ${requested} right now, but here are some nearby options:`
-  return `I don't have anything in ${requested} right now, but here are properties in nearby ${nearby}:`
+  if (!nearby) return `${NEARBY_INTRO_HEAD} ${requested} right now, ${NEARBY_INTRO_TAIL} some nearby options:`
+  return `${NEARBY_INTRO_HEAD} ${requested} right now, ${NEARBY_INTRO_TAIL} properties in nearby ${nearby}:`
+}
+
+// True if a bot message is a nearby-area presentation. The orchestrator uses this
+// to detect a follow-up (so it defers refinement to the AI engine instead of
+// re-firing the same nearby message). Single source of truth with nearbyIntro.
+export function isNearbyIntro(text: string | null | undefined): boolean {
+  if (!text) return false
+  return text.includes(NEARBY_INTRO_HEAD) && text.includes(NEARBY_INTRO_TAIL)
 }

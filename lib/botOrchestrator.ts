@@ -13,7 +13,7 @@
 import { supabaseAdmin } from './supabase'
 import { extractIntent, type ExtractedIntent } from './intentExtractor'
 import { filterPropertiesForLead, rankPropertiesForLead, getNearbyProperties } from './propertyMatcher'
-import { presentProperties, noMatchText, nearbyIntro } from './propertyPresenter'
+import { presentProperties, noMatchText, nearbyIntro, isNearbyIntro } from './propertyPresenter'
 import { buildAgentContactCard } from './fallbackCard'
 
 export type Criteria = {
@@ -124,9 +124,7 @@ export async function runCodeFirstBot(agentId: string, leadId: string, message: 
   // never types a property fact. Once the lead's real requirements are clear,
   // a subsequent turn will re-enter the code-first path with complete data.
   const lastBotMsg = [...recent].reverse().find(m => m.role === 'assistant') ?? null
-  const isNearbyFollowUp = lastBotMsg?.role === 'assistant'
-    && lastBotMsg.content.includes("I don't have anything in")
-    && lastBotMsg.content.includes("but here are")
+  const isNearbyFollowUp = !!lastBotMsg && isNearbyIntro(lastBotMsg.content)
 
   if (isNearbyFollowUp) {
     return { handled: false }

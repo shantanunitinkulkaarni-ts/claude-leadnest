@@ -253,7 +253,17 @@ export function getNearbyProperties(properties: any[], criteria: {
   if (!matched.length) return null
 
   const ranked = rankPropertiesForLead(matched, nearbyCriteria)
-  const nearbyAreas = toSearch.map(a => a.replace(/\b\w/g, c => c.toUpperCase()))
+  const titleCase = (a: string) => a.replace(/\b\w/g, (c) => c.toUpperCase())
+
+  // Only report neighbour areas that ACTUALLY have a matched property — never
+  // claim "options in Wakad, Pashan…" when nothing there matched. (Code states
+  // only true facts.) Every matched property came from a toSearch area, so this
+  // is non-empty; fall back to toSearch defensively.
+  const presentAreas: string[] = []
+  for (const a of toSearch) {
+    if (!presentAreas.includes(a) && ranked.some((p) => areaMatches(p.location, a))) presentAreas.push(a)
+  }
+  const nearbyAreas = (presentAreas.length ? presentAreas : toSearch).map(titleCase)
 
   return { properties: ranked, nearbyAreas }
 }
