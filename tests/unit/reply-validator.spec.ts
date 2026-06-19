@@ -145,6 +145,21 @@ test.describe('validateReply', () => {
     expect(result.price).toBe(4_000_000)
   })
 
+  test('regression: invented rental (₹18,000/mo, not in inventory) is flagged', () => {
+    // Real prod case: customer asked for a rental in Baner. Inventory had only a
+    // Baner SALE flat (₹90L) and a Hinjewadi commercial rental. The bot invented
+    // "a 2BHK rental in Baner at ₹18,000/month" — that ₹18,000 exists nowhere,
+    // so it MUST be flagged (→ webhook replaces the reply with the contact card).
+    const inv = [
+      { id: 'lodha', type: 'sale', price: 9_000_000 },
+      { id: 'towers', type: 'rental', rent_per_month: 0, price: 90_000 },
+    ]
+    const reply = 'we have a rental option in Baner: 2BHK, 1,000 sqft at ₹18,000/month'
+    const r = validateReply(reply, inv)
+    expect(r.valid).toBe(false)
+    expect(r.price).toBe(18_000)
+  })
+
   test('regression: the production transcript bug no longer fires', () => {
     // Real production message that triggered the validator-nuke loop.
     // Lead's budget was ₹70L, Lodha is ₹90L (in inventory). Bot's reply
