@@ -96,6 +96,46 @@ export function filterPropertiesForLead(properties: any[], lead: any): any[] {
   })
 }
 
+// Deterministic "best fit first" ordering for the matched set (code-first: the
+// AI never picks). Higher score = better fit. Signals, in priority:
+//   • within budget (and using more of it ranks a touch higher — better home);
+//     over-budget-but-tolerant ranks below any within-budget option
+//   • exact area match (location contains the wanted area)
+//   • BHK match when the lead's desired BHK is known
+// `criteria` accepts either a lead row or an extracted-intent object
+// ({ preferred_areas|areas, budget_max, bhk }).
+function fitScore(p: any, criteria: any): number {
+  let s = 0
+  const areas: string[] = criteria.preferred_areas || criteria.areas || []
+  const price = p.type === 'rental' ? Number(p.rent_per_month || p.price || 0) : Number(p.price || 0)
+  const budgetMax = Number(criteria.budget_max || 0)
+
+  if (budgetMax > 0 && price > 0) {
+    if (price <= budgetMax) {
+      // within budget: 60 base + up to 40 for using more of the budget
+      s += 60 + Math.round((price / budgetMax) * 40)
+    } else {
+      // over budget (still within tolerance, else it'd be filtered out): penalise
+      s -= 40
+    }
+  }
+  if (areas.length && p.location) {
+    const loc = String(p.location).toLowerCase()
+    if (areas.some((a) => loc.includes(String(a).toLowerCase()))) s += 50
+    else if (areas.some((a) => areaMatches(p.location, a))) s += 25 // fuzzy/typo match
+  }
+  const wantBhk = criteria.bhk
+  if (wantBhk && p.bhk && String(p.bhk).toLowerCase().includes(String(wantBhk).toLowerCase())) s += 30
+  return s
+}
+
+export function rankPropertiesForLead(properties: any[], criteria: any): any[] {
+  return (properties || [])
+    .map((p) => ({ p, s: fitScore(p, criteria) }))
+    .sort((a, b) => b.s - a.s)
+    .map((x) => x.p)
+}
+
 // "Near matches" — properties that fit the lead's intent + area but sit ABOVE
 // their budget (between the tolerant cap and the stretch ceiling). Surfaced ONLY
 // when filterPropertiesForLead returns nothing, so the bot can honestly offer
