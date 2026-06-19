@@ -721,22 +721,22 @@ export async function generateBotReply(
   // Last line of defense: every rupee figure the LLM just wrote must match
   // either (a) an inventory property within 5%, (b) the lead's stated budget
   // within 10% (budget echoes are fine), or (c) sit in a comparator/delta
-  // context (deltas like "₹5L over" are not price claims). Checked against the
-  // FULL inventory, not just filteredProperties — the ground truth is "does
-  // this price exist anywhere," not "was it in what we showed." When a price
-  // fails ALL three, we SOFT-FLAG: log to Sentry and append a tiny confirmation
-  // footer rather than nuking the whole message. Production had a 3-turn-in-a-row
-  // "double-check" loop because the previous "replace the whole reply" behavior
-  // triggered on benign budget-echo / delta language.
+  // context (deltas like "₹5L over" are not price claims). The validator is
+  // high-precision (skips budget echoes + deltas), so a failure here is a GENUINE
+  // fabrication — an invented property/price (e.g. "a 2BHK rental in Baner at
+  // ₹18,000/month" when no such listing exists). The customer must NEVER see it.
+  // We flag it so the webhook REPLACES the whole reply with the honest agent
+  // contact card AND escalates (alert agent + superadmin + train) — never a mere
+  // disclaimer footer, which used to let the fabrication through.
   const validation = validateReply(result.reply, properties, augmentedLead)
   if (!validation.valid) {
-    Sentry.captureMessage('Reply contained a price not found in inventory', {
+    Sentry.captureMessage('Reply contained a price not found in inventory — replaced with fallback', {
       level: 'warning',
       extra: { agentId, leadId, stage, quotedPrice: validation.price, reply: result.reply },
     })
-    if (!/confirm|double[\s-]?check/i.test(result.reply)) {
-      result.reply = result.reply.trimEnd() + "\n\n(Let me re-confirm the exact figure with the team.)"
-    }
+    result.metadata = { ...(result.metadata || {}), unsafePrice: true, unsafePriceValue: validation.price }
+    // Drop any property the LLM attached — it's part of the fabrication.
+    if (result.metadata.matched_property_id) delete result.metadata.matched_property_id
   }
 
   // Fact guard: catches fabricated possession dates, direction/vastu claims, and

@@ -751,9 +751,12 @@ export async function POST(request: NextRequest) {
     // recorder below still learns the right Q→A. (Price/possession fabrications
     // are already handled honestly inside the engine via validateReply/factGuard.)
     const engineReply = reply
-    const isKnowledgeGap = !engineFallback && detectReplyKnowledgeGap(reply)
-    const fallbackReason: 'engine_down' | 'knowledge_gap' | null =
-      engineFallback ? 'engine_down' : (isKnowledgeGap ? 'knowledge_gap' : null)
+    // A price/property the engine invented (validateReply caught it) → treat as a
+    // fabrication: the customer must NOT see it. Card + escalate, same as a gap.
+    const isPriceFabrication = !engineFallback && !!metadata?.unsafePrice
+    const isKnowledgeGap = !engineFallback && !isPriceFabrication && detectReplyKnowledgeGap(reply)
+    const fallbackReason: 'engine_down' | 'knowledge_gap' | 'price_fabrication' | null =
+      engineFallback ? 'engine_down' : isPriceFabrication ? 'price_fabrication' : (isKnowledgeGap ? 'knowledge_gap' : null)
     if (fallbackReason) {
       reply = buildAgentContactCard(agent)
       log('fallback_card_used', { reason: fallbackReason })
@@ -980,7 +983,9 @@ export async function POST(request: NextRequest) {
 
         await supabaseAdmin.from('activity_log').insert({
           agent_id: agent.id, lead_id: lead.id, type: 'bot_fallback',
-          title: fallbackReason === 'engine_down' ? 'Bot fallback: engine down' : 'Bot fallback: could not answer',
+          title: fallbackReason === 'engine_down' ? 'Bot fallback: engine down'
+            : fallbackReason === 'price_fabrication' ? 'Bot fallback: invented a property/price (blocked)'
+            : 'Bot fallback: could not answer',
           description: messageText.slice(0, 140),
           metadata: { reason: fallbackReason, question: messageText.slice(0, 500), botReply: engineReply.slice(0, 500), lastMessages, aiSummary },
         })
@@ -998,12 +1003,16 @@ export async function POST(request: NextRequest) {
             + `<p><strong>Last messages:</strong></p>${convoHtml}`
             + `<p style="color:#888;font-size:12px">Lead ${lead.id} · agent ${agent.id}</p>`,
         }).catch(() => {})
-        // Agent email for engine-down (knowledge_gap already emailed the agent above).
-        if (fallbackReason === 'engine_down' && agent.email) {
+        // Agent email for engine-down + price-fabrication (knowledge_gap already
+        // emailed the agent via the priority alert above).
+        if ((fallbackReason === 'engine_down' || fallbackReason === 'price_fabrication') && agent.email) {
+          const why = fallbackReason === 'price_fabrication'
+            ? `couldn't find a real match for what <strong>${esc(lead.name || lead.phone)}</strong> asked for (so it did NOT guess)`
+            : `hit a brief technical issue and couldn't reply to <strong>${esc(lead.name || lead.phone)}</strong>`
           await sendEmail({
             to: agent.email,
-            subject: `Action needed: your AI assistant had a tech issue on a lead`,
-            html: `<p>Hi ${esc(agent.name || '')},</p><p>Your Convorian assistant hit a brief technical issue and couldn't reply to <strong>${esc(lead.name || lead.phone)}</strong>. We've shared your contact card with them — please reach out directly so the lead isn't lost.</p>`,
+            subject: `Action needed: your AI assistant handed a lead to you`,
+            html: `<p>Hi ${esc(agent.name || '')},</p><p>Your Convorian assistant ${why}. We've shared your contact card with them — please reach out directly so the lead isn't lost.</p>`,
           }).catch(() => {})
         }
 
