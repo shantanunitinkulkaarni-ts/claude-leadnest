@@ -9,6 +9,7 @@ import { generateBotReply } from '@/lib/gemini'
 import { sendWhatsAppMessage, sendViaMsg91, sendViaMsg91Media, sendMetaImage, sendWithRetry, sendViaMsg91Template, deductWABalance } from '@/lib/whatsapp'
 import { wantsPhotos, botPromisedPhotos, extractPropertyMedia, MAX_IMAGES_PER_SEND } from '@/lib/media'
 import { buildAgentContactCard } from '@/lib/fallbackCard'
+import { runCodeFirstBot } from '@/lib/botOrchestrator'
 import { callLLM } from '@/lib/llm'
 import { parseBudgetRupees, isGrosslyOffBudget } from '@/lib/budgetParse'
 import { shouldBotReply } from '@/lib/botGating'
@@ -418,6 +419,80 @@ export async function POST(request: NextRequest) {
       })
       await supabaseAdmin.from('agents').update({ messages_used: (agent.messages_used || 0) + 1 }).eq('id', agent.id)
       return NextResponse.json({ status: 'guardrail', kind: inboundSignals.guardrail })
+    }
+
+    // ── BOT V2 (code-first) — flag-gated, OFF by default ────────────────────
+    // The AI only DECODED the message into structured intent; CODE decides the
+    // action and builds the reply with EXACT property facts (never re-typed by
+    // the AI → fabrication is impossible). Self-contained: it sends + returns.
+    // Falls through to the legacy engine when it defers (booking/objection) or
+    // the flag is off. See lib/botOrchestrator + memory bot-architecture-ai-decodes-code-acts.
+    if (process.env.BOT_V2 === 'true') {
+      try {
+        const v2 = await runCodeFirstBot(agent.id, lead.id, messageText)
+        if (v2.handled) {
+          const { data: outMsg } = await supabaseAdmin.from('messages').insert({
+            lead_id: lead.id, agent_id: agent.id, direction: 'outbound', content: v2.reply, sent_by: 'bot',
+          }).select('id').single()
+
+          let waId: string | null = null
+          let sendErr: string | null = null
+          if (incomingProvider === 'msg91') {
+            const r = await sendWithRetry(() => sendViaMsg91(msg91IntegratedNumber, fromPhone, v2.reply))
+            waId = r.id; sendErr = r.error
+          } else {
+            waId = await sendWhatsAppMessage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, v2.reply)
+            if (!waId) sendErr = 'meta_send_returned_null'
+          }
+          if (outMsg?.id) {
+            if (waId) await supabaseAdmin.from('messages').update({ wa_message_id: waId }).eq('id', outMsg.id)
+            else {
+              await supabaseAdmin.from('messages').update({
+                status: 'failed', delivery_status: 'failed',
+                delivery_error: (sendErr || 'send_failed').slice(0, 500), delivery_updated_at: new Date().toISOString(),
+              }).eq('id', outMsg.id)
+              Sentry.captureMessage('BOT_V2 reply send failed', { level: 'error', extra: { agentId: agent.id, leadId: lead.id, reason: sendErr } })
+            }
+          }
+
+          // Photos for the presented properties (exact media from the shown rows).
+          for (const url of v2.photos) {
+            let mid: string | null = null
+            if (incomingProvider === 'msg91') mid = (await sendViaMsg91Media(msg91IntegratedNumber, fromPhone, url)).id
+            else mid = await sendMetaImage(agent.wa_phone_number_id, agent.wa_access_token, fromPhone, url)
+            await supabaseAdmin.from('messages').insert({
+              lead_id: lead.id, agent_id: agent.id, direction: 'outbound', content: '[photo]', sent_by: 'bot',
+              wa_message_id: typeof mid === 'string' ? mid : null,
+            })
+          }
+
+          if (v2.matchedPropertyId) {
+            try { await supabaseAdmin.from('leads').update({ matched_property_id: v2.matchedPropertyId }).eq('id', lead.id) } catch { /* column optional */ }
+          }
+
+          // Human request, or more matches than we showed → alert the agent.
+          if (v2.humanRequested || v2.overflow) {
+            try {
+              const { sendHighPriorityAlert } = await import('@/lib/alerts')
+              const content = buildAlertContent(v2.humanRequested ? 'human_request' : 'call_request', {
+                leadName: lead.name, leadPhone: lead.phone, agentName: agent.name, lastMessage: messageText,
+              })
+              await sendHighPriorityAlert(agent, {
+                subject: content.subject, html: content.html, whatsappText: content.whatsappText,
+                templateValues: content.templateValues, msg91IntegratedNumber,
+              })
+            } catch (e: any) { logError('bot_v2_alert_failed', { error: e?.message }) }
+          }
+
+          await supabaseAdmin.rpc('increment_messages_used', { p_agent_id: agent.id, p_amount: 2 })
+          log('bot_v2_handled', { action: v2.action, overflow: v2.overflow })
+          return NextResponse.json({ status: 'ok', engine: 'v2', action: v2.action })
+        }
+      } catch (v2err: any) {
+        logError('bot_v2_error', { error: v2err?.message })
+        Sentry.captureException(v2err, { tags: { engine: 'bot_v2' } })
+        // fall through to the legacy engine
+      }
     }
 
     log('engine_call_start', { messageText })
