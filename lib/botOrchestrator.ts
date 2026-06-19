@@ -111,6 +111,27 @@ export async function runCodeFirstBot(agentId: string, leadId: string, message: 
   if (criteria.property_category) upd.property_category = criteria.property_category
   if (Object.keys(upd).length) { try { await supabaseAdmin.from('leads').update(upd).eq('id', leadId) } catch { /* non-fatal */ } }
 
+  // ── Follow-up detection: if the bot's last reply was a nearby-area
+  // presentation, the lead's current message is almost certainly refining their
+  // criteria (budget, BHK, area preference) rather than requesting a fresh
+  // property match. Running the same code-first logic again would repeat the
+  // same nearby message or apply the new budget to an already-nearby search
+  // and go empty-handed — both are dead ends.
+  //
+  // Instead, defer to the legacy AI engine so it can chat through the
+  // refinement naturally: ask about area flexibility, deposit capacity, BHK,
+  // schedule a callback, etc. The AI's job here is pure conversation — it
+  // never types a property fact. Once the lead's real requirements are clear,
+  // a subsequent turn will re-enter the code-first path with complete data.
+  const lastBotMsg = [...recent].reverse().find(m => m.role === 'assistant') ?? null
+  const isNearbyFollowUp = lastBotMsg?.role === 'assistant'
+    && lastBotMsg.content.includes("I don't have anything in")
+    && lastBotMsg.content.includes("but here are")
+
+  if (isNearbyFollowUp) {
+    return { handled: false }
+  }
+
   const action = decideBotAction(intent, criteria, properties)
   switch (action.kind) {
     case 'fallback':
