@@ -12,8 +12,12 @@
 
 import { supabaseAdmin } from './supabase'
 import { extractIntent, type ExtractedIntent } from './intentExtractor'
-import { filterPropertiesForLead, rankPropertiesForLead, getNearbyProperties } from './propertyMatcher'
-import { presentProperties, noMatchText, nearbyIntro, isNearbyIntro } from './propertyPresenter'
+import { filterPropertiesForLead, rankPropertiesForLead } from './propertyMatcher'
+import { presentProperties } from './propertyPresenter'
+// Note: getNearbyProperties / nearbyIntro / isNearbyIntro remain in their modules
+// (tested utilities) but are intentionally NOT wired in — auto-nearby was removed
+// per founder decision; no-match now defers to the AI to ask. Kept for a possible
+// future "want me to check nearby areas?" opt-in flow.
 import { buildAgentContactCard } from './fallbackCard'
 
 export type Criteria = {
@@ -111,25 +115,6 @@ export async function runCodeFirstBot(agentId: string, leadId: string, message: 
   if (criteria.property_category) upd.property_category = criteria.property_category
   if (Object.keys(upd).length) { try { await supabaseAdmin.from('leads').update(upd).eq('id', leadId) } catch { /* non-fatal */ } }
 
-  // ── Follow-up detection: if the bot's last reply was a nearby-area
-  // presentation, the lead's current message is almost certainly refining their
-  // criteria (budget, BHK, area preference) rather than requesting a fresh
-  // property match. Running the same code-first logic again would repeat the
-  // same nearby message or apply the new budget to an already-nearby search
-  // and go empty-handed — both are dead ends.
-  //
-  // Instead, defer to the legacy AI engine so it can chat through the
-  // refinement naturally: ask about area flexibility, deposit capacity, BHK,
-  // schedule a callback, etc. The AI's job here is pure conversation — it
-  // never types a property fact. Once the lead's real requirements are clear,
-  // a subsequent turn will re-enter the code-first path with complete data.
-  const lastBotMsg = [...recent].reverse().find(m => m.role === 'assistant') ?? null
-  const isNearbyFollowUp = !!lastBotMsg && isNearbyIntro(lastBotMsg.content)
-
-  if (isNearbyFollowUp) {
-    return { handled: false }
-  }
-
   const action = decideBotAction(intent, criteria, properties)
   switch (action.kind) {
     case 'fallback':
@@ -138,16 +123,13 @@ export async function runCodeFirstBot(agentId: string, leadId: string, message: 
       return { handled: true, reply: buildAgentContactCard(agent), photos: [], matchedPropertyId: null, action: 'human', overflow: false, humanRequested: true }
     case 'qualify':
       return { handled: true, reply: action.text, photos: [], matchedPropertyId: null, action: `qualify_${action.ask}`, overflow: false, humanRequested: false }
-    case 'no_match': {
-      // Before committing to a hard no-match, check adjacent localities.
-      const nearby = getNearbyProperties(properties, criteria)
-      if (nearby && nearby.properties.length > 0) {
-        const intro = nearbyIntro(criteria.preferred_areas, nearby.nearbyAreas)
-        const pres = presentProperties(nearby.properties, { intro })
-        return { handled: true, reply: pres.text, photos: pres.photos, matchedPropertyId: pres.shownIds[0] || null, action: 'present_nearby', overflow: pres.overflow, humanRequested: false }
-      }
-      return { handled: true, reply: `${noMatchText()}\n\n${buildAgentContactCard(agent)}`, photos: [], matchedPropertyId: null, action: 'no_match', overflow: false, humanRequested: false }
-    }
+    case 'no_match':
+      // No EXACT match → do NOT auto-present other areas. Defer to the AI engine
+      // to intervene conversationally — ask about flexibility (nearby areas? a
+      // different budget? BHK?) to understand the lead better. Code only ever
+      // presents EXACT matches; asking/understanding is the AI's job.
+      // (founder decision, 2026-06-19 — replaced the old auto-nearby behaviour.)
+      return { handled: false }
     case 'present': {
       const pres = presentProperties(action.properties)
       return { handled: true, reply: pres.text, photos: pres.photos, matchedPropertyId: pres.shownIds[0] || null, action: 'present', overflow: pres.overflow, humanRequested: false }
