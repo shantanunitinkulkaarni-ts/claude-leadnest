@@ -12,12 +12,8 @@
 
 import { supabaseAdmin } from './supabase'
 import { extractIntent, type ExtractedIntent } from './intentExtractor'
-import { filterPropertiesForLead, rankPropertiesForLead } from './propertyMatcher'
+import { filterPropertiesForLead, rankPropertiesForLead, NEARBY_AREAS } from './propertyMatcher'
 import { presentProperties } from './propertyPresenter'
-// Note: getNearbyProperties / nearbyIntro / isNearbyIntro remain in their modules
-// (tested utilities) but are intentionally NOT wired in — auto-nearby was removed
-// per founder decision; no-match now defers to the AI to ask. Kept for a possible
-// future "want me to check nearby areas?" opt-in flow.
 import { buildAgentContactCard } from './fallbackCard'
 
 export type Criteria = {
@@ -124,12 +120,29 @@ export async function runCodeFirstBot(agentId: string, leadId: string, message: 
     case 'qualify':
       return { handled: true, reply: action.text, photos: [], matchedPropertyId: null, action: `qualify_${action.ask}`, overflow: false, humanRequested: false }
     case 'no_match':
-      // No EXACT match → do NOT auto-present other areas. Defer to the AI engine
-      // to intervene conversationally — ask about flexibility (nearby areas? a
-      // different budget? BHK?) to understand the lead better. Code only ever
-      // presents EXACT matches; asking/understanding is the AI's job.
-      // (founder decision, 2026-06-19 — replaced the old auto-nearby behaviour.)
-      return { handled: false }
+      // No EXACT match. Do NOT fall through to the legacy AI engine — it will
+      // present non-exact properties from its unfiltered inventory.
+      //
+      // Instead, code handles this conversationally: suggests nearby areas as
+      // input for the lead to consider, asks about budget/BHK flexibility.
+      // NEVER presents a property here. The NEARBY_AREAS data powers the area
+      // suggestion text; no property facts pass through AI or code here.
+      {
+        const requested = criteria.preferred_areas.map(a => a.charAt(0).toUpperCase() + a.slice(1).toLowerCase()).join(' / ')
+        let nearbyList = ''
+        for (const area of criteria.preferred_areas) {
+          const adj = NEARBY_AREAS[area.toLowerCase()]
+          if (adj?.length) {
+            nearbyList = adj.slice(0, 4).map(a => a.charAt(0).toUpperCase() + a.slice(1).toLowerCase()).join(', ')
+            break
+          }
+        }
+        const nearbyLine = nearbyList
+          ? ` You might also check ${nearbyList} — I can look there for you.`
+          : ''
+        const reply = `I don't have anything in ${requested} matching that right now. Would you be open to other areas, or a different budget range? If you tell me your ideal BHK and deposit capacity, I can search more precisely.${nearbyLine}`
+        return { handled: true, reply, photos: [], matchedPropertyId: null, action: 'no_match', overflow: false, humanRequested: false }
+      }
     case 'present': {
       const pres = presentProperties(action.properties)
       return { handled: true, reply: pres.text, photos: pres.photos, matchedPropertyId: pres.shownIds[0] || null, action: 'present', overflow: pres.overflow, humanRequested: false }
