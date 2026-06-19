@@ -111,6 +111,21 @@ export async function runCodeFirstBot(agentId: string, leadId: string, message: 
   if (criteria.property_category) upd.property_category = criteria.property_category
   if (Object.keys(upd).length) { try { await supabaseAdmin.from('leads').update(upd).eq('id', leadId) } catch { /* non-fatal */ } }
 
+  // ── Follow-up detection: if the bot's last reply was a no_match message,
+  // the lead's current message is an attempted refinement (more details about
+  // what they want). Re-running code-first would fire the same no_match reply
+  // in a loop. Instead, defer to the AI engine for conversational refinement:
+  // ask about area flexibility, deposit, BHK, schedule a callback, etc.
+  // The AI never types a property fact. Code returns on a future turn.
+  const lastBotMsg = [...recent].reverse().find(m => m.role === 'assistant') ?? null
+  const isNoMatchFollowUp = lastBotMsg?.role === 'assistant'
+    && lastBotMsg.content.startsWith("I don't have anything in")
+    && lastBotMsg.content.includes("matching that right now.")
+
+  if (isNoMatchFollowUp) {
+    return { handled: false }
+  }
+
   const action = decideBotAction(intent, criteria, properties)
   switch (action.kind) {
     case 'fallback':
