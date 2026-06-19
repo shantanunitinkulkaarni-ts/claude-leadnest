@@ -12,8 +12,8 @@
 
 import { supabaseAdmin } from './supabase'
 import { extractIntent, type ExtractedIntent } from './intentExtractor'
-import { filterPropertiesForLead, rankPropertiesForLead } from './propertyMatcher'
-import { presentProperties, noMatchText } from './propertyPresenter'
+import { filterPropertiesForLead, rankPropertiesForLead, getNearbyProperties } from './propertyMatcher'
+import { presentProperties, noMatchText, nearbyIntro } from './propertyPresenter'
 import { buildAgentContactCard } from './fallbackCard'
 
 export type Criteria = {
@@ -119,8 +119,16 @@ export async function runCodeFirstBot(agentId: string, leadId: string, message: 
       return { handled: true, reply: buildAgentContactCard(agent), photos: [], matchedPropertyId: null, action: 'human', overflow: false, humanRequested: true }
     case 'qualify':
       return { handled: true, reply: action.text, photos: [], matchedPropertyId: null, action: `qualify_${action.ask}`, overflow: false, humanRequested: false }
-    case 'no_match':
+    case 'no_match': {
+      // Before committing to a hard no-match, check adjacent localities.
+      const nearby = getNearbyProperties(properties, criteria)
+      if (nearby && nearby.properties.length > 0) {
+        const intro = nearbyIntro(criteria.preferred_areas, nearby.nearbyAreas)
+        const pres = presentProperties(nearby.properties, { intro })
+        return { handled: true, reply: pres.text, photos: pres.photos, matchedPropertyId: pres.shownIds[0] || null, action: 'present_nearby', overflow: pres.overflow, humanRequested: false }
+      }
       return { handled: true, reply: `${noMatchText()}\n\n${buildAgentContactCard(agent)}`, photos: [], matchedPropertyId: null, action: 'no_match', overflow: false, humanRequested: false }
+    }
     case 'present': {
       const pres = presentProperties(action.properties)
       return { handled: true, reply: pres.text, photos: pres.photos, matchedPropertyId: pres.shownIds[0] || null, action: 'present', overflow: pres.overflow, humanRequested: false }

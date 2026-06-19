@@ -89,3 +89,12 @@ export function presentProperties(matched: any[], opts?: { intro?: string }): Pr
 export function noMatchText(): string {
   return "I don't have a property matching that exactly right now."
 }
+
+// Nearby intro — produces the prefix when properties come from adjacent areas.
+// Example: "I don't have anything in Baner right now, but here's Aundh:"
+export function nearbyIntro(requestedAreas: string[], nearbyAreas: string[]): string {
+  const requested = (requestedAreas || []).map(a => a.replace(/\b\w/g, c => c.toUpperCase())).join(' or ')
+  const nearby = (nearbyAreas || []).join(', ')
+  if (!nearby) return `I don't have anything in ${requested} right now, but here are some nearby options:`
+  return `I don't have anything in ${requested} right now, but here are properties in nearby ${nearby}:`
+}
