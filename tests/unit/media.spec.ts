@@ -4,19 +4,20 @@ import { join } from 'path'
 import { extractPropertyMedia, wantsPhotos, botPromisedPhotos } from '../../lib/media'
 
 // Regression guard (June 2026): Phase 0F moved property photos out of the
-// `features` array into a dedicated `property_media` column, stripping media:
-// entries from features. The photo-SEND path in the webhook kept selecting only
-// `features`, so extractPropertyMedia (which reads property_media first) saw
-// nothing and silently sent zero photos. These tests assert every properties
-// SELECT that feeds extractPropertyMedia includes property_media.
-test.describe('webhook photo-send queries select property_media (Phase 0F regression)', () => {
+// `features` array into a dedicated `property_media` column. The webhook's
+// property search feeds getPropertyPhotos (which reads property_media + features),
+// so that query MUST pull property_media. It currently uses `.select('*')`
+// (pulls every column); these tests fail loudly if anyone narrows it to an
+// explicit column list that omits property_media.
+test.describe('webhook property search pulls property_media (Phase 0F regression)', () => {
   const src = readFileSync(join(__dirname, '../../app/api/webhook/route.ts'), 'utf8')
-  const selects = src.match(/\.select\((['"`])[^'"`]*\bfeatures\b[^'"`]*\1\)/g) || []
-  // Only the photo-lookup selects mention `features`; each must also pull property_media.
-  test('found the photo-lookup selects', () => expect(selects.length).toBeGreaterThan(0))
-  selects.forEach((s, i) => {
-    test(`photo-lookup select #${i + 1} includes property_media`, () =>
-      expect(s.includes('property_media')).toBe(true))
+  // Each `from('properties').select(...)` that can feed photos must select '*'
+  // (all columns) or explicitly include property_media.
+  const propSelects = src.match(/from\(['"`]properties['"`]\)[\s\S]*?\.select\([^)]*\)/g) || []
+  test('found the property search select', () => expect(propSelects.length).toBeGreaterThan(0))
+  propSelects.forEach((s, i) => {
+    test(`property search #${i + 1} pulls property_media (or *)`, () =>
+      expect(s.includes("'*'") || s.includes('"*"') || s.includes('property_media')).toBe(true))
   })
 })
 

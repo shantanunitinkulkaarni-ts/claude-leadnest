@@ -55,6 +55,12 @@ const T = {
   booking_confirmed: (time: string) =>
     `Perfect, you\'re all set! ✅ Your site visit is confirmed for ${time}. Our team will share the exact location details before the visit. Looking forward to it!`,
 
+  booking_out_of_hours: (open: string, close: string) =>
+    `Our site visits are between ${open} and ${close}. Could you please pick a time in that window? For example, "tomorrow at 11 AM".`,
+
+  booking_past: () =>
+    'That time has already passed. Could you give me a future date and time for the visit? For example, "tomorrow at 11 AM" or "Saturday at 5 PM".',
+
   agent_card: (agent: any) =>
     `Sure, here are the agent\'s details:\n\n${buildAgentContactCard(agent)}`,
 
@@ -152,6 +158,79 @@ function formatIST(dateStr: string): string {
   }
 }
 
+// Parse a natural-language date/time (e.g. "tomorrow at 11 AM", "Saturday 5pm",
+// "kal 4 baje", "today 17:00") into a UTC ISO string, interpreting the wall-clock
+// the customer means as IST. Returns null if no usable time is found.
+function parseAppointmentTime(text: string): string | null {
+  const n = text.toLowerCase() // keep colons/punctuation for time parsing
+
+  // ── time of day ── prefer am/pm, then HH:MM, then "N baje", then a bare hour
+  let hour: number | null = null
+  let minute = 0
+  let ampm: string | null = null
+
+  const ampmMatch = n.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/)
+  const colonMatch = n.match(/\b(\d{1,2}):(\d{2})\b/)
+  const bajeMatch = n.match(/\b(\d{1,2})(?::(\d{2}))?\s*baje\b/)
+  const bareMatch = n.match(/\b(\d{1,2})\b/)
+
+  if (ampmMatch) {
+    hour = parseInt(ampmMatch[1]); minute = ampmMatch[2] ? parseInt(ampmMatch[2]) : 0; ampm = ampmMatch[3]
+  } else if (colonMatch) {
+    hour = parseInt(colonMatch[1]); minute = parseInt(colonMatch[2])
+  } else if (bajeMatch) {
+    hour = parseInt(bajeMatch[1]); minute = bajeMatch[2] ? parseInt(bajeMatch[2]) : 0
+  } else if (bareMatch) {
+    hour = parseInt(bareMatch[1])
+  }
+
+  if (hour === null || hour > 23 || minute > 59) return null
+
+  if (ampm === 'pm' && hour < 12) hour += 12
+  else if (ampm === 'am' && hour === 12) hour = 0
+  else if (!ampm && hour >= 1 && hour <= 7) hour += 12 // bare 1–7 → afternoon/evening (visits)
+
+  // ── day ── compute against current IST wall-clock
+  const nowIst = new Date(Date.now() + 5.5 * 60 * 60 * 1000)
+  const y = nowIst.getUTCFullYear(), mo = nowIst.getUTCMonth(), d = nowIst.getUTCDate()
+  const curDow = nowIst.getUTCDay()
+  let dayOffset: number | null = null
+  let explicitDay = false
+
+  if (/\b(day after tomorrow|parso|parason)\b/.test(n)) { dayOffset = 2; explicitDay = true }
+  else if (/\b(tomorrow|kal|tmrw|tmr)\b/.test(n)) { dayOffset = 1; explicitDay = true }
+  else if (/\b(today|aaj|aj)\b/.test(n)) { dayOffset = 0; explicitDay = true }
+  else {
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    for (let i = 0; i < days.length; i++) {
+      if (new RegExp(`\\b${days[i]}\\b`).test(n)) { dayOffset = (i - curDow + 7) % 7; explicitDay = true; break }
+    }
+  }
+  if (dayOffset === null) dayOffset = 0 // no day mentioned → today (may roll forward below)
+
+  const buildUtc = (off: number) => Date.UTC(y, mo, d + off, hour as number, minute) - 5.5 * 60 * 60 * 1000
+  let utcMs = buildUtc(dayOffset)
+  // bare time already passed today → assume they mean tomorrow
+  if (!explicitDay && utcMs < Date.now()) utcMs = buildUtc(dayOffset + 1)
+
+  return new Date(utcMs).toISOString()
+}
+
+function prettyHour(h: number): string {
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12} ${ampm}`
+}
+
+// Check a booking instant against the agent's office hours (defaults 9 AM–7 PM IST).
+function withinOfficeHours(iso: string, agent: any): { ok: boolean; open: string; close: string } {
+  const oh = parseInt(String(agent?.office_open || '09:00').split(':')[0]) || 9
+  const ch = parseInt(String(agent?.office_close || '19:00').split(':')[0]) || 19
+  const ist = new Date(new Date(iso).getTime() + 5.5 * 60 * 60 * 1000)
+  const h = ist.getUTCHours()
+  return { ok: h >= oh && h < ch, open: prettyHour(oh), close: prettyHour(ch) }
+}
+
 function getPropertyPhotos(prop: any): string[] {
   if (!prop) return []
   const urls: string[] = []
@@ -213,7 +292,18 @@ export async function POST(request: NextRequest) {
       const devBypass = process.env.NODE_ENV !== 'production' && process.env.SKIP_WEBHOOK_AUTH === 'true'
       if (devBypass) log('auth_bypass', { note: 'dev mode' })
       else if (!secret) { logError('auth_misconfigured', {}); return NextResponse.json({ error: 'Misconfigured' }, { status: 500 }) }
-      else if (!verifySharedSecret(request.headers.get('x-webhook-secret'), secret)) { return NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+      else {
+        const incoming = request.headers.get('x-webhook-secret')
+        if (!verifySharedSecret(incoming, secret)) {
+          // Debug: log header presence and lengths to diagnose mismatch (no values exposed)
+          logError('auth_rejected', {
+            header_present: !!incoming,
+            incoming_len: incoming?.length ?? 0,
+            expected_len: secret.length,
+          })
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+      }
     }
 
     // ── Rate limit ──────────────────────────────────────────────────────
@@ -472,24 +562,34 @@ export async function POST(request: NextRequest) {
       shouldAlertAgent = true
 
     } else if (isBookingRequest(messageText) || leadStage === 'awaiting_booking') {
-      // Handle booking request
-      if (!storedPendingBooking) {
+      // Handle booking request — parse the actual date/time the customer gave
+      const parsed = parseAppointmentTime(messageText)
+      if (parsed) {
+        if (new Date(parsed).getTime() < Date.now() - 60 * 1000) {
+          // Resolved to a time in the past
+          await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_booking' }).eq('id', lead.id)
+          reply = T.booking_past()
+          replyAction = 'booking_past'
+        } else {
+          const oh = withinOfficeHours(parsed, agent)
+          if (!oh.ok) {
+            await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_booking' }).eq('id', lead.id)
+            reply = T.booking_out_of_hours(oh.open, oh.close)
+            replyAction = 'booking_out_of_hours'
+          } else {
+            // Stage the parsed time; ask for a Confirm to lock it in
+            await supabaseAdmin.from('leads').update({
+              pending_appointment_time: parsed, conversation_stage: 'awaiting_booking',
+            }).eq('id', lead.id)
+            reply = T.booking_time_ack(formatIST(parsed))
+            replyAction = 'booking_time_ack'
+          }
+        }
+      } else {
+        // No usable date/time in the message — ask for one
         await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_booking' }).eq('id', lead.id)
         reply = T.booking_start()
         replyAction = 'booking_start'
-      } else {
-        // Check if a time was just provided
-        const timeMatch = messageText.match(/\b(\d{1,2})\s*(:\s*\d{2})?\s*(am|pm|AM|PM)?\b/i)
-        if (timeMatch || /\b(today|tomorrow|kal|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i.test(messageText)) {
-          // Simple time extraction — store it raw, confirm later
-          const resolvedIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // placeholder
-          await supabaseAdmin.from('leads').update({ pending_appointment_time: resolvedIso }).eq('id', lead.id)
-          reply = T.booking_time_ack(formatIST(resolvedIso))
-          replyAction = 'booking_time_ack'
-        } else {
-          reply = T.booking_start()
-          replyAction = 'booking_ask_time'
-        }
       }
 
     } else if (isContactRequest(messageText)) {
