@@ -157,7 +157,7 @@ function levenshteinDistance(a: string, b: string): number {
  * For sales: compare price
  * Budget tolerance: 20% above stated max is acceptable
  */
-function isWithinBudget(property: PropertyRow, budgetMax: number, propertyType: 'sale' | 'rental'): boolean {
+function isWithinBudget(property: PropertyRow, budgetMax: number | null, propertyType: 'sale' | 'rental'): boolean {
   if (!budgetMax || budgetMax <= 0) return true // No budget = all prices match
 
   const propertyPrice = propertyType === 'rental'

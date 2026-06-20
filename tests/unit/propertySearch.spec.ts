@@ -35,7 +35,7 @@ test.describe('propertySearch', () => {
   test.describe('isWithinBudget', () => {
     test('accepts properties at or below budget', () => {
       const rental: PropertyRow = {
-        id: '1', agent_id: 'a1', type: 'rental', location: 'Baner', rent_per_month: 20000,
+        id: '1', agent_id: 'a1', type: 'rental' as const, location: 'Baner', rent_per_month: 20000,
       }
       expect(isWithinBudget(rental, 25000, 'rental')).toBe(true)
     })
@@ -56,7 +56,7 @@ test.describe('propertySearch', () => {
 
     test('all prices match when no budget set', () => {
       const rental: PropertyRow = {
-        id: '1', agent_id: 'a1', type: 'rental', location: 'Baner', rent_per_month: 100000,
+        id: '1', agent_id: 'a1', type: 'rental' as const, location: 'Baner', rent_per_month: 100000,
       }
       expect(isWithinBudget(rental, null, 'rental')).toBe(true)
     })
