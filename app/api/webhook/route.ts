@@ -402,7 +402,8 @@ export async function POST(request: NextRequest) {
       const { data: nl } = await supabaseAdmin.from('leads').insert({
         agent_id: agent.id, phone: fromPhone, last_message_at: now,
         window_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        status: 'new', opted_in: true, opt_in_at: now, opt_in_source: 'whatsapp_inbound'
+        status: 'new', conversation_stage: 'new',
+        opted_in: true, opt_in_at: now, opt_in_source: 'whatsapp_inbound'
       }).select().single()
       if (!nl) return NextResponse.json({ status: 'lead_create_failed' })
       lead = nl
@@ -475,7 +476,6 @@ export async function POST(request: NextRequest) {
     // STEP 1: Check what stage the lead is at
     const leadStage = lead.conversation_stage || 'new'
     const storedIntent = lead.intent || null
-    const storedArea = lead.preferred_areas?.[0] || null
     const storedPendingBooking = lead.pending_appointment_time || null
 
     // STEP 2: Handle the message based on stage
@@ -504,7 +504,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-    } else if (leadStage === 'awaiting_area' || (!storedArea && storedIntent)) {
+    } else if (leadStage === 'awaiting_area' || leadStage === 'no_match_ai') {
       // We need area
       const area = extractArea(messageText)
       if (area) {
@@ -540,8 +540,21 @@ export async function POST(request: NextRequest) {
           }
           await supabaseAdmin.from('leads').update({ conversation_stage: 'no_match_ai' }).eq('id', lead.id)
         }
+      } else if (leadStage === 'no_match_ai') {
+        // We already told them we have no match — do NOT loop on "Which area?".
+        // Help via AI with history; fall back to the agent contact card.
+        const recentMsgs = await supabaseAdmin.from('messages')
+          .select('direction, content').eq('lead_id', lead.id)
+          .order('created_at', { ascending: false }).limit(10)
+        const recent = (recentMsgs.data || []).reverse().map(m => ({
+          role: (m.direction === 'inbound' ? 'user' : 'assistant') as 'user' | 'assistant',
+          content: m.content || '',
+        }))
+        const aiReply = await aiDecode(recent, messageText)
+        reply = aiReply || `${T.no_match()}\n\n${T.agent_card(agent)}`
+        replyAction = aiReply ? 'no_match_followup_ai' : 'no_match_card'
       } else {
-        // No area found in message
+        // First time asking — collect the area
         reply = T.ask_area()
         replyAction = 'ask_area_again'
       }
