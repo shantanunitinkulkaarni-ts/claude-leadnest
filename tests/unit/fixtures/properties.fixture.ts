@@ -1,9 +1,11 @@
 /**
- * Jest Fixtures — Property Test Data
+ * Playwright Fixtures — Property Test Data
  * Realistic property data for unit tests
  */
 
-export const mockProperties = {
+import { type PropertyRow } from '@/lib/propertySearch'
+
+export const mockProperties: Record<string, PropertyRow> = {
   // ── Baner Cluster (West Pune) ──
   baner_rental_2bhk_20k: {
     id: 'prop-baner-rental-2bhk-20k',

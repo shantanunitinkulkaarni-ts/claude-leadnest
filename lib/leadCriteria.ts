@@ -266,13 +266,3 @@ function normalizeText(text: string): string {
     .trim()
 }
 
-// ─── Exports ──────────────────────────────────────────────────────────────
-export {
-  extractIntent,
-  extractArea,
-  extractBudget,
-  extractBHK,
-  mergeCriteria,
-  extractAllCriteria,
-  getLeadUpdates,
-}
