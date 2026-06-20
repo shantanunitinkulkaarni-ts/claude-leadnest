@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { glmChat, glmKey } from '@/lib/llm'
+import { deepseekChat, deepseekKey } from '@/lib/llm'
 import { faqAsText } from '@/lib/faq'
 import { supportWhatsappConfigured } from '@/lib/support'
 import { supabaseAdmin } from '@/lib/supabase'
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       })
     }
 
-    if (!glmKey()) {
+    if (!deepseekKey()) {
       // Degrade gracefully — never blank. Send them straight to a human.
       return NextResponse.json({
         response: 'Our assistant is briefly unavailable. Please use the “Contact support” option below and we’ll help you right away.',
@@ -92,7 +92,7 @@ RULES:
     }))
     const last = String(messages[messages.length - 1]?.content || '')
 
-    let text = await glmChat(
+    let text = await deepseekChat(
       [
         { role: 'system' as const, content: systemPrompt },
         ...history,

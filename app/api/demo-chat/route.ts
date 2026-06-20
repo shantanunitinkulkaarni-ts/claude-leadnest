@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from 'next/server'
-import { glmChat, glmKey } from '@/lib/llm'
+import { deepseekChat, deepseekKey } from '@/lib/llm'
 import { createClient } from '@supabase/supabase-js'
 
 export const maxDuration = 30
@@ -47,9 +47,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. LLM availability check (GLM is the only provider — see lib/llm.ts)
-    if (!glmKey()) {
-      return NextResponse.json({ error: 'Missing GLM_API_KEY configuration' }, { status: 500 })
+    // 2. LLM availability check (DeepSeek is the primary provider — see lib/llm.ts)
+    if (!deepseekKey()) {
+      return NextResponse.json({ error: 'Missing DEEPSEEK_API_KEY configuration' }, { status: 500 })
     }
 
     // 3. System Prompt
@@ -69,7 +69,7 @@ RULES:
 
     const lastMessage = messages[messages.length - 1].content
 
-    const responseText = await glmChat(
+    const responseText = await deepseekChat(
       [
         { role: 'system', content: systemInstructionText },
         ...history,
