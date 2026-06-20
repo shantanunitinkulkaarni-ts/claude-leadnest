@@ -401,10 +401,11 @@ export async function POST(request: NextRequest) {
     let lead: any = leads?.[0] || null
 
     if (!lead) {
+      // Omit conversation_stage from insert — it may not exist yet (pre-migration safety).
       const { data: nl } = await supabaseAdmin.from('leads').insert({
         agent_id: agent.id, phone: fromPhone, last_message_at: now,
         window_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        status: 'new', conversation_stage: 'new',
+        status: 'new',
         opted_in: true, opt_in_at: now, opt_in_source: 'whatsapp_inbound'
       }).select().single()
       if (!nl) return NextResponse.json({ status: 'lead_create_failed' })
@@ -485,13 +486,13 @@ export async function POST(request: NextRequest) {
       // New lead greeting
       reply = T.greeting(lead.name || '')
       replyAction = 'greeting'
-      await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_intent' }).eq('id', lead.id)
+      try { await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_intent' }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'awaiting_intent', error: e?.message }) }
 
     } else if (leadStage === 'awaiting_intent' || (!storedIntent && !isGreeting(messageText))) {
       // We need intent
       const intent = isIntent(messageText)
       if (intent) {
-        await supabaseAdmin.from('leads').update({ intent, conversation_stage: 'awaiting_area' }).eq('id', lead.id)
+        try { await supabaseAdmin.from('leads').update({ intent, conversation_stage: 'awaiting_area' }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'awaiting_area', error: e?.message }) }
         reply = T.ask_area()
         replyAction = 'ask_area'
       } else {
@@ -516,10 +517,10 @@ export async function POST(request: NextRequest) {
           .ilike('location', `%${area}%`)
 
         if (props && props.length > 0) {
-          await supabaseAdmin.from('leads').update({
+          try { await supabaseAdmin.from('leads').update({
             preferred_areas: [area],
             conversation_stage: 'presenting',
-          }).eq('id', lead.id)
+          }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'presenting', error: e?.message }) }
           reply = T.property_found(props)
           photos = getPropertyPhotos(props[0])
           replyAction = 'present'
@@ -540,7 +541,7 @@ export async function POST(request: NextRequest) {
             reply = `${T.no_match()}\n\n${T.agent_card(agent)}`
             replyAction = 'no_match_card'
           }
-          await supabaseAdmin.from('leads').update({ conversation_stage: 'no_match_ai' }).eq('id', lead.id)
+          try { await supabaseAdmin.from('leads').update({ conversation_stage: 'no_match_ai' }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'no_match_ai', error: e?.message }) }
         }
       } else if (leadStage === 'no_match_ai') {
         // We already told them we have no match — do NOT loop on "Which area?".
@@ -568,9 +569,9 @@ export async function POST(request: NextRequest) {
         agent_id: agent.id, lead_id: lead.id,
         scheduled_at: storedPendingBooking, status: 'upcoming',
       }).select()
-      await supabaseAdmin.from('leads').update({
+      try { await supabaseAdmin.from('leads').update({
         status: 'visit_booked', pending_appointment_time: null, conversation_stage: 'booked',
-      }).eq('id', lead.id)
+      }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'booked', error: e?.message }) }
 
       reply = T.booking_confirmed(time)
       replyAction = 'booking_confirmed'
@@ -582,27 +583,27 @@ export async function POST(request: NextRequest) {
       if (parsed) {
         if (new Date(parsed).getTime() < Date.now() - 60 * 1000) {
           // Resolved to a time in the past
-          await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_booking' }).eq('id', lead.id)
+          try { await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_booking' }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'awaiting_booking', error: e?.message }) }
           reply = T.booking_past()
           replyAction = 'booking_past'
         } else {
           const oh = withinOfficeHours(parsed, agent)
           if (!oh.ok) {
-            await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_booking' }).eq('id', lead.id)
+            try { await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_booking' }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'awaiting_booking', error: e?.message }) }
             reply = T.booking_out_of_hours(oh.open, oh.close)
             replyAction = 'booking_out_of_hours'
           } else {
             // Stage the parsed time; ask for a Confirm to lock it in
-            await supabaseAdmin.from('leads').update({
+            try { await supabaseAdmin.from('leads').update({
               pending_appointment_time: parsed, conversation_stage: 'awaiting_booking',
-            }).eq('id', lead.id)
+            }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'awaiting_booking', error: e?.message }) }
             reply = T.booking_time_ack(formatIST(parsed))
             replyAction = 'booking_time_ack'
           }
         }
       } else {
         // No usable date/time in the message — ask for one
-        await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_booking' }).eq('id', lead.id)
+        try { await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_booking' }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'awaiting_booking', error: e?.message }) }
         reply = T.booking_start()
         replyAction = 'booking_start'
       }
