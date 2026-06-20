@@ -11,6 +11,7 @@ import { createLogger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rateLimit'
 import { randomUUID } from 'crypto'
 import * as Sentry from '@sentry/nextjs'
+import { LeadStates } from '@/lib/leadStateMachine'
 
 // ─── Template Replies ────────────────────────────────────────────────────────
 const T = {
@@ -287,6 +288,20 @@ export async function POST(request: NextRequest) {
   const traceId = randomUUID()
   const { log, logError, setContext } = createLogger(traceId)
 
+  // Dual-write helper (Step C: write both conversation_stage + state)
+  const updateLeadStage = async (leadId: string, conversationStage: string, newState?: string) => {
+    const updates: any = { conversation_stage: conversationStage }
+    if (newState) updates.state = newState
+    const { error } = await supabaseAdmin.from('leads').update(updates).eq('id', leadId)
+    if (error) {
+      logError('dual_write_failed', {
+        stage: conversationStage,
+        state: newState,
+        error: error.message,
+      })
+    }
+  }
+
   try {
     // ── Auth ─────────────────────────────────────────────────────────────
     {
@@ -486,13 +501,14 @@ export async function POST(request: NextRequest) {
       // New lead greeting
       reply = T.greeting(lead.name || '')
       replyAction = 'greeting'
-      try { await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_intent' }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'awaiting_intent', error: e?.message }) }
+      await updateLeadStage(lead.id, 'awaiting_intent', LeadStates.IN_CONVERSATION)
 
     } else if (leadStage === 'awaiting_intent' || (!storedIntent && !isGreeting(messageText))) {
       // We need intent
       const intent = isIntent(messageText)
       if (intent) {
-        try { await supabaseAdmin.from('leads').update({ intent, conversation_stage: 'awaiting_area' }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'awaiting_area', error: e?.message }) }
+        await updateLeadStage(lead.id, 'awaiting_area', LeadStates.QUALIFYING)
+        await supabaseAdmin.from('leads').update({ intent }).eq('id', lead.id)
         reply = T.ask_area()
         replyAction = 'ask_area'
       } else {
@@ -519,8 +535,8 @@ export async function POST(request: NextRequest) {
         if (props && props.length > 0) {
           try { await supabaseAdmin.from('leads').update({
             preferred_areas: [area],
-            conversation_stage: 'presenting',
-          }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'presenting', error: e?.message }) }
+          }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { error: e?.message }) }
+          await updateLeadStage(lead.id, 'presenting', LeadStates.PROPERTY_SHOWN)
           reply = T.property_found(props)
           photos = getPropertyPhotos(props[0])
           replyAction = 'present'
@@ -541,7 +557,7 @@ export async function POST(request: NextRequest) {
             reply = `${T.no_match()}\n\n${T.agent_card(agent)}`
             replyAction = 'no_match_card'
           }
-          try { await supabaseAdmin.from('leads').update({ conversation_stage: 'no_match_ai' }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'no_match_ai', error: e?.message }) }
+          await updateLeadStage(lead.id, 'no_match_ai', LeadStates.PROPERTY_SHOWN)
         }
       } else if (leadStage === 'no_match_ai') {
         // We already told them we have no match — do NOT loop on "Which area?".
@@ -570,8 +586,9 @@ export async function POST(request: NextRequest) {
         scheduled_at: storedPendingBooking, status: 'upcoming',
       }).select()
       try { await supabaseAdmin.from('leads').update({
-        status: 'visit_booked', pending_appointment_time: null, conversation_stage: 'booked',
-      }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'booked', error: e?.message }) }
+        status: 'visit_booked', pending_appointment_time: null,
+      }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { error: e?.message }) }
+      await updateLeadStage(lead.id, 'booked', LeadStates.VISIT_CONFIRMED)
 
       reply = T.booking_confirmed(time)
       replyAction = 'booking_confirmed'
@@ -583,20 +600,21 @@ export async function POST(request: NextRequest) {
       if (parsed) {
         if (new Date(parsed).getTime() < Date.now() - 60 * 1000) {
           // Resolved to a time in the past
-          try { await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_booking' }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'awaiting_booking', error: e?.message }) }
+          await updateLeadStage(lead.id, 'awaiting_booking', LeadStates.VISIT_REQUESTED)
           reply = T.booking_past()
           replyAction = 'booking_past'
         } else {
           const oh = withinOfficeHours(parsed, agent)
           if (!oh.ok) {
-            try { await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_booking' }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'awaiting_booking', error: e?.message }) }
+            await updateLeadStage(lead.id, 'awaiting_booking', LeadStates.VISIT_REQUESTED)
             reply = T.booking_out_of_hours(oh.open, oh.close)
             replyAction = 'booking_out_of_hours'
           } else {
             // Stage the parsed time; ask for a Confirm to lock it in
             try { await supabaseAdmin.from('leads').update({
-              pending_appointment_time: parsed, conversation_stage: 'awaiting_booking',
-            }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'awaiting_booking', error: e?.message }) }
+              pending_appointment_time: parsed,
+            }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { error: e?.message }) }
+            await updateLeadStage(lead.id, 'awaiting_booking', LeadStates.VISIT_REQUESTED)
             reply = T.booking_time_ack(formatIST(parsed))
             replyAction = 'booking_time_ack'
           }
