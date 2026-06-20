@@ -11,7 +11,7 @@ export const mockProperties: Record<string, PropertyRow> = {
     id: 'prop-baner-rental-2bhk-20k',
     agent_id: 'agent-1',
     title: 'Cozy 2BHK Apartment',
-    type: 'rental',
+    type: 'rental' as const,
     category: 'apartment',
     location: 'Baner',
     city: 'Pune',
@@ -30,7 +30,7 @@ export const mockProperties: Record<string, PropertyRow> = {
     id: 'prop-baner-rental-3bhk-35k',
     agent_id: 'agent-1',
     title: 'Spacious 3BHK Rental',
-    type: 'rental',
+    type: 'rental' as const,
     category: 'apartment',
     location: 'Baner',
     city: 'Pune',
@@ -49,7 +49,7 @@ export const mockProperties: Record<string, PropertyRow> = {
     id: 'prop-baner-sale-2bhk-50l',
     agent_id: 'agent-1',
     title: 'Buy 2BHK in Baner',
-    type: 'sale',
+    type: 'sale' as const,
     category: 'apartment',
     location: 'Baner',
     city: 'Pune',
@@ -68,7 +68,7 @@ export const mockProperties: Record<string, PropertyRow> = {
     id: 'prop-baner-sale-3bhk-75l',
     agent_id: 'agent-1',
     title: 'Premium 3BHK Sale',
-    type: 'sale',
+    type: 'sale' as const,
     category: 'apartment',
     location: 'Baner',
     city: 'Pune',
@@ -88,7 +88,7 @@ export const mockProperties: Record<string, PropertyRow> = {
     id: 'prop-aundh-rental-2bhk-18k',
     agent_id: 'agent-1',
     title: 'Aundh 2BHK Rental',
-    type: 'rental',
+    type: 'rental' as const,
     category: 'apartment',
     location: 'Aundh',
     city: 'Pune',
@@ -107,7 +107,7 @@ export const mockProperties: Record<string, PropertyRow> = {
     id: 'prop-aundh-sale-2bhk-45l',
     agent_id: 'agent-1',
     title: 'Aundh 2BHK Sale',
-    type: 'sale',
+    type: 'sale' as const,
     category: 'apartment',
     location: 'Aundh',
     city: 'Pune',
@@ -127,7 +127,7 @@ export const mockProperties: Record<string, PropertyRow> = {
     id: 'prop-kp-sale-3bhk-1.5cr',
     agent_id: 'agent-1',
     title: 'Koregaon Park Luxury 3BHK',
-    type: 'sale',
+    type: 'sale' as const,
     category: 'apartment',
     location: 'Koregaon Park',
     city: 'Pune',
@@ -147,7 +147,7 @@ export const mockProperties: Record<string, PropertyRow> = {
     id: 'prop-mystery-location-10k',
     agent_id: 'agent-1',
     title: 'Unknown Property',
-    type: 'rental',
+    type: 'rental' as const,
     category: null,
     location: 'Unknown Area',
     city: 'Pune',
@@ -167,7 +167,7 @@ export const mockProperties: Record<string, PropertyRow> = {
     id: 'prop-inactive-baner-50l',
     agent_id: 'agent-1',
     title: 'Sold Property',
-    type: 'sale',
+    type: 'sale' as const,
     category: 'apartment',
     location: 'Baner',
     city: 'Pune',
@@ -187,7 +187,7 @@ export const mockProperties: Record<string, PropertyRow> = {
     id: 'prop-baner-typo-rental-25k',
     agent_id: 'agent-1',
     title: 'Baner Rental (stored as Baner)',
-    type: 'rental',
+    type: 'rental' as const,
     category: 'apartment',
     location: 'baner', // lowercase
     city: 'Pune',
@@ -204,22 +204,22 @@ export const mockProperties: Record<string, PropertyRow> = {
 }
 
 // Convenience exports by category
-export const banerRentals = [
+export const banerRentals: PropertyRow[] = [
   mockProperties.baner_rental_2bhk_20k,
   mockProperties.baner_rental_3bhk_35k,
 ]
 
-export const banerSales = [
+export const banerSales: PropertyRow[] = [
   mockProperties.baner_sale_2bhk_50l,
   mockProperties.baner_sale_3bhk_75l,
 ]
 
-export const aundhProperties = [
+export const aundhProperties: PropertyRow[] = [
   mockProperties.aundh_rental_2bhk_18k,
   mockProperties.aundh_sale_2bhk_45l,
 ]
 
-export const allActiveProperties = [
+export const allActiveProperties: PropertyRow[] = [
   mockProperties.baner_rental_2bhk_20k,
   mockProperties.baner_rental_3bhk_35k,
   mockProperties.baner_sale_2bhk_50l,
@@ -231,7 +231,7 @@ export const allActiveProperties = [
   mockProperties.baner_typo_location,
 ]
 
-export const withInactiveProperty = [
+export const withInactiveProperty: PropertyRow[] = [
   ...allActiveProperties,
   mockProperties.inactive_property,
 ]
