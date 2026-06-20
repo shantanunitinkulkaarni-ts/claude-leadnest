@@ -114,6 +114,8 @@ function extractArea(t: string): string | null {
     const area = match[1].trim()
     if (area.length >= 3 && area.length <= 50) return area
   }
+  // Fallback: the whole trimmed message could be just an area name ("baner", "katraj")
+  if (n.length >= 3 && n.length <= 50 && !/\s/.test(n)) return n
   return null
 }
 
