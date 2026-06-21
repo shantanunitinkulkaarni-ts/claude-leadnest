@@ -378,36 +378,8 @@ export async function handleAiBotMessage(opts: {
     }
   }
 
-  if (decision.action === 'book_visit') {
-    // Save visit request
-    await supabaseAdmin
-      .from('leads')
-      .update({
-        bot_stage: 'visit_requested',
-        pending_appointment_set_at: new Date().toISOString(),
-      })
-      .eq('id', lead.id)
-
-    // Alert agent immediately
-    const agentPhone = (agent.phone || '').replace(/\D/g, '')
-    if (agentPhone) {
-      const leadName = decision.updates?.name || lead.name || 'A lead'
-      const areas = (decision.updates?.preferred_areas || lead.preferred_areas || []).join(', ')
-      const budget = lead.budget_max
-        ? `₹${Number(lead.budget_max).toLocaleString('en-IN')}`
-        : 'Not specified'
-
-      const agentAlert =
-        `🔔 *New Site Visit Request*\n\n` +
-        `👤 Lead: ${leadName}\n` +
-        `📞 Phone: ${phone}\n` +
-        `📍 Area: ${areas || 'Not specified'}\n` +
-        `💰 Budget: ${budget}\n\n` +
-        `Reply *CONFIRM* or *RESCHEDULE*`
-
-      await sendViaMsg91(integratedNumber, agentPhone, agentAlert)
-    }
-  }
+  // Note: book_visit handler deferred to after leadUpdates is ready
+  // (see below after line ~510)
 
   if (decision.action === 'share_contact' || decision.action === 'handover') {
     const card =
@@ -461,10 +433,62 @@ export async function handleAiBotMessage(opts: {
   }
   if (decision.updates?.email) leadUpdates.email = decision.updates.email
 
+  // Auto-trigger book_visit if we have both visit_time AND email
+  // This ensures booking happens even if AI forgets to set the action
+  if (leadUpdates.email && leadUpdates.pending_appointment_time) {
+    if (!decision.action) decision.action = 'book_visit'
+  }
+
   // Save updated history
   history.push({ role: 'bot', text: finalReply, ts: new Date().toISOString() })
   if (searchReply) history.push({ role: 'bot', text: searchReply, ts: new Date().toISOString() })
   leadUpdates.chat_history = history.slice(-MAX_HISTORY)
+
+  // Execute book_visit BEFORE saving (so visitTime is available)
+  if (decision.action === 'book_visit' && leadUpdates.pending_appointment_time && lead.matched_property_id) {
+    const visitTime = leadUpdates.pending_appointment_time
+    const propertyId = lead.matched_property_id
+    const leadEmail = leadUpdates.email || lead.email
+
+    // 1. Create appointment in DB
+    const { error: appointmentErr } = await supabaseAdmin
+      .from('appointments')
+      .insert({
+        agent_id: agentId,
+        lead_id: lead.id,
+        property_id: propertyId,
+        scheduled_at: visitTime,
+        status: 'upcoming',
+      })
+
+    if (!appointmentErr) {
+      console.log(`[ai-bot] appointment created for ${phone} at ${visitTime}`)
+    } else {
+      console.error(`[ai-bot] appointment creation failed:`, appointmentErr)
+    }
+
+    // 2. Alert agent on WhatsApp
+    const agentPhone = (agent.phone || '').replace(/\D/g, '')
+    if (agentPhone) {
+      const leadName = leadUpdates.name || lead.name || 'A lead'
+      const visitDate = new Date(visitTime).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
+      const visitTime24 = new Date(visitTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+
+      const agentAlert =
+        `🔔 *New Site Visit Booked*\n\n` +
+        `👤 Lead: ${leadName}\n` +
+        `📞 ${phone}\n` +
+        `📅 Date & Time: ${visitDate} at ${visitTime24}\n\n` +
+        `Reply *CONFIRM* or *RESCHEDULE*`
+
+      await sendViaMsg91(integratedNumber, agentPhone, agentAlert)
+    }
+
+    // 3. Send confirmation email (TODO: integrate with Resend)
+    if (leadEmail) {
+      console.log(`[ai-bot] would send confirmation email to lead at ${leadEmail}`)
+    }
+  }
 
   await supabaseAdmin.from('leads').update(leadUpdates).eq('id', lead.id)
 
