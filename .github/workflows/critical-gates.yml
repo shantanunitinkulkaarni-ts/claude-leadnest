@@ -11,6 +11,10 @@ jobs:
     name: Critical Flows Test Suite
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-anon-key' }}
+      GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +35,9 @@ jobs:
       - name: TypeCheck
         run: npm run typecheck
         continue-on-error: false
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
 
       - name: Critical Flows Tests (TIER 1)
         run: npm run test:critical
