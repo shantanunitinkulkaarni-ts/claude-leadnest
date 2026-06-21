@@ -1,4 +1,4 @@
-name: ACE Critical Flows CI Gate
+name: TING Critical Flows CI Gate
 
 on:
   push:
@@ -14,7 +14,6 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co' }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-anon-key' }}
-      GLM_API_KEY: ${{ secrets.GLM_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4

@@ -1,5 +1,5 @@
 /**
- * Lead State Machine — ACE V1
+ * Lead State Machine — TING V1
  *
  * Single authority for all lead state transitions.
  * Every state change goes through transitionLead().

@@ -1,8 +1,8 @@
-# ACE Critical Flows Test Suite
+# TING Critical Flows Test Suite
 
 ## Overview
 
-The ACE Critical Flows Test Suite is a **mandatory CI gate** that prevents production regressions in core business logic.
+The TING Critical Flows Test Suite is a **mandatory CI gate** that prevents production regressions in core business logic.
 
 **Rule:** No PR may be merged unless all critical flow tests pass.
 

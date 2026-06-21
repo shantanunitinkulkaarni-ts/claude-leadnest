@@ -31,7 +31,7 @@ import {
   type SearchCriteria,
 } from '@/lib/propertySearch'
 
-test.describe('ACE Critical Flows Test Suite', () => {
+test.describe('TING Critical Flows Test Suite', () => {
   // ═══════════════════════════════════════════════════════════════════════
   // SECTION 1: PROPERTY VALIDATION
   // ═══════════════════════════════════════════════════════════════════════

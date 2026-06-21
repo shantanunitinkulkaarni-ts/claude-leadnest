@@ -11,7 +11,7 @@
 
 import { test, expect } from '@playwright/test'
 
-test.describe('ACE Golden Path: Rental Inquiry → Visit Booked', () => {
+test.describe('TING Golden Path: Rental Inquiry → Visit Booked', () => {
   let leadId: string
   let propertyId: string
 
