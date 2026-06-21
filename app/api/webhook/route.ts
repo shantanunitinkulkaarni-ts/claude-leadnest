@@ -9,6 +9,7 @@ import { callLLM, type ChatMessage } from '@/lib/llm'
 import { verifySharedSecret } from '@/lib/webhookAuth'
 import { createLogger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rateLimit'
+import { handleAiBotMessage } from '@/lib/ai-bot'
 import { randomUUID } from 'crypto'
 import * as Sentry from '@sentry/nextjs'
 import { LeadStates } from '@/lib/leadStateMachine'
@@ -481,227 +482,24 @@ export async function POST(request: NextRequest) {
     }
 
     // ═════════════════════════════════════════════════════════════════════
-    // ── BOT LOGIC — Simple if-else chain ─────────────────────────────────
+    // ── NEW AI-FIRST BOT ENGINE ──────────────────────────────────────────
     // ═════════════════════════════════════════════════════════════════════
 
-    log('bot_logic_start', { msg: messageText.slice(0, 80) })
+    log('ai_bot_start', { phone: fromPhone, msg: messageText.slice(0, 80) })
 
-    let reply = ''
-    let photos: string[] = []
-    let replyAction = ''
-    let shouldAlertAgent = false
+    // Call new AI bot (handles everything: LLM, property search, message sends)
+    await handleAiBotMessage({
+      phone: fromPhone,
+      message: messageText.trim(),
+      agentId: agent.id,
+      integratedNumber: msg91IntegratedNumber,
+    })
 
-    // STEP 1: Check what stage the lead is at
-    const leadStage = lead.conversation_stage || 'new'
-    const storedIntent = lead.intent || null
-    const storedPendingBooking = lead.pending_appointment_time || null
-
-    // STEP 2: Handle the message based on stage
-    if (isGreeting(messageText) && leadStage === 'new') {
-      // New lead greeting
-      reply = T.greeting(lead.name || '')
-      replyAction = 'greeting'
-      await updateLeadStage(lead.id, 'awaiting_intent', LeadStates.IN_CONVERSATION)
-
-    } else if (leadStage === 'awaiting_intent' || (!storedIntent && !isGreeting(messageText))) {
-      // We need intent
-      const intent = isIntent(messageText)
-      log('INTENT_EXTRACTION', { messageText: messageText.slice(0, 80), detectedIntent: intent, leadStage })
-
-      if (intent) {
-        log('INTENT_FOUND', { intent })
-        await updateLeadStage(lead.id, 'awaiting_area', LeadStates.QUALIFYING)
-        await supabaseAdmin.from('leads').update({ intent }).eq('id', lead.id)
-        reply = T.ask_area()
-        replyAction = 'ask_area'
-      } else {
-        // Try AI to decode
-        log('INTENT_NOT_FOUND_USING_AI', { messageText: messageText.slice(0, 80) })
-        const aiReply = await aiDecode([], messageText)
-        if (aiReply) {
-          log('AI_DECODED_INTENT', { aiReply: aiReply.slice(0, 100) })
-          reply = aiReply
-          replyAction = 'ai_unknown'
-        } else {
-          log('AI_FAILED_INTENT', {})
-          reply = T.unknown()
-          replyAction = 'unknown'
-        }
-      }
-
-    } else if (leadStage === 'awaiting_area' || leadStage === 'no_match_ai') {
-      // We need area
-      const area = extractArea(messageText)
-      log('SEARCH_START', { area, intent: storedIntent, leadStage, messageText })
-
-      if (area) {
-        // Check properties
-        const { data: props } = await supabaseAdmin.from('properties')
-          .select('*').eq('agent_id', agent.id).eq('status', 'active')
-          .ilike('location', `%${area}%`)
-
-        log('SEARCH_RESULTS_COUNT', { count: props?.length || 0, area, storedIntent })
-        log('SEARCH_RESULTS', { results: props?.map((p: any) => ({ id: p.id, type: p.type, location: p.location, price: p.price, rent: p.rent_per_month })) || [] })
-
-        if (props && props.length > 0) {
-          try { await supabaseAdmin.from('leads').update({
-            preferred_areas: [area],
-          }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { error: e?.message }) }
-          await updateLeadStage(lead.id, 'presenting', LeadStates.PROPERTY_SHOWN)
-          reply = T.property_found(props)
-          photos = getPropertyPhotos(props[0])
-          replyAction = 'present'
-          log('PROPERTY_FOUND_REPLY', { count: props.length, replyLength: reply.length })
-        } else {
-          // No properties — AI handles
-          log('SEARCH_NO_RESULTS', { area, intent: storedIntent, AI_FALLBACK: 'ENABLED' })
-          const recentMsgs = await supabaseAdmin.from('messages')
-            .select('direction, content').eq('lead_id', lead.id)
-            .order('created_at', { ascending: false }).limit(10)
-          const recent = (recentMsgs.data || []).reverse().map(m => ({
-            role: (m.direction === 'inbound' ? 'user' : 'assistant') as 'user' | 'assistant',
-            content: m.content || '',
-          }))
-          const aiReply = await aiDecode(recent, messageText)
-          log('AI_RESPONSE', { aiReply: aiReply?.slice(0, 100) || 'NULL' })
-          reply = aiReply || T.no_match_ai('')
-          replyAction = 'ai_no_match'
-          // Offer agent card as fallback
-          if (!aiReply) {
-            reply = `${T.no_match()}\n\n${T.agent_card(agent)}`
-            replyAction = 'no_match_card'
-          }
-          await updateLeadStage(lead.id, 'no_match_ai', LeadStates.PROPERTY_SHOWN)
-        }
-      } else if (leadStage === 'no_match_ai') {
-        // We already told them we have no match — do NOT loop on "Which area?".
-        // Help via AI with history; fall back to the agent contact card.
-        const recentMsgs = await supabaseAdmin.from('messages')
-          .select('direction, content').eq('lead_id', lead.id)
-          .order('created_at', { ascending: false }).limit(10)
-        const recent = (recentMsgs.data || []).reverse().map(m => ({
-          role: (m.direction === 'inbound' ? 'user' : 'assistant') as 'user' | 'assistant',
-          content: m.content || '',
-        }))
-        const aiReply = await aiDecode(recent, messageText)
-        reply = aiReply || `${T.no_match()}\n\n${T.agent_card(agent)}`
-        replyAction = aiReply ? 'no_match_followup_ai' : 'no_match_card'
-      } else {
-        // First time asking — collect the area
-        reply = T.ask_area()
-        replyAction = 'ask_area_again'
-      }
-
-    } else if (storedPendingBooking && isConfirmation(messageText)) {
-      // Booking confirmation
-      const time = formatIST(storedPendingBooking)
-      await supabaseAdmin.from('appointments').insert({
-        agent_id: agent.id, lead_id: lead.id,
-        scheduled_at: storedPendingBooking, status: 'upcoming',
-      }).select()
-      try { await supabaseAdmin.from('leads').update({
-        status: 'visit_booked', pending_appointment_time: null,
-      }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { error: e?.message }) }
-      await updateLeadStage(lead.id, 'booked', LeadStates.VISIT_CONFIRMED)
-
-      reply = T.booking_confirmed(time)
-      replyAction = 'booking_confirmed'
-      shouldAlertAgent = true
-
-    } else if (isBookingRequest(messageText) || leadStage === 'awaiting_booking') {
-      // Handle booking request — parse the actual date/time the customer gave
-      const parsed = parseAppointmentTime(messageText)
-      if (parsed) {
-        if (new Date(parsed).getTime() < Date.now() - 60 * 1000) {
-          // Resolved to a time in the past
-          await updateLeadStage(lead.id, 'awaiting_booking', LeadStates.VISIT_REQUESTED)
-          reply = T.booking_past()
-          replyAction = 'booking_past'
-        } else {
-          const oh = withinOfficeHours(parsed, agent)
-          if (!oh.ok) {
-            await updateLeadStage(lead.id, 'awaiting_booking', LeadStates.VISIT_REQUESTED)
-            reply = T.booking_out_of_hours(oh.open, oh.close)
-            replyAction = 'booking_out_of_hours'
-          } else {
-            // Stage the parsed time; ask for a Confirm to lock it in
-            try { await supabaseAdmin.from('leads').update({
-              pending_appointment_time: parsed,
-            }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { error: e?.message }) }
-            await updateLeadStage(lead.id, 'awaiting_booking', LeadStates.VISIT_REQUESTED)
-            reply = T.booking_time_ack(formatIST(parsed))
-            replyAction = 'booking_time_ack'
-          }
-        }
-      } else {
-        // No usable date/time in the message — ask for one
-        try { await supabaseAdmin.from('leads').update({ conversation_stage: 'awaiting_booking' }).eq('id', lead.id) } catch (e: any) { logError('stage_update_failed', { stage: 'awaiting_booking', error: e?.message }) }
-        reply = T.booking_start()
-        replyAction = 'booking_start'
-      }
-
-    } else if (isContactRequest(messageText)) {
-      reply = T.agent_card(agent)
-      replyAction = 'contact_card'
-
-    } else {
-      // Unknown — AI fallback
-      const recentMsgs = await supabaseAdmin.from('messages')
-        .select('direction, content').eq('lead_id', lead.id)
-        .order('created_at', { ascending: false }).limit(10)
-      const recent = (recentMsgs.data || []).reverse().map(m => ({
-        role: (m.direction === 'inbound' ? 'user' : 'assistant') as 'user' | 'assistant',
-        content: m.content || '',
-      }))
-      const aiReply = await aiDecode(recent, messageText)
-      reply = aiReply || T.unknown()
-      replyAction = 'ai_fallback'
-    }
-
-    // ── Send reply ──────────────────────────────────────────────────────
-    const { data: outMsg } = await supabaseAdmin.from('messages').insert({
-      lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
-      content: reply, sent_by: 'bot',
-    }).select('id').single()
-
-    let waId: string | null = null
-    if (incomingProvider === 'msg91') {
-      const r = await sendWithRetry(() => sendViaMsg91(msg91IntegratedNumber, fromPhone, reply))
-      waId = r.id
-    }
-    if (outMsg?.id && waId) {
-      await supabaseAdmin.from('messages').update({ wa_message_id: waId }).eq('id', outMsg.id)
-    }
-
-    // Send photos if any
-    for (const url of photos) {
-      try {
-        const mid = (await sendWithRetry(() => sendViaMsg91Media(msg91IntegratedNumber, fromPhone, url)))
-        try { await supabaseAdmin.from('messages').insert({
-          lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
-          content: '[photo]', sent_by: 'bot', wa_message_id: mid.id || null,
-        }) } catch {}
-      } catch {}
-    }
-
-    // Alert agent if needed (booking confirmed)
-    if (shouldAlertAgent) {
-      try {
-        const { sendHighPriorityAlert } = await import('@/lib/alerts')
-        await sendHighPriorityAlert(agent, {
-          subject: `New booking: ${lead.name || lead.phone}`,
-          html: `<p>A site visit has been booked for ${lead.name || lead.phone}.</p>`,
-          whatsappText: `🔴 New booking confirmed!\n\n${lead.name || 'Lead'} (${lead.phone}) has booked a site visit.`,
-          templateValues: [lead.name || 'Lead', lead.phone, 'booked a visit'],
-          msg91IntegratedNumber,
-        })
-      } catch (e: any) { logError('alert_failed', { error: e?.message }) }
-    }
-
+    // Increment message counter
     try { await supabaseAdmin.rpc('increment_messages_used', { p_agent_id: agent.id, p_amount: 2 }) } catch {}
 
-    log('bot_reply', { action: replyAction, len: reply.length, photos: photos.length })
-    return NextResponse.json({ status: 'ok', action: replyAction })
+    log('ai_bot_complete', { phone: fromPhone })
+    return NextResponse.json({ status: 'ok' })
 
   } catch (err: any) {
     logError('webhook_error', { error: err.message })
