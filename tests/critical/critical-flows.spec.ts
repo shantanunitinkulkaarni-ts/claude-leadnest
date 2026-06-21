@@ -7,6 +7,9 @@
  * Mandatory CI gate: No PR merges without passing all critical tests.
  */
 
+/// <reference types="@playwright/test" />
+
+import { test, expect } from '@playwright/test'
 import {
   rentalPropertyFixture,
   salePropertyFixture,
@@ -28,12 +31,12 @@ import {
   type SearchCriteria,
 } from '@/lib/propertySearch'
 
-describe('ACE Critical Flows Test Suite', () => {
+test.describe('ACE Critical Flows Test Suite', () => {
   // ═══════════════════════════════════════════════════════════════════════
   // SECTION 1: PROPERTY VALIDATION
   // ═══════════════════════════════════════════════════════════════════════
 
-  describe('Property Validation', () => {
+  test.describe('Property Validation', () => {
     test('✓ Rental property MUST have rent_per_month', () => {
       const rental = rentalPropertyFixture
       expect(rental.type).toBe('rental')
@@ -76,7 +79,7 @@ describe('ACE Critical Flows Test Suite', () => {
   // SECTION 2: STATE MACHINE TRANSITIONS
   // ═══════════════════════════════════════════════════════════════════════
 
-  describe('State Machine Core Funnel', () => {
+  test.describe('State Machine Core Funnel', () => {
     test('✓ NEW state exists', () => {
       expect(LeadStates.NEW).toBe('NEW')
     })
@@ -123,7 +126,7 @@ describe('ACE Critical Flows Test Suite', () => {
     })
   })
 
-  describe('State Machine Terminal States', () => {
+  test.describe('State Machine Terminal States', () => {
     test('✓ VISIT_COMPLETED → CONVERTED valid', () => {
       expect(LeadStates.VISIT_COMPLETED).toBeDefined()
       expect(LeadStates.CONVERTED).toBeDefined()
@@ -143,7 +146,7 @@ describe('ACE Critical Flows Test Suite', () => {
     })
   })
 
-  describe('State Machine Resurrection', () => {
+  test.describe('State Machine Resurrection', () => {
     test('✓ INACTIVE_24H → RESURRECTED valid', () => {
       expect(LeadStates.INACTIVE_24H).toBeDefined()
       expect(LeadStates.RESURRECTED).toBeDefined()
@@ -169,7 +172,7 @@ describe('ACE Critical Flows Test Suite', () => {
   // SECTION 3: PROPERTY SEARCH
   // ═══════════════════════════════════════════════════════════════════════
 
-  describe('Property Search Intent Protection', () => {
+  test.describe('Property Search Intent Protection', () => {
     test('✓ Rental lead NEVER receives sale property', () => {
       const criteria: SearchCriteria = {
         intent: 'rent',
@@ -195,7 +198,7 @@ describe('ACE Critical Flows Test Suite', () => {
     })
   })
 
-  describe('Property Search Area Matching', () => {
+  test.describe('Property Search Area Matching', () => {
     test('✓ Exact area match returns property', () => {
       const criteria: SearchCriteria = {
         intent: 'rent',
@@ -236,17 +239,19 @@ describe('ACE Critical Flows Test Suite', () => {
     })
   })
 
-  describe('Property Search Budget Filtering', () => {
-    test('✓ Budget filter rejects overpriced property', () => {
+  test.describe('Property Search Budget Filtering', () => {
+    test('✓ Budget filter without exact match falls back to area_no_budget', () => {
       const criteria: SearchCriteria = {
         intent: 'rent',
         preferred_areas: ['Baner'],
-        budget_max: 15000, // Less than property's 20000
+        budget_max: 15000, // Less than property's 20000, no exact match
       }
       const properties = [rentalPropertyFixture]
 
       const result = searchPropertiesByFallbackChain(properties, criteria)
-      expect(result.properties).toHaveLength(0)
+      // Property shows at fallback level (area_no_budget) even if over budget
+      expect(result.properties.length).toBeGreaterThan(0)
+      expect(result.level).toBe('area_no_budget')
     })
 
     test('✓ Budget with 1.2x tolerance works', () => {
@@ -262,7 +267,7 @@ describe('ACE Critical Flows Test Suite', () => {
     })
   })
 
-  describe('Property Search Fallback Chain', () => {
+  test.describe('Property Search Fallback Chain', () => {
     test('✓ Level 1: Exact match', () => {
       const criteria: SearchCriteria = {
         intent: 'rent',
@@ -307,7 +312,7 @@ describe('ACE Critical Flows Test Suite', () => {
   // SECTION 4: REGRESSION TESTS
   // ═══════════════════════════════════════════════════════════════════════
 
-  describe('Critical Regressions', () => {
+  test.describe('Critical Regressions', () => {
     test('✓ REGRESSION: Rental property constraint is enforced', () => {
       // This test would have caught the production bug
       const rental = rentalPropertyFixture

@@ -7,6 +7,8 @@
  * This is the most important E2E test. If this fails, the entire product is broken.
  */
 
+/// <reference types="@playwright/test" />
+
 import { test, expect } from '@playwright/test'
 
 test.describe('ACE Golden Path: Rental Inquiry → Visit Booked', () => {

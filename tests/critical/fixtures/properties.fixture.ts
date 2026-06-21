@@ -2,7 +2,9 @@
  * Test fixture data for property tests
  */
 
-export const rentalPropertyFixture = {
+import { PropertyRow } from '@/lib/propertySearch'
+
+export const rentalPropertyFixture: PropertyRow = {
   id: 'rental-1',
   agent_id: 'agent-1',
   type: 'rental',
@@ -22,7 +24,7 @@ export const rentalPropertyFixture = {
   updated_at: new Date().toISOString(),
 }
 
-export const salePropertyFixture = {
+export const salePropertyFixture: PropertyRow = {
   id: 'sale-1',
   agent_id: 'agent-1',
   type: 'sale',
@@ -42,7 +44,7 @@ export const salePropertyFixture = {
   updated_at: new Date().toISOString(),
 }
 
-export const rentalPropertyAllFields = {
+export const rentalPropertyAllFields: PropertyRow = {
   ...rentalPropertyFixture,
   id: 'rental-2',
   deposit: 60000,
@@ -53,7 +55,7 @@ export const rentalPropertyAllFields = {
   extra_info: '5 min from Jupiter Hospital',
 }
 
-export const salePropertyAllFields = {
+export const salePropertyAllFields: PropertyRow = {
   ...salePropertyFixture,
   id: 'sale-2',
   possession_status: 'ready_to_move',
@@ -63,7 +65,7 @@ export const salePropertyAllFields = {
   extra_info: 'Prime location, gated community',
 }
 
-export const invalidPropertyMissingType = {
+export const invalidPropertyMissingType: Partial<PropertyRow> = {
   id: 'invalid-1',
   agent_id: 'agent-1',
   title: 'Test Property',
@@ -72,7 +74,7 @@ export const invalidPropertyMissingType = {
   price: 1000000,
 }
 
-export const invalidRentalMissingRent = {
+export const invalidRentalMissingRent: PropertyRow = {
   id: 'invalid-2',
   agent_id: 'agent-1',
   type: 'rental',
@@ -83,7 +85,7 @@ export const invalidRentalMissingRent = {
   rent_per_month: null,
 }
 
-export const invalidSaleMissingPrice = {
+export const invalidSaleMissingPrice: PropertyRow = {
   id: 'invalid-3',
   agent_id: 'agent-1',
   type: 'sale',

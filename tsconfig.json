@@ -6,6 +6,7 @@
       "dom.iterable",
       "esnext"
     ],
+    "types": ["@playwright/test", "@types/node"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -36,6 +37,7 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "tests/**/*.spec.ts"
   ]
 }
