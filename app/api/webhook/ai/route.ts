@@ -13,7 +13,9 @@ export const maxDuration = 60
 import { NextRequest, NextResponse } from 'next/server'
 import { handleAiBotMessage } from '@/lib/ai-bot'
 
-// Test agent — set in Vercel env as AI_BOT_TEST_AGENT_ID
+import { supabaseAdmin } from '@/lib/supabase'
+
+// Fallback test agent if no agent found by integrated number
 const TEST_AGENT_ID = process.env.AI_BOT_TEST_AGENT_ID || 'b6ece25c-8bfd-4d1e-98e5-e2eff5ffe726'
 
 export async function POST(request: NextRequest) {
@@ -72,11 +74,23 @@ export async function POST(request: NextRequest) {
 
     console.log(`[webhook/ai] message from ${fromPhone}: "${messageText.slice(0, 100)}"`)
 
+    // Look up agent by MSG91 integrated number (same as old webhook)
+    let agentId = TEST_AGENT_ID
+    if (integratedNumber) {
+      const inboundNum = integratedNumber.replace(/\D/g, '')
+      const { data: agentRow } = await supabaseAdmin
+        .from('agents')
+        .select('id')
+        .eq('msg91_integrated_number', inboundNum)
+        .maybeSingle()
+      if (agentRow?.id) agentId = agentRow.id
+    }
+
     // Run AI bot (non-blocking — respond 200 immediately)
     handleAiBotMessage({
       phone: fromPhone,
       message: messageText.trim(),
-      agentId: TEST_AGENT_ID,
+      agentId,
       integratedNumber: integratedNumber || String(process.env.MSG91_TEST_INTEGRATED_NUMBER || ''),
     }).catch(err => {
       console.error('[webhook/ai] handleAiBotMessage error:', err)
