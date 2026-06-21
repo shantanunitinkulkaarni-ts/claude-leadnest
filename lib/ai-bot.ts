@@ -17,8 +17,9 @@ export type BotStage =
   | 'intent'
   | 'qualifying'
   | 'property_shown'
-  | 'visit_requested'
-  | 'confirmed'
+  | 'awaiting_visit_time'
+  | 'awaiting_email'
+  | 'visit_confirmed'
   | 'handover'
 
 type ChatEntry = {
@@ -39,6 +40,7 @@ type AIDecision = {
     budget_max?: number
     bhk?: string
     sqft_preference?: number
+    visit_time?: string
     email?: string
   }
 }
@@ -68,6 +70,7 @@ function buildSystemPrompt(agent: any, lead: any, properties?: any[]): string {
     preferred_areas: lead.preferred_areas || [],
     budget_max: lead.budget_max || null,
     bhk: lead.bhk || null,
+    visit_time: lead.pending_appointment_time || null,
     email: lead.email || null,
     bot_stage: lead.bot_stage || 'greeting',
   }, null, 2)
@@ -108,8 +111,10 @@ CONVERSATION FLOW (follow this order, skip what is already known):
 8. Once you have intent + area → set action to "search_properties"
 9. Present matched properties using ONLY the data provided
 10. Offer photos when presenting properties ("Would you like photos?")
-11. When user wants to visit → collect email if not already saved → set action "book_visit"
-12. After booking → confirm on WhatsApp and email
+11. When user wants to visit → ASK for preferred date and time (e.g., "tomorrow at 11 AM")
+12. Once user gives time → ask for their email address for confirmation
+13. Once user gives email → set action "book_visit" to create appointment
+14. Confirm on WhatsApp with all details (property, time, contact)
 
 RULES:
 - NEVER invent prices, sizes, locations, or any property fact
@@ -127,7 +132,7 @@ ${propertiesBlock}
 RESPOND WITH VALID JSON ONLY. No text outside the JSON block.
 
 {
-  "stage": "greeting|language|name|intent|qualifying|property_shown|visit_requested|confirmed|handover",
+  "stage": "greeting|language|name|intent|qualifying|property_shown|awaiting_visit_time|awaiting_email|visit_confirmed|handover",
   "reply": "your WhatsApp message to the customer",
   "action": null or "search_properties"|"send_photos"|"book_visit"|"share_contact"|"handover",
   "updates": {
@@ -138,6 +143,7 @@ RESPOND WITH VALID JSON ONLY. No text outside the JSON block.
     "budget_max": number or omit,
     "bhk": "2BHK" or omit,
     "sqft_preference": number or omit,
+    "visit_time": "ISO8601 datetime or natural lang like '2026-06-22 11:00' or omit",
     "email": "string or omit"
   }
 }`
@@ -393,6 +399,7 @@ export async function handleAiBotMessage(opts: {
   if (decision.updates?.budget_max) leadUpdates.budget_max = decision.updates.budget_max
   if (decision.updates?.bhk) leadUpdates.bhk = decision.updates.bhk
   if (decision.updates?.sqft_preference) leadUpdates.sqft_preference = decision.updates.sqft_preference
+  if (decision.updates?.visit_time) leadUpdates.pending_appointment_time = decision.updates.visit_time
   if (decision.updates?.email) leadUpdates.email = decision.updates.email
 
   // Save updated history
