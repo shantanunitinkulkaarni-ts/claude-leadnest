@@ -174,17 +174,18 @@ export default function PropertiesScreen({ agentId }: Props) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (priceWarning && !hasConfirmedWarning) {
       setHasConfirmedWarning(true)
       return
     }
 
     setIsSubmitting(true)
-    
+
     const newMediaUrls = await uploadFiles()
     const finalMedia = [...existingMedia, ...newMediaUrls]
     const numPrice = parseInt(price.toString().replace(/,/g, ''))
+    const isRental = type.toLowerCase() === 'rental'
 
     const payload = {
       id: editingId,
@@ -192,7 +193,8 @@ export default function PropertiesScreen({ agentId }: Props) {
       title,
       location: normalizeArea(location),
       city,
-      price: isNaN(numPrice) ? 0 : numPrice,
+      price: !isRental ? (isNaN(numPrice) ? 0 : numPrice) : null,
+      rent_per_month: isRental ? (isNaN(numPrice) ? 0 : numPrice) : null,
       type: type.toLowerCase(),
       category: category.toLowerCase(),
       bhk,
@@ -203,7 +205,7 @@ export default function PropertiesScreen({ agentId }: Props) {
       status: status,
       possession_status: possessionStatus,
       possession_date: possessionStatus === 'ready_to_move' ? null : (possessionDate || null),
-      deposit: type.toLowerCase() === 'rental' ? (parseInt(deposit.replace(/[^0-9]/g, '')) || null) : null,
+      deposit: isRental ? (parseInt(deposit.replace(/[^0-9]/g, '')) || null) : null,
       project_website: projectWebsite.trim() || null,
       website_ai_consent: !!(projectWebsite.trim() && websiteAiConsent),
       extra_info: extraInfo.trim() || null,
@@ -297,7 +299,7 @@ export default function PropertiesScreen({ agentId }: Props) {
           const row = rows[i]
           const pType = (row['Type'] || 'sale').toLowerCase()
           let pPrice = parseInt((row['Price'] || '').replace(/,/g, ''))
-          
+
           if (pType === 'sale' && pPrice > 0 && pPrice < 1000) pPrice = pPrice * 100000;
 
           const payload = {
@@ -306,12 +308,13 @@ export default function PropertiesScreen({ agentId }: Props) {
             bhk: row['BHK'] || '',
             category: (row['Category'] || 'apartment').toLowerCase(),
             type: pType,
-            price: isNaN(pPrice) ? 0 : pPrice,
+            price: pType === 'sale' ? (isNaN(pPrice) ? 0 : pPrice) : null,
+            rent_per_month: pType === 'rental' ? (isNaN(pPrice) ? 0 : pPrice) : null,
             location: row['Location'] || '',
             city: row['City'] || 'Pune',
             size_sqft: parseInt(row['Area Sqft']) || 0,
             description: row['Description'] || '',
-            features: [], 
+            features: [],
             status: 'active'
           }
 
