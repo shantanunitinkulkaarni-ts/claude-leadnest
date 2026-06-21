@@ -113,7 +113,8 @@ export default function PropertiesScreen({ agentId }: Props) {
     setTitle(p.title || '')
     setLocation(p.location || '')
     setCity(p.city || 'Pune')
-    setPrice(p.price?.toString() || '')
+    const priceValue = p.type === 'rental' ? p.rent_per_month : p.price
+    setPrice(priceValue?.toString() || '')
     setType(p.type ? p.type.charAt(0).toUpperCase() + p.type.slice(1) : 'Sale')
     setCategory(p.category ? p.category.charAt(0).toUpperCase() + p.category.slice(1) : 'Apartment')
     setBhk(p.bhk || '')
