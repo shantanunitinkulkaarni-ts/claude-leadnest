@@ -506,18 +506,24 @@ export async function POST(request: NextRequest) {
     } else if (leadStage === 'awaiting_intent' || (!storedIntent && !isGreeting(messageText))) {
       // We need intent
       const intent = isIntent(messageText)
+      log('INTENT_EXTRACTION', { messageText: messageText.slice(0, 80), detectedIntent: intent, leadStage })
+
       if (intent) {
+        log('INTENT_FOUND', { intent })
         await updateLeadStage(lead.id, 'awaiting_area', LeadStates.QUALIFYING)
         await supabaseAdmin.from('leads').update({ intent }).eq('id', lead.id)
         reply = T.ask_area()
         replyAction = 'ask_area'
       } else {
         // Try AI to decode
+        log('INTENT_NOT_FOUND_USING_AI', { messageText: messageText.slice(0, 80) })
         const aiReply = await aiDecode([], messageText)
         if (aiReply) {
+          log('AI_DECODED_INTENT', { aiReply: aiReply.slice(0, 100) })
           reply = aiReply
           replyAction = 'ai_unknown'
         } else {
+          log('AI_FAILED_INTENT', {})
           reply = T.unknown()
           replyAction = 'unknown'
         }
@@ -526,11 +532,16 @@ export async function POST(request: NextRequest) {
     } else if (leadStage === 'awaiting_area' || leadStage === 'no_match_ai') {
       // We need area
       const area = extractArea(messageText)
+      log('SEARCH_START', { area, intent: storedIntent, leadStage, messageText })
+
       if (area) {
         // Check properties
         const { data: props } = await supabaseAdmin.from('properties')
           .select('*').eq('agent_id', agent.id).eq('status', 'active')
           .ilike('location', `%${area}%`)
+
+        log('SEARCH_RESULTS_COUNT', { count: props?.length || 0, area, storedIntent })
+        log('SEARCH_RESULTS', { results: props?.map((p: any) => ({ id: p.id, type: p.type, location: p.location, price: p.price, rent: p.rent_per_month })) || [] })
 
         if (props && props.length > 0) {
           try { await supabaseAdmin.from('leads').update({
@@ -540,8 +551,10 @@ export async function POST(request: NextRequest) {
           reply = T.property_found(props)
           photos = getPropertyPhotos(props[0])
           replyAction = 'present'
+          log('PROPERTY_FOUND_REPLY', { count: props.length, replyLength: reply.length })
         } else {
           // No properties — AI handles
+          log('SEARCH_NO_RESULTS', { area, intent: storedIntent, AI_FALLBACK: 'ENABLED' })
           const recentMsgs = await supabaseAdmin.from('messages')
             .select('direction, content').eq('lead_id', lead.id)
             .order('created_at', { ascending: false }).limit(10)
@@ -550,6 +563,7 @@ export async function POST(request: NextRequest) {
             content: m.content || '',
           }))
           const aiReply = await aiDecode(recent, messageText)
+          log('AI_RESPONSE', { aiReply: aiReply?.slice(0, 100) || 'NULL' })
           reply = aiReply || T.no_match_ai('')
           replyAction = 'ai_no_match'
           // Offer agent card as fallback
