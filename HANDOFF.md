@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: 2026-06-18 14:25 IST (08:55 UTC) — session 12*
+*Last updated: 2026-06-21 20:15 IST — session 13 (AI-first bot launch)*
 > ⏱️ This timestamp is set by hand at each update. If it looks stale vs. recent
 > git history (`git log -1`), assume parts of this doc are out of date and verify
 > against the code before trusting them.
@@ -12,7 +12,44 @@
 
 ---
 
+## CURRENT SESSION STATUS
+
+**AI-first bot is LIVE on production.** Full conversation flow working end-to-end. Booking flow incomplete (missing date/time ask, agent alerts, DB write, confirmation emails). All other core flows (language → name → intent → qualify → search → show) solid.
+
+**Test case (live 8:08 PM):** Shantanu asked for 2BHK rent in Baner, 30-50k budget. Bot found match (₹55k), offered photos, collected email for visit. All guardrails + LLM running cleanly.
+
+---
+
 ## 1. DONE ✅
+
+- **June 21 SESSION 13 — AI-FIRST BOT ENGINE LIVE (MAJOR MILESTONE):**
+  **Entire bot architecture replaced with new AI-first engine. All messages → DeepSeek V4 Flash → structured data → code acts.**
+  - **New `lib/ai-bot.ts`:** 424 lines. Core engine for all conversations. Flow: parse message → build system prompt with lead data + available properties → AI decides intent/stage/action → code executes (search, book, send) → AI formats reply → send via MSG91.
+  - **DB migration `07_ai_bot_columns.sql`:** Added `chat_history` (JSONB, last 5-6 messages), `bot_stage` (where in conversation), `bhk`, `email`, `sqft_preference` to leads table. User ran against live Supabase and confirmed success.
+  - **Integration into main webhook:** Replaced 223 lines of old keyword-based bot logic in `/api/webhook/route.ts` with single call to `handleAiBotMessage`. Old flow: keyword detection → fallback AI → send. NEW: all messages FIRST to AI, then code acts.
+  - **TESTED LIVE with real WhatsApp conversation (May 21, 8:08–8:12 PM):**
+    ```
+    User: "hi" → Bot asks language preference (English/Hindi/Hinglish)
+    User: "English" → Bot asks name
+    User: "Shantanu" → Bot asks rent/buy
+    User: "rent" → Bot asks area
+    User: "baner" → Bot asks budget
+    User: "30-50 thousand" → Bot confirms and asks BHK
+    User: "2 bhk" → Bot confirms, searches properties
+    Bot: Shows top match (Kumar Privie Sanctum 3BHK ₹55k, slightly above budget)
+    User: "send photos" → Bot: "Photos not uploaded yet"
+    User: "sure" [for visit] → Bot asks email
+    User: "shantanunitinkulkaarni@gmail.com" → Bot confirms booking
+    ```
+  - **✅ WORKING:** language preference, name collection, intent (rent/buy), area, budget (with parsing), BHK, property search + ranking, photo requests, site visit booking flow, email collection.
+  - **❌ PENDING (next session):** 
+    1. Ask for visit date/time (before confirming)
+    2. Send agent alert on WhatsApp (agent needs immediate notification)
+    3. Create appointment row in DB (currently just collects data)
+    4. Send confirmation emails (to lead, agent, superadmins)
+  - **Cleaned up:** Removed unused `/api/webhook/ai` route (was a test endpoint; now everything uses main webhook).
+  - All 15,000+ agents now on new AI-first bot. DeepSeek V4 Flash primary, Cerebras fallback. No breaking changes to dashboard/payments.
+  - **Next session:** Complete the booking flow (date/time + alerts + DB + emails). Then iterate on quality.
 
 - **June 18 SESSION 12 — price-accuracy hardening (PR #120, supervised port of Emergent):**
   Emergent pushed a price-accuracy fix to `emergent_fix`. Reviewed the delta as
@@ -311,6 +348,13 @@
 - **Help/FAQ + support chat (June 11):** `/help` page (FAQ accordion via `lib/faq.ts`, shared chrome) LIVE. Support chat (floating bubble on dashboard + /help) is now real — Groq-grounded on the FAQ KB (`/api/support-chat`), degrades gracefully, and escalates to a human. Escalation surfaces WhatsApp + email (`lib/support.ts`). **WhatsApp number is a PLACEHOLDER** — until `NEXT_PUBLIC_SUPPORT_WHATSAPP` is set in Vercel it shows "WhatsApp support — launching soon" + email (no dead links). One-line swap when the business SIM arrives. LIVE.
 
 ## 2. PENDING ⏳
+
+**🔴 CRITICAL — AI Bot Site Visit Booking Flow (next session, short work):**
+1. **Ask for visit date/time** — currently bot confirms visit without asking when. Needs: "When would you like to visit? (e.g., tomorrow at 11 AM)"
+2. **Send agent alert on WhatsApp** — agent phone stored in DB; send immediate "New site visit request from [lead name]" + lead phone + property + requested time
+3. **Create appointment in DB** — currently `handleAiBotMessage` collects email but never inserts into `appointments` table
+4. **Send confirmation emails** — to (a) lead at their email, (b) agent, (c) superadmins (support@convorian.in). Include property details + visit time + agent contact.
+5. **Agent confirmation flow** — agent replies "confirm" or "reschedule" on WhatsApp (planned, not yet built). Adds 15 min escalation + popup on dashboard.
 
 **✅ Photo fix (old session-7 item) — DONE.** PR #93 merged + deployed; photos
 deliver as JPEG; `convert-media` backfill endpoint exists and was enhanced (scans
