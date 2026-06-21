@@ -50,6 +50,52 @@ type AIDecision = {
 const MAX_HISTORY = 12   // max chat entries to keep (6 exchanges)
 const MAX_PHOTOS = 5
 
+// ─── Time Parsing ────────────────────────────────────────────────────────────────
+
+function parseTimeString(timeStr: string): string | null {
+  if (!timeStr) return null
+  const now = new Date()
+  const t = timeStr.toLowerCase().trim()
+
+  // Extract time (hh:mm or h am/pm)
+  const timeMatch = t.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)?|\b(\d{1,2})\s*(am|pm)\b/i)
+  let hours = 0
+  let mins = 0
+  if (timeMatch) {
+    hours = parseInt(timeMatch[1] || timeMatch[4] || '0')
+    mins = parseInt(timeMatch[2] || '0')
+    const ampm = (timeMatch[3] || timeMatch[5] || '').toLowerCase()
+    if (ampm === 'pm' && hours < 12) hours += 12
+    if (ampm === 'am' && hours === 12) hours = 0
+  } else {
+    return null // No time found
+  }
+
+  // Extract date
+  let date = new Date(now)
+  if (t.includes('tomorrow') || t.includes('next day')) {
+    date.setDate(date.getDate() + 1)
+  } else if (t.match(/today|this\s+morning|this\s+afternoon/)) {
+    // Use today's date
+  } else if (t.match(/day\s+after\s+tomorrow|in\s+2\s+days?/)) {
+    date.setDate(date.getDate() + 2)
+  } else if (t.match(/next\s+week/)) {
+    date.setDate(date.getDate() + 7)
+  } else if (t.match(/(\d{1,2})-(\d{1,2})/)) {
+    // Date format like 22-6 or 6-22
+    const parts = t.match(/(\d{1,2})-(\d{1,2})/)
+    if (parts) {
+      const d = parseInt(parts[1])
+      const m = parseInt(parts[2])
+      // Assume dd-mm format (common in India)
+      date = new Date(date.getFullYear(), m - 1, d)
+    }
+  }
+
+  date.setHours(hours, mins, 0, 0)
+  return date.toISOString()
+}
+
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(agent: any, lead: any, properties?: any[]): string {
@@ -399,7 +445,10 @@ export async function handleAiBotMessage(opts: {
   if (decision.updates?.budget_max) leadUpdates.budget_max = decision.updates.budget_max
   if (decision.updates?.bhk) leadUpdates.bhk = decision.updates.bhk
   if (decision.updates?.sqft_preference) leadUpdates.sqft_preference = decision.updates.sqft_preference
-  if (decision.updates?.visit_time) leadUpdates.pending_appointment_time = decision.updates.visit_time
+  if (decision.updates?.visit_time) {
+    const parsed = parseTimeString(decision.updates.visit_time)
+    if (parsed) leadUpdates.pending_appointment_time = parsed
+  }
   if (decision.updates?.email) leadUpdates.email = decision.updates.email
 
   // Save updated history
