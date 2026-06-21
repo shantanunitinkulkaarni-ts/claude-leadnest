@@ -419,7 +419,10 @@ export default function PropertiesScreen({ agentId }: Props) {
               <div style={{ padding: '16px 18px' }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: '#15161B', marginBottom: 2 }}>{p.title}</div>
                 <div style={{ fontSize: 12, color: '#9E9B92' }}>{p.location}, {p.city}</div>
-                <div style={{ fontSize: 18, fontWeight: 500, color: '#1A5FA5', margin: '10px 0' }}>₹{p.price?.toLocaleString()}</div>
+                <div style={{ fontSize: 18, fontWeight: 500, color: '#1A5FA5', margin: '10px 0' }}>
+                  ₹{p.type === 'rental' ? (p.rent_per_month?.toLocaleString() || '—') : (p.price?.toLocaleString() || '—')}
+                  {p.type === 'rental' ? '/month' : ''}
+                </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {p.bhk && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: '#F4F3EE', color: '#6B6860' }}>{p.bhk}</span>}
                   {p.size_sqft > 0 && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: '#F4F3EE', color: '#6B6860' }}>{p.size_sqft} sqft</span>}
