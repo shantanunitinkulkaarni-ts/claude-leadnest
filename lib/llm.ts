@@ -2,15 +2,8 @@ import axios from 'axios'
 import * as Sentry from '@sentry/nextjs'
 import { cerebrasChat } from './cerebras'
 
-// ─── Primary LLM: DeepSeek V3 (diagnostic swap from GLM) ───────────────────────
-// DIAGNOSTIC: Temporary swap to determine whether current behavior issues stem from
-// GLM model quality or application logic.
-//
-// Interface is identical to the GLM version — only the API provider changed.
-// Function signatures, return types, and error handling are preserved.
-// Rollback: restore from git or swap back to GLM_URL/GLM_MODEL below.
-
-export const DEEPSEEK_MODEL = 'deepseek-chat'
+// ─── Primary LLM: DeepSeek V4 Flash ─────────────────────────────────────────
+export const DEEPSEEK_MODEL = 'deepseek-v4-flash'
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions'
 
 export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string }
