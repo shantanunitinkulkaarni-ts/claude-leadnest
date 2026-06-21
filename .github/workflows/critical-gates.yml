@@ -1,0 +1,88 @@
+name: TING Critical Flows CI Gate
+
+on:
+  push:
+    branches: [main, feat/*, fix/*]
+  pull_request:
+    branches: [main]
+
+jobs:
+  critical-flows:
+    name: Critical Flows Test Suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy-anon-key' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+        continue-on-error: false
+
+      - name: TypeCheck
+        run: npm run typecheck
+        continue-on-error: false
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Critical Flows Tests (TIER 1)
+        run: npm run test:critical
+        continue-on-error: false
+        timeout-minutes: 5
+
+      - name: E2E Golden Path Tests (TIER 2)
+        run: npm run test:e2e
+        continue-on-error: false
+        timeout-minutes: 10
+
+  report:
+    name: Test Results Report
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [critical-flows]
+
+    steps:
+      - name: Check Critical Flows Status
+        run: |
+          if [ "${{ needs.critical-flows.result }}" == "failure" ]; then
+            echo "❌ CRITICAL FLOWS TEST FAILED"
+            echo "🚫 PR CANNOT MERGE: Critical business flows are broken"
+            exit 1
+          else
+            echo "✅ CRITICAL FLOWS TEST PASSED"
+            echo "🟢 All critical business flows verified"
+          fi
+
+  # Prevent merge if critical tests fail
+  merge-protection:
+    name: Merge Protection Gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [critical-flows]
+
+    steps:
+      - name: Enforce Critical Tests Pass
+        run: |
+          if [ "${{ needs.critical-flows.result }}" != "success" ]; then
+            echo "❌ MERGE BLOCKED"
+            echo "Reason: Critical flows tests did not pass"
+            echo "These tests are mandatory CI gates:"
+            echo "  - Property validation (rental_price_required)"
+            echo "  - State machine transitions"
+            echo "  - Property search (intent protection)"
+            echo "  - Golden path (complete flow)"
+            exit 1
+          fi

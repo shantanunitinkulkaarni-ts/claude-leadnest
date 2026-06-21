@@ -573,7 +573,8 @@ export default function InboxScreen({ agentId }: Props) {
                         if (p.status !== 'active') return false
                         if (selected.intent === 'buy' && p.type === 'rental') return false
                         if (selected.intent === 'rent' && p.type === 'sale') return false
-                        if (selected.budget_max && p.price && p.price > selected.budget_max * 1.2) return false
+                        const propPrice = p.type === 'rental' ? p.rent_per_month : p.price
+                        if (selected.budget_max && propPrice && propPrice > selected.budget_max * 1.2) return false
                         return true
                       })
                       if (matchedProps.length === 0) return (

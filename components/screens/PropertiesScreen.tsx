@@ -64,6 +64,9 @@ export default function PropertiesScreen({ agentId }: Props) {
   const [bulkTotal, setBulkTotal] = useState(0)
   const [isBulkUploading, setIsBulkUploading] = useState(false)
 
+  // Property Type Filter
+  const [propertyTypeFilter, setPropertyTypeFilter] = useState<'all' | 'rent' | 'sale'>('all')
+
   const fetchProperties = () => {
     fetch('/api/properties?agent_id=' + agentId)
       .then(async r => {
@@ -113,7 +116,8 @@ export default function PropertiesScreen({ agentId }: Props) {
     setTitle(p.title || '')
     setLocation(p.location || '')
     setCity(p.city || 'Pune')
-    setPrice(p.price?.toString() || '')
+    const priceValue = p.type === 'rental' ? p.rent_per_month : p.price
+    setPrice(priceValue?.toString() || '')
     setType(p.type ? p.type.charAt(0).toUpperCase() + p.type.slice(1) : 'Sale')
     setCategory(p.category ? p.category.charAt(0).toUpperCase() + p.category.slice(1) : 'Apartment')
     setBhk(p.bhk || '')
@@ -174,17 +178,18 @@ export default function PropertiesScreen({ agentId }: Props) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (priceWarning && !hasConfirmedWarning) {
       setHasConfirmedWarning(true)
       return
     }
 
     setIsSubmitting(true)
-    
+
     const newMediaUrls = await uploadFiles()
     const finalMedia = [...existingMedia, ...newMediaUrls]
     const numPrice = parseInt(price.toString().replace(/,/g, ''))
+    const isRental = type.toLowerCase() === 'rental'
 
     const payload = {
       id: editingId,
@@ -192,7 +197,8 @@ export default function PropertiesScreen({ agentId }: Props) {
       title,
       location: normalizeArea(location),
       city,
-      price: isNaN(numPrice) ? 0 : numPrice,
+      price: !isRental ? (isNaN(numPrice) ? 0 : numPrice) : null,
+      rent_per_month: isRental ? (isNaN(numPrice) ? 0 : numPrice) : null,
       type: type.toLowerCase(),
       category: category.toLowerCase(),
       bhk,
@@ -203,7 +209,7 @@ export default function PropertiesScreen({ agentId }: Props) {
       status: status,
       possession_status: possessionStatus,
       possession_date: possessionStatus === 'ready_to_move' ? null : (possessionDate || null),
-      deposit: type.toLowerCase() === 'rental' ? (parseInt(deposit.replace(/[^0-9]/g, '')) || null) : null,
+      deposit: isRental ? (parseInt(deposit.replace(/[^0-9]/g, '')) || null) : null,
       project_website: projectWebsite.trim() || null,
       website_ai_consent: !!(projectWebsite.trim() && websiteAiConsent),
       extra_info: extraInfo.trim() || null,
@@ -297,7 +303,7 @@ export default function PropertiesScreen({ agentId }: Props) {
           const row = rows[i]
           const pType = (row['Type'] || 'sale').toLowerCase()
           let pPrice = parseInt((row['Price'] || '').replace(/,/g, ''))
-          
+
           if (pType === 'sale' && pPrice > 0 && pPrice < 1000) pPrice = pPrice * 100000;
 
           const payload = {
@@ -306,12 +312,13 @@ export default function PropertiesScreen({ agentId }: Props) {
             bhk: row['BHK'] || '',
             category: (row['Category'] || 'apartment').toLowerCase(),
             type: pType,
-            price: isNaN(pPrice) ? 0 : pPrice,
+            price: pType === 'sale' ? (isNaN(pPrice) ? 0 : pPrice) : null,
+            rent_per_month: pType === 'rental' ? (isNaN(pPrice) ? 0 : pPrice) : null,
             location: row['Location'] || '',
             city: row['City'] || 'Pune',
             size_sqft: parseInt(row['Area Sqft']) || 0,
             description: row['Description'] || '',
-            features: [], 
+            features: [],
             status: 'active'
           }
 
@@ -364,6 +371,34 @@ export default function PropertiesScreen({ agentId }: Props) {
         </div>
       </div>
 
+      {/* Property Type Filter Buttons */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        {[
+          { label: 'All Properties', value: 'all' as const },
+          { label: 'Rent Only', value: 'rent' as const },
+          { label: 'Sales Only', value: 'sale' as const }
+        ].map(option => (
+          <button
+            key={option.value}
+            onClick={() => setPropertyTypeFilter(option.value)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: '1px solid rgba(26,25,22,0.18)',
+              background: propertyTypeFilter === option.value ? '#15161B' : '#fff',
+              color: propertyTypeFilter === option.value ? '#fff' : '#15161B',
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 500,
+              fontFamily: 'inherit',
+              transition: 'all 0.15s'
+            }}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
       {fetchError && (
         <div style={{ background: '#FDF0F0', border: '1px solid rgba(192,57,43,0.2)', color: '#8B1A1A', padding: '10px 16px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
           ⚠️ {fetchError}
@@ -390,14 +425,24 @@ export default function PropertiesScreen({ agentId }: Props) {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-        {properties.map((p) => {
+        {properties.filter(p => {
+          if (propertyTypeFilter === 'all') return true
+          if (propertyTypeFilter === 'rent') return p.type === 'rental'
+          if (propertyTypeFilter === 'sale') return p.type === 'sale'
+          return false
+        }).map((p) => {
           const isActive = p.status === 'active'
+          const isRental = p.type === 'rental'
+          const rentalBgColor = '#F0F4FF'
+          const saleBgColor = '#F0FFF4'
+          const rentalBorderColor = '#4F46E5'
+          const saleBorderColor = '#10B981'
 
           const media = extractPropertyMedia(p)
           const firstImage = media.length > 0 ? media[0] : null
 
           return (
-            <div key={p.id} onClick={() => openEditModal(p)} className="prop-card" style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', opacity: isActive ? 1 : 0.65, transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+            <div key={p.id} onClick={() => openEditModal(p)} className="prop-card" style={{ background: isRental ? rentalBgColor : saleBgColor, border: `1px solid rgba(26,25,22,0.08)`, borderLeft: `2px solid ${isRental ? rentalBorderColor : saleBorderColor}`, borderRadius: 14, overflow: 'hidden', cursor: 'pointer', opacity: isActive ? 1 : 0.65, transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
               <div style={{ height: 140, background: firstImage ? `url(${firstImage}) center/cover` : 'linear-gradient(160deg, #F4F3EE 0%, #ECEAE4 100%)', display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', position: 'relative', padding: 10 }}>
                 {!firstImage && (
                   // Professional no-photo placeholder: neutral gradient + outline mark + label
@@ -406,17 +451,25 @@ export default function PropertiesScreen({ agentId }: Props) {
                     <span style={{ fontSize: 10.5, fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>No photos yet</span>
                   </div>
                 )}
-                <button 
-                  onClick={(e) => toggleStatus(e, p)}
-                  style={{ position: 'relative', zIndex: 2, fontSize: 10, padding: '4px 10px', borderRadius: 20, fontWeight: 500, background: 'rgba(255,255,255,0.92)', color: isActive ? '#4338CA' : '#6B6860', border: `1px solid ${isActive ? 'rgba(79,70,229,0.25)' : 'rgba(26,25,22,0.18)'}`, cursor: 'pointer', fontFamily: 'inherit' }}
-                >
-                  {p.status?.toUpperCase() || 'ACTIVE'}
-                </button>
+                <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 3 }}>
+                  <div style={{ fontSize: 10, padding: '4px 10px', borderRadius: 6, fontWeight: 600, background: isRental ? '#4F46E5' : '#10B981', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {isRental ? 'Rent' : 'Sale'}
+                  </div>
+                  <button
+                    onClick={(e) => toggleStatus(e, p)}
+                    style={{ fontSize: 10, padding: '4px 10px', borderRadius: 20, fontWeight: 500, background: 'rgba(255,255,255,0.92)', color: isActive ? '#4338CA' : '#6B6860', border: `1px solid ${isActive ? 'rgba(79,70,229,0.25)' : 'rgba(26,25,22,0.18)'}`, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    {p.status?.toUpperCase() || 'ACTIVE'}
+                  </button>
+                </div>
               </div>
               <div style={{ padding: '16px 18px' }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: '#15161B', marginBottom: 2 }}>{p.title}</div>
                 <div style={{ fontSize: 12, color: '#9E9B92' }}>{p.location}, {p.city}</div>
-                <div style={{ fontSize: 18, fontWeight: 500, color: '#1A5FA5', margin: '10px 0' }}>₹{p.price?.toLocaleString()}</div>
+                <div style={{ fontSize: 18, fontWeight: 500, color: isRental ? '#4F46E5' : '#10B981', margin: '10px 0' }}>
+                  ₹{isRental ? (p.rent_per_month?.toLocaleString() || '—') : (p.price?.toLocaleString() || '—')}
+                  {isRental ? '/month' : ''}
+                </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {p.bhk && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: '#F4F3EE', color: '#6B6860' }}>{p.bhk}</span>}
                   {p.size_sqft > 0 && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: '#F4F3EE', color: '#6B6860' }}>{p.size_sqft} sqft</span>}

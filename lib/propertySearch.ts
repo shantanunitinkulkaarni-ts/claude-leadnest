@@ -1,5 +1,5 @@
 /**
- * Property Search Engine for ACE
+ * Property Search Engine for TING
  *
  * Core responsibility: Match lead criteria to properties with intelligent fallback chain.
  *
