@@ -498,7 +498,7 @@ export async function handleAiBotMessage(opts: {
   if (guard.halt) {
     console.log(`[ai-bot] abuse guard tripped for ${phone}: ${guard.reason}`)
     const guardReply = guard.reply || "Our team will reach out to help you shortly. 🙏"
-    await waSendText(channel, phone, guardReply)
+    const guardOut = await waSendText(channel, phone, guardReply)
     if (guard.notifyAgent) await notifyAgentOfTrollHalt(agent, lead, phone, guard.reason || 'abuse guard')
 
     history.push({ role: 'bot', text: guardReply, ts: new Date().toISOString() })
@@ -506,9 +506,10 @@ export async function handleAiBotMessage(opts: {
       last_message_at: new Date().toISOString(),
       chat_history: history.slice(-MAX_HISTORY),
     }).eq('id', lead.id)
+    // The webhook already saved the inbound row — only record the bot's reply.
     await supabaseAdmin.from('messages').insert([
-      { lead_id: lead.id, agent_id: agentId, direction: 'inbound', content: message, sent_by: 'lead' },
-      { lead_id: lead.id, agent_id: agentId, direction: 'outbound', content: guardReply, sent_by: 'bot' },
+      { lead_id: lead.id, agent_id: agentId, direction: 'outbound', content: guardReply, sent_by: 'bot',
+        wa_message_id: guardOut?.id || null, status: guardOut?.id ? 'sent' : 'failed' },
     ])
     return
   }
@@ -793,10 +794,11 @@ export async function handleAiBotMessage(opts: {
     searchReply = null
   }
 
-  // 9. Send reply
-  await waSendText(channel, phone, finalReply)
+  // 9. Send reply (capture the Meta message id for delivery tracking)
+  const finalOut = await waSendText(channel, phone, finalReply)
+  let searchOut: { id: string | null } | null = null
   if (searchReply) {
-    await waSendText(channel, phone, searchReply)
+    searchOut = await waSendText(channel, phone, searchReply)
   }
 
   // 10. Send photos (one by one)
@@ -811,21 +813,17 @@ export async function handleAiBotMessage(opts: {
 
   await supabaseAdmin.from('leads').update(leadUpdates).eq('id', lead.id)
 
-  // 12. Log messages (include the property-listing message so the Inbox is complete)
+  // 12. Log the bot's outbound replies. The webhook already saved the inbound
+  // row (with its Meta wa_message_id), so we don't re-insert it here.
   const messageRows: any[] = [
-    {
-      lead_id: lead.id,
-      agent_id: agentId,
-      direction: 'inbound',
-      content: message,
-      sent_by: 'lead',
-    },
     {
       lead_id: lead.id,
       agent_id: agentId,
       direction: 'outbound',
       content: finalReply,
       sent_by: 'bot',
+      wa_message_id: finalOut?.id || null,
+      status: finalOut?.id ? 'sent' : 'failed',
     },
   ]
   if (searchReply) {
@@ -835,6 +833,8 @@ export async function handleAiBotMessage(opts: {
       direction: 'outbound',
       content: searchReply,
       sent_by: 'bot',
+      wa_message_id: searchOut?.id || null,
+      status: searchOut?.id ? 'sent' : 'failed',
     })
   }
   await supabaseAdmin.from('messages').insert(messageRows)
