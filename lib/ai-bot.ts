@@ -8,6 +8,7 @@ import { searchPropertiesByFallbackChain } from './propertySearch'
 import { buildPropertyBlock } from './propertyPresenter'
 import { sendViaMsg91, sendViaMsg91Media } from './whatsapp'
 import { sendEmail } from './email'
+import { checkAbuseGuards } from './botGuards'
 
 // Send an email via Resend's REST API (lib/email.ts — no SDK dependency).
 // IMPORTANT: do NOT use the `resend` npm package here — it is not installed,
@@ -424,6 +425,27 @@ export async function handleAiBotMessage(opts: {
   // 3. Add incoming message to chat history
   const history: ChatEntry[] = Array.isArray(lead.chat_history) ? lead.chat_history : []
   history.push({ role: 'user', text: message, ts: new Date().toISOString() })
+
+  // 3b. TROLL KIT — run abuse guards BEFORE any LLM call so spam/junk costs
+  //     nothing. If a guard trips, send its fixed reply and stop here.
+  const guard = await checkAbuseGuards(lead.id, message, history)
+  if (guard.halt) {
+    console.log(`[ai-bot] abuse guard tripped for ${phone}: ${guard.reason}`)
+    const guardReply = guard.reply || "Our team will reach out to help you shortly. 🙏"
+    await sendViaMsg91(integratedNumber, phone, guardReply)
+    if (guard.notifyAgent) await notifyAgentOfTrollHalt(agent, lead, phone, guard.reason || 'abuse guard')
+
+    history.push({ role: 'bot', text: guardReply, ts: new Date().toISOString() })
+    await supabaseAdmin.from('leads').update({
+      last_message_at: new Date().toISOString(),
+      chat_history: history.slice(-MAX_HISTORY),
+    }).eq('id', lead.id)
+    await supabaseAdmin.from('messages').insert([
+      { lead_id: lead.id, agent_id: agentId, direction: 'inbound', content: message, sent_by: 'lead' },
+      { lead_id: lead.id, agent_id: agentId, direction: 'outbound', content: guardReply, sent_by: 'bot' },
+    ])
+    return
+  }
 
   // 4. Build conversation text for AI
   const conversationText = history
