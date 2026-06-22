@@ -45,12 +45,13 @@
   - **Fixed two bot bugs:** duplicate inbound logging (webhook + bot both inserted →
     now bot inserts only its outbound), and outbound Meta message id now stored
     (delivery tracking) with sent/failed status.
-  - **KNOWN BUG (root cause found, FIX PENDING):** bot mis-reads named dates like
-    "5th July" → said "closed on Wednesday" (5 Jul 2026 is Sunday). Cause: (a) the
-    system prompt **never tells the AI today's date**, so it can't compute weekdays/
-    named dates; (b) `parseTimeString` can't parse month names and silently defaults
-    to today. Fix: inject current IST date+weekday into the prompt + force ISO output;
-    add month-name parsing as backstop; return null instead of defaulting.
+  - **FIXED — named-date booking bug:** bot mis-read "5th July" (a Sunday) as
+    "closed on Wednesday". Causes: (a) the system prompt never told the AI today's
+    date; (b) `parseTimeString` couldn't read month names and silently defaulted to
+    today. Fix shipped: prompt now injects "TODAY (India time) is <weekday, date>" +
+    forces full-ISO visit_time; parser now reads month-name dates, prefers an am/pm
+    time over a day number, and returns null (asks again) instead of guessing.
+    Verified "5th july 1pm" → 2026-07-05T13:00 → Sunday.
   - **PENDING NEXT:** (1) connect the real number `7559197426` once MSG91 frees it
     (add to WABA → verify OTP → register → set `wa_phone_number_id`). (2) Build
     **Embedded Signup** (self-serve auto-onboard). (3) Convert MSG91 templates
