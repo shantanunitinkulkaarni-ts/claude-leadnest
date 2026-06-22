@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: 2026-06-21 20:15 IST — session 13 (AI-first bot launch)*
+*Last updated: 2026-06-22 10:30 IST — session 14 (customer + agent confirmation emails)*
 > ⏱️ This timestamp is set by hand at each update. If it looks stale vs. recent
 > git history (`git log -1`), assume parts of this doc are out of date and verify
 > against the code before trusting them.
@@ -21,6 +21,17 @@
 ---
 
 ## 1. DONE ✅
+
+- **June 22 SESSION 14 — BOOKING CONFIRMATION EMAILS (customer + agent):**
+  - **Added two email functions to `lib/ai-bot.ts`:**
+    - `sendCustomerConfirmation(customerEmail, leadName, propertyTitle, visitTime)` — sends booking confirmation to lead's email with date/time/property details in local IST format.
+    - `sendAgentNotification(agentEmail, leadName, leadPhone, leadEmail, propertyTitle, visitTime)` — notifies agent of new site visit request.
+    - Both use Resend (from: noreply@convorian.in) with reusable `sendEmailViaResend()` helper.
+  - **Integrated into book_visit handler:** when appointment creation succeeds (lines ~520–545), now automatically:
+    1. Fetch property title from DB
+    2. Send confirmation email to `lead.email` (customer)
+    3. Send notification email to `agent.email` (agent)
+  - **Deployed live** to convorian.in via `vercel deploy --prod`. typecheck + build clean.
 
 - **June 21 SESSION 13 — AI-FIRST BOT ENGINE LIVE (MAJOR MILESTONE):**
   **Entire bot architecture replaced with new AI-first engine. All messages → DeepSeek V4 Flash → structured data → code acts.**
