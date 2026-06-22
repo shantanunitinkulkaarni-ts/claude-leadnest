@@ -243,18 +243,24 @@ function parseTimeString(timeStr: string): string | null {
     return `${yyyy}-${mm}-${dd}T${hh}:${min}:00+05:30`
   }
 
-  // Extract time (hh:mm or h am/pm)
-  const timeMatch = t.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)?|\b(\d{1,2})\s*(am|pm)\b/i)
+  // Extract time. Prefer an explicit am/pm time, then HH:MM, then a bare hour —
+  // so a day-of-month number ("5th") is never mistaken for the hour.
   let hours = 0
   let mins = 0
-  if (timeMatch) {
-    hours = parseInt(timeMatch[1] || timeMatch[4] || '0')
-    mins = parseInt(timeMatch[2] || '0')
-    const ampm = (timeMatch[3] || timeMatch[5] || '').toLowerCase()
+  const ampmMatch = t.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+  const colonMatch = t.match(/\b(\d{1,2}):(\d{2})\b/)
+  const bareMatch = t.match(/\b(\d{1,2})\s*o'?clock\b/i)
+  if (ampmMatch) {
+    hours = parseInt(ampmMatch[1]); mins = ampmMatch[2] ? parseInt(ampmMatch[2]) : 0
+    const ampm = ampmMatch[3].toLowerCase()
     if (ampm === 'pm' && hours < 12) hours += 12
     if (ampm === 'am' && hours === 12) hours = 0
+  } else if (colonMatch) {
+    hours = parseInt(colonMatch[1]); mins = parseInt(colonMatch[2])
+  } else if (bareMatch) {
+    hours = parseInt(bareMatch[1])
   } else {
-    return null // No time found
+    return null // No usable time found — caller will ask again
   }
 
   // Work entirely in IST. The server runs on UTC, so we shift "now" by +5:30
@@ -279,6 +285,19 @@ function parseTimeString(timeStr: string): string | null {
     if (parts) {
       day = parseInt(parts[1])
       month = parseInt(parts[2]) - 1
+    }
+  } else if (/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(t)) {
+    // Month-name date: "5 july", "5th july", "july 5". The day is the number NOT
+    // followed by am/pm (so "1pm" isn't read as the day). If the date is already
+    // past this year, assume next year.
+    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+    const mName = t.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i)
+    const dNum = t.match(/\b(\d{1,2})(?:st|nd|rd|th)?\b(?!\s*[ap]\.?m)/i)
+    if (mName && dNum) {
+      month = months.indexOf(mName[1].toLowerCase())
+      day = parseInt(dNum[1])
+      const todayUtc = Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate())
+      if (Date.UTC(year, month, day) < todayUtc) year += 1
     }
   }
 
@@ -348,8 +367,19 @@ function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, prop
       }`
     : ''
 
+  // Today's date in IST — the AI MUST know this to resolve dates like "5th July"
+  // or "next Monday" correctly (it can't compute weekdays without an anchor).
+  const todayIST = new Date().toLocaleDateString('en-IN', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
+  })
+
   return `You are a WhatsApp property assistant for ${agentName} (${agencyName}).
 Office hours: ${openTime} to ${closeTime}${weekOff ? `, closed on ${weekOff}s` : ''}.
+
+TODAY (India time) is ${todayIST}. Resolve every date the user mentions relative
+to this — "5th July", "tomorrow", "next Monday" — and ALWAYS put visit_time as a
+full ISO date "YYYY-MM-DDTHH:MM" (e.g. 2026-07-05T13:00). Never guess the weekday;
+compute it from today's date above.
 
 LANGUAGE: Always reply in ${langLabel} only. Never switch unless the user explicitly asks.
 
@@ -414,7 +444,7 @@ RESPOND WITH VALID JSON ONLY. No text outside the JSON block.
     "budget_max": number or omit,
     "bhk": "2BHK" or omit,
     "sqft_preference": number or omit,
-    "visit_time": "ISO8601 datetime or natural lang like '2026-06-22 11:00' or omit",
+    "visit_time": "ALWAYS full ISO with the resolved date+time, e.g. '2026-07-05T13:00' (compute from TODAY above) or omit",
     "email": "string or omit"
   }
 }`
