@@ -191,6 +191,35 @@ export async function sendViaMsg91Media(
   }
 }
 
+// ─── Provider-aware channel ──────────────────────────────────────────────────
+// A WaChannel says HOW to reply to a lead: through MSG91 (current BSP) or Meta
+// Cloud API direct (Tech Provider). The webhook builds it from the inbound
+// message's provider, so the bot always replies on the same pipe it arrived on.
+// This is the seam that lets us run MSG91 and Meta-direct side by side and flip
+// per-agent without touching the bot logic.
+export type WaChannel =
+  | { provider: 'msg91'; integratedNumber: string }
+  | { provider: 'meta'; phoneNumberId: string; accessToken: string }
+
+// Send free-text on whichever channel the lead is on. Normalises both providers
+// to a SendOutcome so callers (bot, webhook) don't branch.
+export async function waSendText(ch: WaChannel, toPhone: string, message: string): Promise<SendOutcome> {
+  if (ch.provider === 'meta') {
+    const id = await sendViaMeta(ch.phoneNumberId, ch.accessToken, toPhone.replace(/^\+/, ''), message)
+    return { id, error: id ? null : 'meta send failed', retryable: !id }
+  }
+  return sendViaMsg91(ch.integratedNumber, toPhone, message)
+}
+
+// Send an image on whichever channel the lead is on.
+export async function waSendMedia(ch: WaChannel, toPhone: string, mediaUrl: string, caption?: string): Promise<SendOutcome> {
+  if (ch.provider === 'meta') {
+    const id = await sendMetaImage(ch.phoneNumberId, ch.accessToken, toPhone.replace(/^\+/, ''), mediaUrl, caption)
+    return { id, error: id ? null : 'meta media failed', retryable: !id }
+  }
+  return sendViaMsg91Media(ch.integratedNumber, toPhone, mediaUrl, caption)
+}
+
 // ─── Meta image message (within the 24h window) ──────────────────────────────
 export async function sendMetaImage(
   phoneNumberId: string,

@@ -3,7 +3,7 @@ export const maxDuration = 60
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { sendViaMsg91, sendWithRetry } from '@/lib/whatsapp'
+import { sendViaMsg91, sendWithRetry, waSendText, type WaChannel } from '@/lib/whatsapp'
 import { verifySharedSecret } from '@/lib/webhookAuth'
 import { createLogger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rateLimit'
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     // ── Parse inbound ────────────────────────────────────────────────────
     const contentType = request.headers.get('content-type') || ''
-    let fromPhone = '', messageText = '', waMessageId = '', msg91IntegratedNumber = '', forcedAgentId = ''
+    let fromPhone = '', messageText = '', waMessageId = '', msg91IntegratedNumber = '', forcedAgentId = '', metaPhoneNumberId = ''
     let incomingProvider: 'msg91' | 'meta' = 'msg91'
     let isNonTextMedia = false
 
@@ -110,6 +110,7 @@ export async function POST(request: NextRequest) {
         incomingProvider = 'meta'
         const value = body.entry?.[0]?.changes?.[0]?.value
         if (!value?.messages?.length) return NextResponse.json({ status: 'no_messages' })
+        metaPhoneNumberId = value.metadata?.phone_number_id || ''
         const msg = value.messages[0]
         fromPhone = msg.from || ''
         messageText = msg.text?.body || ''
@@ -131,12 +132,21 @@ export async function POST(request: NextRequest) {
         const testId = process.env.MSG91_TEST_AGENT_ID
         if (testId) { const { data } = await supabaseAdmin.from('agents').select('*').eq('id', testId).single(); agent = data }
       }
+    } else if (incomingProvider === 'meta' && metaPhoneNumberId) {
+      // Meta-direct: identify the agent by the business phone number that received it.
+      const { data } = await supabaseAdmin.from('agents').select('*').eq('wa_phone_number_id', metaPhoneNumberId).maybeSingle()
+      agent = data
     } else if (forcedAgentId) {
       const { data } = await supabaseAdmin.from('agents').select('*').eq('id', forcedAgentId).single()
       agent = data
     }
     if (!agent) return NextResponse.json({ status: 'agent_not_found' })
     setContext({ agentId: agent.id })
+
+    // How we reply: Meta Cloud API direct if the inbound came via Meta, else MSG91.
+    const channel: WaChannel = incomingProvider === 'meta'
+      ? { provider: 'meta', phoneNumberId: agent.wa_phone_number_id, accessToken: agent.wa_access_token }
+      : { provider: 'msg91', integratedNumber: msg91IntegratedNumber }
 
     // ── Agent rate limit ─────────────────────────────────────────────────
     {
@@ -179,7 +189,7 @@ export async function POST(request: NextRequest) {
     if (/^(stop|unsubscribe|opt[\s-]?out)\.?$/i.test(t) || /(stop|mat|nako).*(message|text)/i.test(t)) {
       await supabaseAdmin.from('leads').update({ opted_in: false }).eq('id', lead.id)
       const bye = "You're all set — I won't message you again. 🙏"
-      if (incomingProvider === 'msg91') try { await sendViaMsg91(msg91IntegratedNumber, fromPhone, bye) } catch {}
+      try { await waSendText(channel, fromPhone, bye) } catch {}
       return NextResponse.json({ status: 'opted_out' })
     }
 
@@ -214,7 +224,7 @@ export async function POST(request: NextRequest) {
         const { data: gOut } = await supabaseAdmin.from('messages').insert({
           lead_id: lead.id, agent_id: agent.id, direction: 'outbound', content: safeReply, sent_by: 'bot',
         }).select('id').single()
-        if (incomingProvider === 'msg91') await sendWithRetry(() => sendViaMsg91(msg91IntegratedNumber, fromPhone, safeReply))
+        await sendWithRetry(() => waSendText(channel, fromPhone, safeReply))
         if (gOut?.id) await supabaseAdmin.from('messages').update({ status: 'sent' }).eq('id', gOut.id)
         return NextResponse.json({ status: 'guardrail', kind: g.label })
       }
@@ -231,7 +241,7 @@ export async function POST(request: NextRequest) {
       phone: fromPhone,
       message: messageText.trim(),
       agentId: agent.id,
-      integratedNumber: msg91IntegratedNumber,
+      channel,
     })
 
     // Increment message counter

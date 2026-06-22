@@ -6,7 +6,7 @@ import { supabaseAdmin } from './supabase'
 import { callLLM } from './llm'
 import { searchPropertiesByFallbackChain } from './propertySearch'
 import { buildPropertyBlock } from './propertyPresenter'
-import { sendViaMsg91, sendViaMsg91Media } from './whatsapp'
+import { waSendText, waSendMedia, type WaChannel } from './whatsapp'
 import { sendEmail } from './email'
 import { checkAbuseGuards } from './botGuards'
 
@@ -438,9 +438,9 @@ export async function handleAiBotMessage(opts: {
   phone: string
   message: string
   agentId: string
-  integratedNumber: string
+  channel: WaChannel   // how to reply — MSG91 or Meta Cloud API direct
 }): Promise<void> {
-  const { phone, message, agentId, integratedNumber } = opts
+  const { phone, message, agentId, channel } = opts
 
   // 1. Load agent
   const { data: agent } = await supabaseAdmin
@@ -498,7 +498,7 @@ export async function handleAiBotMessage(opts: {
   if (guard.halt) {
     console.log(`[ai-bot] abuse guard tripped for ${phone}: ${guard.reason}`)
     const guardReply = guard.reply || "Our team will reach out to help you shortly. 🙏"
-    await sendViaMsg91(integratedNumber, phone, guardReply)
+    await waSendText(channel, phone, guardReply)
     if (guard.notifyAgent) await notifyAgentOfTrollHalt(agent, lead, phone, guard.reason || 'abuse guard')
 
     history.push({ role: 'bot', text: guardReply, ts: new Date().toISOString() })
@@ -541,7 +541,7 @@ export async function handleAiBotMessage(opts: {
   }
 
   if (!decision) {
-    await sendViaMsg91(integratedNumber, phone, "I'm having a small issue — please try again in a moment. 🙏")
+    await waSendText(channel, phone, "I'm having a small issue — please try again in a moment. 🙏")
     return
   }
 
@@ -640,8 +640,7 @@ export async function handleAiBotMessage(opts: {
     const agentPhone = (agent.phone || '').replace(/\D/g, '')
     if (agentPhone) {
       const leadName = lead.name || phone
-      await sendViaMsg91(
-        integratedNumber,
+      await waSendText(channel,
         agentPhone,
         `🔔 *Lead wants to speak to you*\n\n👤 ${leadName}\n📞 ${phone}\n\nPlease call them.`
       )
@@ -795,14 +794,14 @@ export async function handleAiBotMessage(opts: {
   }
 
   // 9. Send reply
-  await sendViaMsg91(integratedNumber, phone, finalReply)
+  await waSendText(channel, phone, finalReply)
   if (searchReply) {
-    await sendViaMsg91(integratedNumber, phone, searchReply)
+    await waSendText(channel, phone, searchReply)
   }
 
   // 10. Send photos (one by one)
   for (const url of photosToSend) {
-    await sendViaMsg91Media(integratedNumber, phone, url)
+    await waSendMedia(channel, phone, url)
   }
 
   // 11. Save updated history (now that finalReply reflects the real outcome)
