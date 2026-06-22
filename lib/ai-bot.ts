@@ -8,6 +8,38 @@ import { searchPropertiesByFallbackChain } from './propertySearch'
 import { buildPropertyBlock } from './propertyPresenter'
 import { sendViaMsg91, sendViaMsg91Media } from './whatsapp'
 
+// Send email to superadmin using Resend
+async function emailSuperadmin(subject: string, body: string): Promise<void> {
+  try {
+    const { Resend } = require('resend')
+    const resend = new Resend(process.env.RESEND_API_KEY)
+
+    const adminEmail = 'support@convorian.in'
+    const fallbackEmail = 'convorian@gmail.com'
+
+    try {
+      await resend.emails.send({
+        from: 'noreply@convorian.in',
+        to: adminEmail,
+        subject,
+        html: body.replace(/\n/g, '<br>'),
+      })
+      console.log(`[ai-bot] superadmin email sent to ${adminEmail}`)
+    } catch (err) {
+      console.log(`[ai-bot] primary email to ${adminEmail} failed, trying fallback to ${fallbackEmail}`)
+      await resend.emails.send({
+        from: 'noreply@convorian.in',
+        to: fallbackEmail,
+        subject,
+        html: body.replace(/\n/g, '<br>'),
+      })
+      console.log(`[ai-bot] superadmin email sent to ${fallbackEmail}`)
+    }
+  } catch (err) {
+    console.error(`[ai-bot] failed to email superadmin:`, err)
+  }
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type BotStage =
@@ -106,7 +138,7 @@ function parseTimeString(timeStr: string): string | null {
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
-function buildSystemPrompt(agent: any, lead: any, properties?: any[]): string {
+function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, properties?: any[]): string {
   const lang = lead.language || 'en'
   const langLabel =
     lang === 'hi' ? 'Hindi' :
@@ -127,6 +159,10 @@ function buildSystemPrompt(agent: any, lead: any, properties?: any[]): string {
     visit_time: lead.pending_appointment_time || null,
     email: lead.email || null,
     bot_stage: lead.bot_stage || 'greeting',
+    existing_appointment: existingAppointment ? {
+      scheduled_at: existingAppointment.scheduled_at,
+      status: existingAppointment.status
+    } : null,
   }, null, 2)
 
   const propertiesBlock = properties && properties.length > 0
@@ -180,13 +216,15 @@ RULES:
 - Be warm, friendly, and concise — WhatsApp messages, not essays
 
 BOOKING LOGIC (critical — must follow):
-- When user says they want to visit → ask for date/time FIRST
+- CHECK FIRST: does the lead already have an upcoming appointment? See CURRENT LEAD DATA
+  - If YES → inform: "You already have a site visit booked for [date/time]. Would you like to reschedule?"
+  - If NO → proceed to ask for date/time
+- When user wants to book (and no existing appointment) → ask for date/time
 - When user provides date/time → ask for email
 - When you have BOTH date/time AND email saved → IMMEDIATELY set action to "book_visit"
   This triggers the backend to:
   1. Create the appointment in the database
-  2. Send WhatsApp alert to the agent
-  3. Send confirmation emails to lead + agent + admins
+  2. Verify it was created — if creation FAILS, backend sends error email to superadmin
 - DO NOT say "booked" unless you are ALSO setting action to "book_visit"
 
 CURRENT LEAD DATA:
@@ -291,11 +329,19 @@ export async function handleAiBotMessage(opts: {
     .map(e => `${e.role === 'user' ? 'Customer' : 'Bot'}: ${e.text}`)
     .join('\n')
 
+  // Check if appointment already exists for this lead
+  const { data: existingAppointment } = await supabaseAdmin
+    .from('appointments')
+    .select('id, scheduled_at, status')
+    .eq('lead_id', lead.id)
+    .eq('status', 'upcoming')
+    .maybeSingle()
+
   // 5. First AI call — understand and decide
   let decision: AIDecision | null = null
   try {
     const raw = await callLLM([
-      { role: 'system', content: buildSystemPrompt(agent, lead) },
+      { role: 'system', content: buildSystemPrompt(agent, lead, existingAppointment) },
       { role: 'user', content: `Conversation:\n${conversationText}\n\nRespond with JSON only.` },
     ], { maxTokens: 600, temperature: 0.35 })
 
@@ -339,7 +385,7 @@ export async function handleAiBotMessage(opts: {
       // Second AI call — format using real property data
       try {
         const raw2 = await callLLM([
-          { role: 'system', content: buildSystemPrompt(agent, lead, result.properties) },
+          { role: 'system', content: buildSystemPrompt(agent, lead, existingAppointment, result.properties) },
           { role: 'user', content: `Present these ${Math.min(result.properties.length, 3)} properties to the customer in a warm WhatsApp message. Use emojis. Show all details for each. End by asking which one they like or if they want photos. Respond with JSON only.` },
         ], { maxTokens: 1000, temperature: 0.3 })
 
@@ -453,13 +499,12 @@ export async function handleAiBotMessage(opts: {
   leadUpdates.chat_history = history.slice(-MAX_HISTORY)
 
   // Execute book_visit BEFORE saving
-  // Simple: create appointment + email agent ONLY
   if (decision.action === 'book_visit' && leadUpdates.pending_appointment_time && lead.matched_property_id) {
     const visitTime = leadUpdates.pending_appointment_time
     const propertyId = lead.matched_property_id
 
     // 1. Create appointment in DB
-    const { error: appointmentErr } = await supabaseAdmin
+    const { error: appointmentErr, data: appointmentData } = await supabaseAdmin
       .from('appointments')
       .insert({
         agent_id: agentId,
@@ -468,14 +513,32 @@ export async function handleAiBotMessage(opts: {
         scheduled_at: visitTime,
         status: 'upcoming',
       })
+      .select()
+      .single()
 
-    console.log(`[ai-bot] appointment created: ${phone} at ${visitTime}${appointmentErr ? ' (ERROR: ' + appointmentErr.message + ')' : ''}`)
+    if (appointmentErr) {
+      console.error(`[ai-bot] appointment creation FAILED for ${phone}:`, appointmentErr.message)
 
-    // 2. Email agent ONLY (no WhatsApp, no lead email for now)
-    if (agent.email) {
-      const leadName = leadUpdates.name || lead.name || phone
-      console.log(`[ai-bot] would email agent at ${agent.email}: Lead ${leadName} booked site visit for ${visitTime}`)
-      // TODO: implement email via Resend
+      // 2. Verify: try to fetch the appointment
+      const { data: verifyAppointment } = await supabaseAdmin
+        .from('appointments')
+        .select('id')
+        .eq('lead_id', lead.id)
+        .eq('status', 'upcoming')
+        .maybeSingle()
+
+      if (!verifyAppointment) {
+        // Appointment truly does not exist — send alert to superadmin
+        const leadName = leadUpdates.name || lead.name || phone
+        const errorBody = `Site visit booking FAILED\n\nLead: ${leadName}\nPhone: ${phone}\nEmail: ${leadUpdates.email || lead.email}\nRequested Time: ${visitTime}\n\nError: ${appointmentErr.message}`
+
+        await emailSuperadmin('⚠️ Appointment Creation Failed', errorBody)
+        console.log(`[ai-bot] superadmin alert sent for failed appointment`)
+      } else {
+        console.log(`[ai-bot] verification successful: appointment exists despite insert error`)
+      }
+    } else {
+      console.log(`[ai-bot] appointment created successfully at ${visitTime}`)
     }
   }
 
