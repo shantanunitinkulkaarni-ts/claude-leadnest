@@ -213,8 +213,34 @@ alter table appointments enable row level security;
 alter table wa_transactions enable row level security;
 alter table activity_log enable row level security;
 
--- Service role bypasses RLS (used by backend)
--- Frontend will use anon key with proper policies once auth is added
+-- The backend uses the service-role key, which BYPASSES RLS. These policies are
+-- the "second wall": even with the anon/authenticated key, a logged-in user can
+-- only touch rows for an agent they belong to (via team_members). Tables with RLS
+-- enabled but no policy are deny-all to non-service-role.
+-- (agents/team_members/superadmins have their own policies; see live DB / migrations.)
+
+create policy tenant_all_leads on leads for all to authenticated
+  using (agent_id in (select agent_id from team_members where auth_user_id = auth.uid()))
+  with check (agent_id in (select agent_id from team_members where auth_user_id = auth.uid()));
+create policy tenant_all_messages on messages for all to authenticated
+  using (agent_id in (select agent_id from team_members where auth_user_id = auth.uid()))
+  with check (agent_id in (select agent_id from team_members where auth_user_id = auth.uid()));
+create policy tenant_all_appointments on appointments for all to authenticated
+  using (agent_id in (select agent_id from team_members where auth_user_id = auth.uid()))
+  with check (agent_id in (select agent_id from team_members where auth_user_id = auth.uid()));
+create policy tenant_all_properties on properties for all to authenticated
+  using (agent_id in (select agent_id from team_members where auth_user_id = auth.uid()))
+  with check (agent_id in (select agent_id from team_members where auth_user_id = auth.uid()));
+-- Added in migration 09 (uniform second wall on the remaining sensitive tables):
+create policy tenant_all_wa_transactions on wa_transactions for all to authenticated
+  using (agent_id in (select agent_id from team_members where auth_user_id = auth.uid()))
+  with check (agent_id in (select agent_id from team_members where auth_user_id = auth.uid()));
+create policy tenant_all_activity_log on activity_log for all to authenticated
+  using (agent_id in (select agent_id from team_members where auth_user_id = auth.uid()))
+  with check (agent_id in (select agent_id from team_members where auth_user_id = auth.uid()));
+create policy tenant_all_knowledge_gaps on knowledge_gaps for all to authenticated
+  using (agent_id in (select agent_id from team_members where auth_user_id = auth.uid()))
+  with check (agent_id in (select agent_id from team_members where auth_user_id = auth.uid()));
 
 -- ─────────────────────────────────────────
 -- FUNCTION: auto-update updated_at on leads

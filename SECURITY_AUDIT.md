@@ -34,7 +34,7 @@ headers, rate limiting. This is a code review, not a penetration test.*
 
 | # | Finding | Severity | Fix |
 |---|---------|----------|-----|
-| 1 | **RLS is enabled but has no policies.** Security rests entirely on the API layer. Safe today (frontend reads go through authorized API routes; anon key is deny-all), but it's a single layer — one forgotten check in a future route could leak data. | Medium | Add RLS policies (agent owns row) as a second wall, so the DB denies even if a route forgets. Belt **and** suspenders. |
+| 1 | ~~RLS has no policies~~ **RESOLVED — the audit was misled by a stale `schema.sql`.** The live DB already had correct tenant-scoped policies on leads/messages/appointments/properties (`agent_id ∈ the user's team_members`). Migration 09 added the same to wa_transactions/activity_log/knowledge_gaps, so the second wall is now **uniform** across all sensitive tables. `schema.sql` updated to match. | ✅ Done | — |
 | 2 | **`MSG91_STATUS_SECRET` may be unset** → the delivery-status webhook is open, so anyone could POST fake "delivered/failed" reports. | Low | Set `MSG91_STATUS_SECRET` in Vercel + add `?token=` in the MSG91 dashboard. |
 | 3 | **CSP is Report-Only** (not enforced). | Low | After a clean week of reports, switch the header to `Content-Security-Policy`. |
 | 4 | **No 2FA** on agent logins. | Medium (pre-launch) | Bucket B — add 2FA + the breach **account-lockdown** (lock after N failed / anomalous logins). |
