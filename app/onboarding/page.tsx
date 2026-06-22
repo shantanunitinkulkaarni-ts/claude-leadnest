@@ -31,6 +31,7 @@ export default function OnboardingPage() {
   const [botLanguage, setBotLanguage] = useState<string[]>(['english'])
   const [officeOpen, setOfficeOpen] = useState('09:00')
   const [officeClose, setOfficeClose] = useState('19:00')
+  const [weeklyOff, setWeeklyOff] = useState('')
 
   // Step 4: WhatsApp
   const [waStatus, setWaStatus] = useState('Pending')
@@ -218,6 +219,7 @@ export default function OnboardingPage() {
         languages: botLanguage,
         office_open: officeOpen,
         office_close: officeClose,
+        weekly_off: weeklyOff,
         bot_active: true,
         wa_balance: 10,
         messages_limit: 500,
@@ -541,6 +543,20 @@ export default function OnboardingPage() {
                       </div>
                     ))}
                   </div>
+                </div>
+                <div className="field">
+                  <label className="field-label">Weekly day off (optional)</label>
+                  <select
+                    value={weeklyOff}
+                    onChange={e => setWeeklyOff(e.target.value)}
+                    style={{ width: '100%', padding: '11px 14px', borderRadius: 10, border: '1px solid var(--border, rgba(26,25,22,0.18))', fontSize: 14, fontFamily: 'inherit', outline: 'none', background: '#fff' }}
+                  >
+                    <option value="">No weekly off (open every day)</option>
+                    {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(day => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.5 }}>The bot won&apos;t book site visits on this day.</div>
                 </div>
               </div>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: '20px 0 4px', fontSize: 13, color: 'var(--ink-2, #4A4843)', lineHeight: 1.5, cursor: 'pointer' }}>

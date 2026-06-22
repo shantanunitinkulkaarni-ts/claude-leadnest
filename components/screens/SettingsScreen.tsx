@@ -10,7 +10,7 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
   const [agentData, setAgentData] = useState<any>(initialAgent || null)
   const [botActive, setBotActive] = useState(initialAgent ? !!initialAgent.bot_active : false)
 
-  const [editModal, setEditModal] = useState<{ key: string; label: string; value: string; type: 'text' | 'select' | 'time-range' | 'tags' } | null>(null)
+  const [editModal, setEditModal] = useState<{ key: string; label: string; value: string; type: 'text' | 'select' | 'time-range' | 'tags' | 'day-select' } | null>(null)
   const [editValue, setEditValue] = useState('')
   const [editSaving, setEditSaving] = useState(false)
 
@@ -132,7 +132,7 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
 
   const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s
 
-  const openEdit = (key: string, label: string, value: string, type: 'text' | 'select' | 'time-range' | 'tags') => {
+  const openEdit = (key: string, label: string, value: string, type: 'text' | 'select' | 'time-range' | 'tags' | 'day-select') => {
     setEditModal({ key, label, value, type }); setEditValue(value); setSaveMsg('')
   }
 
@@ -146,6 +146,9 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
         body.office_open = parts[0] || '09:00'; body.office_close = parts[1] || '19:00'
       } else if (editModal.key === 'areas' || editModal.key === 'languages') {
         body[editModal.key] = editValue.split(',').map((s: string) => s.trim()).filter(Boolean)
+      } else if (editModal.key === 'weekly_off') {
+        // '—' (no value) → empty string = open every day
+        body.weekly_off = (editValue === '—' || editValue === 'None') ? '' : editValue
       } else { body[editModal.key] = editValue }
       const res = await fetch('/api/agent?id=' + agentId, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
@@ -173,7 +176,7 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
     { key: 'areas', label: 'Areas covered', value: Array.isArray(d?.areas) ? d.areas.join(', ') : '\u2014', type: 'tags' as const },
     { key: 'bot_tone', label: 'Bot tone', value: d?.bot_tone ? cap(d.bot_tone) : '\u2014', type: 'select' as const },
     { key: 'office_hours', label: 'Office hours', value: `${d?.office_open || '09:00'} \u2013 ${d?.office_close || '19:00'}`, type: 'time-range' as const },
-    { key: 'weekly_off', label: 'Weekly off', value: d?.weekly_off || '\u2014', type: 'text' as const },
+    { key: 'weekly_off', label: 'Weekly off', value: d?.weekly_off || '\u2014', type: 'day-select' as const },
     { key: 'holidays', label: 'Holidays', value: d?.holidays || '\u2014', type: 'text' as const },
     { key: 'languages', label: 'Languages', value: Array.isArray(d?.languages) ? d.languages.map(cap).join(', ') : '\u2014', type: 'tags' as const },
   ]
@@ -341,6 +344,16 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
                   <option value="professional">Professional \u2014 formal and precise, no emojis</option>
                   <option value="concise">Concise \u2014 short and direct, maximum 2-3 sentences</option>
                 </select>
+              ) : editModal.type === 'day-select' ? (
+                <div>
+                  <div style={{ fontSize: 12, color: '#6B6860', marginBottom: 8 }}>The bot won't book site visits on this day.</div>
+                  <select value={['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].includes(editValue) ? editValue : ''} onChange={e => setEditValue(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none', background: '#fff' }}>
+                    <option value="">No weekly off (open every day)</option>
+                    {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(day => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
+                </div>
               ) : editModal.type === 'time-range' ? (
                 <div>
                   <div style={{ fontSize: 12, color: '#6B6860', marginBottom: 8 }}>Format: HH:MM \u2013 HH:MM (e.g. 09:00 \u2013 19:00)</div>
