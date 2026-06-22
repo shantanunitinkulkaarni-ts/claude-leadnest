@@ -157,7 +157,7 @@ function visitHourIST(isoTime: string): number {
   return m ? parseInt(m[1]) : -1
 }
 
-// Parse an office-hours label like "9:00 AM" / "7:00 PM" → hour 0-23.
+// Parse an hours label like "09:00", "9:00 AM", "7 PM" → hour 0-23.
 function parseHourLabel(label: string): number | null {
   const m = (label || '').trim().match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i)
   if (!m) return null
@@ -168,16 +168,46 @@ function parseHourLabel(label: string): number | null {
   return h
 }
 
-// If the requested visit falls outside the agent's office hours, returns a
-// friendly message asking for a time in-window; otherwise null (time is OK).
-function officeHoursIssue(visitTime: string, agent: any): string | null {
-  const openLabel = agent.office_open || '9:00 AM'
-  const closeLabel = agent.office_close || '7:00 PM'
-  const openH = parseHourLabel(openLabel) ?? 9
-  const closeH = parseHourLabel(closeLabel) ?? 19
+// Turn a stored label like "09:00" / "19:00" into human "9 AM" / "7 PM".
+function humanizeTimeLabel(label: string): string {
+  const m = (label || '').trim().match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i)
+  if (!m) return label
+  let h = parseInt(m[1])
+  const min = m[2] ? parseInt(m[2]) : 0
+  const ap = (m[3] || '').toLowerCase()
+  if (ap === 'pm' && h < 12) h += 12
+  if (ap === 'am' && h === 12) h = 0
+  const period = h < 12 ? 'AM' : 'PM'
+  const h12 = h % 12 || 12
+  return min ? `${h12}:${String(min).padStart(2, '0')} ${period}` : `${h12} ${period}`
+}
+
+// The IST weekday name ("Sunday") of a visit time.
+function visitWeekdayIST(isoTime: string): string {
+  try {
+    return new Date(isoTime).toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'Asia/Kolkata' })
+  } catch {
+    return ''
+  }
+}
+
+// If the requested visit is outside office hours OR on the agent's weekly day
+// off, returns a friendly message asking for a better slot; otherwise null.
+function bookingTimeIssue(visitTime: string, agent: any): string | null {
+  // Weekly day off (e.g. "Sunday") — only checked if the agent set one.
+  if (agent.weekly_off) {
+    const wd = visitWeekdayIST(visitTime)
+    if (wd && wd.toLowerCase() === String(agent.weekly_off).toLowerCase()) {
+      return `We're closed on ${agent.weekly_off}s. Could you pick another day? 😊`
+    }
+  }
+  // Office hours.
+  const openLabel = humanizeTimeLabel(agent.office_open || '09:00')
+  const closeLabel = humanizeTimeLabel(agent.office_close || '19:00')
+  const openH = parseHourLabel(agent.office_open || '09:00') ?? 9
+  const closeH = parseHourLabel(agent.office_close || '19:00') ?? 19
   const h = visitHourIST(visitTime)
-  if (h < 0) return null
-  if (h < openH || h >= closeH) {
+  if (h >= 0 && (h < openH || h >= closeH)) {
     return `Our site visits are between ${openLabel} and ${closeLabel}. Could you pick a time within those hours? 😊`
   }
   return null
@@ -279,8 +309,9 @@ function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, prop
 
   const agentName = agent.name || 'our team'
   const agencyName = agent.agency_name || 'our agency'
-  const openTime = agent.office_open || '9:00 AM'
-  const closeTime = agent.office_close || '7:00 PM'
+  const openTime = humanizeTimeLabel(agent.office_open || '09:00')
+  const closeTime = humanizeTimeLabel(agent.office_close || '19:00')
+  const weekOff = agent.weekly_off || null
 
   const leadContext = JSON.stringify({
     name: lead.name || null,
@@ -318,7 +349,7 @@ function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, prop
     : ''
 
   return `You are a WhatsApp property assistant for ${agentName} (${agencyName}).
-Office hours: ${openTime} – ${closeTime}.
+Office hours: ${openTime} to ${closeTime}${weekOff ? `, closed on ${weekOff}s` : ''}.
 
 LANGUAGE: Always reply in ${langLabel} only. Never switch unless the user explicitly asks.
 
@@ -357,9 +388,9 @@ BOOKING LOGIC (critical — must follow):
   - If user wants a DIFFERENT time → put the new date/time in updates.visit_time and set action "reschedule_visit"
   - If user wants to CANCEL → set action "cancel_visit"
   - Otherwise → tell them their current booking and ask if they want to reschedule or cancel
-- ONLY accept visit times within office hours (${openTime}–${closeTime}). If the customer asks for
-  a time outside that window (e.g. 1 AM), politely ask them to pick a time within office hours and do
-  NOT set a booking action.
+- ONLY accept visit times within office hours (${openTime} to ${closeTime})${weekOff ? ` and never on a ${weekOff} (weekly day off)` : ''}.
+  If the customer asks for a time outside that window (e.g. 1 AM)${weekOff ? ` or on a ${weekOff}` : ''}, politely
+  ask them to pick a valid slot and do NOT set a booking action.
 - The backend creates/cancels the appointment and sends confirmation emails. NEVER say "booked",
   "confirmed", "cancelled" or "rescheduled" UNLESS you set the matching action. The backend writes
   the final confirmation message, so keep your reply short and let the action do the work.
@@ -414,7 +445,7 @@ export async function handleAiBotMessage(opts: {
   // 1. Load agent
   const { data: agent } = await supabaseAdmin
     .from('agents')
-    .select('id, name, agency_name, phone, email, office_open, office_close, msg91_integrated_number')
+    .select('id, name, agency_name, phone, email, office_open, office_close, weekly_off, msg91_integrated_number')
     .eq('id', agentId)
     .single()
 
@@ -720,9 +751,9 @@ export async function handleAiBotMessage(opts: {
       await notifyAgentOfTrollHalt(agent, lead, phone, 'too many reschedules')
     } else if (!newTime) {
       finalReply = `Sure, let's reschedule! What new date and time works for you? (e.g. "tomorrow 3 PM")`
-    } else if (officeHoursIssue(newTime, agent)) {
-      // Outside office hours — don't cancel the old visit; ask for a valid time.
-      finalReply = officeHoursIssue(newTime, agent)!
+    } else if (bookingTimeIssue(newTime, agent)) {
+      // Outside office hours / day off — don't cancel the old visit; ask again.
+      finalReply = bookingTimeIssue(newTime, agent)!
       leadUpdates.pending_appointment_time = null
     } else {
       // Cancel the old visit, then book the new time on the same property.
@@ -745,9 +776,9 @@ export async function handleAiBotMessage(opts: {
         '⚠️ Booking could not complete (missing data)',
         `A booking was triggered but data was missing.\n\nLead: ${leadName}\nPhone: ${phone}\nEmail: ${leadUpdates.email || lead.email || 'MISSING'}\nVisit time: ${visitTime || 'MISSING'}\nProperty: ${propertyId || 'MISSING — no property matched yet'}`
       )
-    } else if (officeHoursIssue(visitTime, agent)) {
-      // Outside office hours — ask for a valid time, don't book the odd hour.
-      finalReply = officeHoursIssue(visitTime, agent)!
+    } else if (bookingTimeIssue(visitTime, agent)) {
+      // Outside office hours / day off — ask for a valid slot, don't book it.
+      finalReply = bookingTimeIssue(visitTime, agent)!
       leadUpdates.pending_appointment_time = null
     } else {
       finalReply = await createAppointment(visitTime, propertyId)
