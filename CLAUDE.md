@@ -30,9 +30,20 @@ Shantanu — non-developer founder. You are the sole developer (CTO role).
 - Email: Resend via REST (`lib/email.ts` `sendEmail`) — needs `RESEND_API_KEY` +
   `RESEND_FROM_EMAIL` (`noreply@convorian.in`, domain verified). Do NOT use the
   `resend` npm package (not installed). · Errors: Sentry (org `covorian`, EU)
-- WhatsApp: Meta Cloud API via MSG91 BSP (per-agent creds in `agents` DB table).
-  Meta App Review + Tech Provider APPROVED (2026-06-22) — launch unblocked; MSG91
-  stays until the Meta-direct/Embedded-Signup migration is built & tested.
+- WhatsApp: **Meta Cloud API DIRECT (Tech Provider) — MSG91 stripped from the live
+  bot path (2026-06-23).** Per-agent creds in `agents` table: `wa_phone_number_id`
+  + `wa_access_token`. Inbound webhook `/api/webhook` verifies Meta's
+  `X-Hub-Signature-256` (`WHATSAPP_APP_SECRET`) + GET verify token
+  (`WHATSAPP_VERIFY_TOKEN`). Bot replies on the same channel via `waSendText`/
+  `waSendMedia` (`lib/whatsapp.ts`). **PROVEN working end-to-end on a Meta test
+  number** (`+1 555-664-3873`). Gotchas learned: a phone number needs `/register`
+  (with a 6-digit PIN) before it can send; the WABA must be subscribed to our app
+  (`POST /{WABA}/subscribed_apps`) or inbound is silently dropped; the app must be
+  Published (Live) for real inbound delivery.
+  - Still on MSG91 templates (peripheral, NOT the live chat): nurture cron, reminders,
+    alerts, manual reply — convert to Meta templates once those are approved.
+  - NEXT BIG BUILD: **Embedded Signup** = the in-app Facebook popup that lets an agent
+    self-connect their FB + WABA + number (the auto-onboard we want). Not built yet.
 
 ## Deploy
 Vercel git auto-deploy is DISCONNECTED. Deploy manually:

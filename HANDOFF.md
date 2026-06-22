@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: 2026-06-22 — session 15 (STABLE MILESTONE: full bot hardening + cleanup)*
+*Last updated: 2026-06-23 — session 16 (META CLOUD API DIRECT — live & proven; MSG91 stripped)*
 > ⏱️ This timestamp is set by hand at each update. If it looks stale vs. recent
 > git history (`git log -1`), assume parts of this doc are out of date and verify
 > against the code before trusting them.
@@ -23,6 +23,38 @@
 ---
 
 ## 1. DONE ✅
+
+- **June 23 SESSION 16 — META CLOUD API DIRECT (migrated off MSG91):**
+  - **Stripped MSG91 from the live bot path → Meta Cloud API only.** `WaChannel` is
+    now Meta-only; `waSendText`/`waSendMedia`/`sendToLead` send via Meta. Webhook
+    parses Meta inbound, finds the agent by `wa_phone_number_id`, replies on Meta.
+  - **Webhook auth** now verifies Meta `X-Hub-Signature-256` (`WHATSAPP_APP_SECRET`)
+    OR the shared-secret header (dashboard simulate). Reads raw body once.
+  - **PROVEN END-TO-END on Meta test number `+1 555-664-3873`** (Phone Number ID
+    `1172303745966584`, WABA `1022532370720908`, attached to the gmail test agent).
+    Full convo worked: hi → language → name → rent → area.
+  - **Setup gotchas discovered (write these down):** (1) a number needs
+    `POST /{phone_number_id}/register` with a 6-digit PIN before it can send
+    ("Account not registered" otherwise; PIN used: 246810). (2) **The WABA must be
+    subscribed to our app** (`POST /{WABA}/subscribed_apps`) — this was the silent
+    message-eater; the dashboard webhook config does NOT do it for a sandbox WABA.
+    (3) App must be **Published/Live** for real inbound. (4) You can't cold-message a
+    test number from WhatsApp — the business must message first.
+  - **Env set:** `WHATSAPP_APP_SECRET` (Meta app secret), `WHATSAPP_VERIFY_TOKEN`
+    = `convorian_meta_verify_2026`. Webhook callback: `https://convorian.in/api/webhook`.
+  - **Fixed two bot bugs:** duplicate inbound logging (webhook + bot both inserted →
+    now bot inserts only its outbound), and outbound Meta message id now stored
+    (delivery tracking) with sent/failed status.
+  - **KNOWN BUG (root cause found, FIX PENDING):** bot mis-reads named dates like
+    "5th July" → said "closed on Wednesday" (5 Jul 2026 is Sunday). Cause: (a) the
+    system prompt **never tells the AI today's date**, so it can't compute weekdays/
+    named dates; (b) `parseTimeString` can't parse month names and silently defaults
+    to today. Fix: inject current IST date+weekday into the prompt + force ISO output;
+    add month-name parsing as backstop; return null instead of defaulting.
+  - **PENDING NEXT:** (1) connect the real number `7559197426` once MSG91 frees it
+    (add to WABA → verify OTP → register → set `wa_phone_number_id`). (2) Build
+    **Embedded Signup** (self-serve auto-onboard). (3) Convert MSG91 templates
+    (nurture/reminders/alerts) to approved Meta templates.
 
 - **June 22 SESSION 15 — STABLE MILESTONE: full booking hardening, troll kit, LLM swap, cleanup:**
   - **Booking correctness (`lib/ai-bot.ts`):**
