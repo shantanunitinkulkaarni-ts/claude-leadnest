@@ -191,33 +191,21 @@ export async function sendViaMsg91Media(
   }
 }
 
-// ─── Provider-aware channel ──────────────────────────────────────────────────
-// A WaChannel says HOW to reply to a lead: through MSG91 (current BSP) or Meta
-// Cloud API direct (Tech Provider). The webhook builds it from the inbound
-// message's provider, so the bot always replies on the same pipe it arrived on.
-// This is the seam that lets us run MSG91 and Meta-direct side by side and flip
-// per-agent without touching the bot logic.
-export type WaChannel =
-  | { provider: 'msg91'; integratedNumber: string }
-  | { provider: 'meta'; phoneNumberId: string; accessToken: string }
+// ─── Reply channel (Meta Cloud API direct) ───────────────────────────────────
+// A WaChannel carries the agent's Meta credentials so the bot can reply. We run
+// Meta-direct only (Tech Provider) — MSG91 has been removed from the live path.
+export type WaChannel = { phoneNumberId: string; accessToken: string }
 
-// Send free-text on whichever channel the lead is on. Normalises both providers
-// to a SendOutcome so callers (bot, webhook) don't branch.
+// Send free-text to a lead via Meta Cloud API. Normalised to a SendOutcome.
 export async function waSendText(ch: WaChannel, toPhone: string, message: string): Promise<SendOutcome> {
-  if (ch.provider === 'meta') {
-    const id = await sendViaMeta(ch.phoneNumberId, ch.accessToken, toPhone.replace(/^\+/, ''), message)
-    return { id, error: id ? null : 'meta send failed', retryable: !id }
-  }
-  return sendViaMsg91(ch.integratedNumber, toPhone, message)
+  const id = await sendViaMeta(ch.phoneNumberId, ch.accessToken, toPhone.replace(/^\+/, ''), message)
+  return { id, error: id ? null : 'meta send failed', retryable: !id }
 }
 
-// Send an image on whichever channel the lead is on.
+// Send an image to a lead via Meta Cloud API.
 export async function waSendMedia(ch: WaChannel, toPhone: string, mediaUrl: string, caption?: string): Promise<SendOutcome> {
-  if (ch.provider === 'meta') {
-    const id = await sendMetaImage(ch.phoneNumberId, ch.accessToken, toPhone.replace(/^\+/, ''), mediaUrl, caption)
-    return { id, error: id ? null : 'meta media failed', retryable: !id }
-  }
-  return sendViaMsg91Media(ch.integratedNumber, toPhone, mediaUrl, caption)
+  const id = await sendMetaImage(ch.phoneNumberId, ch.accessToken, toPhone.replace(/^\+/, ''), mediaUrl, caption)
+  return { id, error: id ? null : 'meta media failed', retryable: !id }
 }
 
 // ─── Meta image message (within the 24h window) ──────────────────────────────
@@ -302,20 +290,14 @@ export async function sendViaMsg91Template(
   }
 }
 
-// ─── Provider-aware free-text send to a lead ─────────────────────────────────
-// Picks the right channel for an agent automatically: MSG91 if the agent has an
-// integrated number (current primary BSP), else Meta Cloud API. Used by the
-// nurture cron + reminders so follow-ups work regardless of provider. Free-text
-// = only valid inside the lead's 24h window (caller must check).
+// ─── Free-text send to a lead (Meta Cloud API) ───────────────────────────────
+// Used by the nurture cron + reminders. Free-text = only valid inside the lead's
+// 24h window (caller must check).
 export async function sendToLead(agent: any, lead: any, message: string): Promise<string | null> {
-  const integrated = String(agent?.msg91_integrated_number || '').replace(/\D/g, '')
-  if (integrated) {
-    return (await sendWithRetry(() => sendViaMsg91(integrated, lead.phone, message))).id
-  }
   if (agent?.wa_phone_number_id && agent?.wa_access_token) {
     return sendViaMeta(agent.wa_phone_number_id, agent.wa_access_token, lead.phone, message)
   }
-  console.warn('sendToLead: agent has no MSG91 or Meta credentials', agent?.id)
+  console.warn('sendToLead: agent has no Meta credentials', agent?.id)
   return null
 }
 

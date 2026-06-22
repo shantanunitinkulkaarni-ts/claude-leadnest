@@ -3,8 +3,8 @@ export const maxDuration = 60
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { sendViaMsg91, sendWithRetry, waSendText, type WaChannel } from '@/lib/whatsapp'
-import { verifySharedSecret } from '@/lib/webhookAuth'
+import { sendWithRetry, waSendText, type WaChannel } from '@/lib/whatsapp'
+import { verifySharedSecret, verifyMetaSignature } from '@/lib/webhookAuth'
 import { createLogger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rateLimit'
 import { handleAiBotMessage } from '@/lib/ai-bot'
@@ -43,23 +43,24 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Read the raw body ONCE — Meta signature verification needs exact bytes.
+    const rawBody = await request.text()
+
     // ── Auth ─────────────────────────────────────────────────────────────
+    // Accept either a valid Meta X-Hub-Signature-256 over the raw body (real
+    // WhatsApp inbound) OR the shared-secret header (dashboard simulate form).
     {
-      const secret = process.env.MSG91_WEBHOOK_SECRET
       const devBypass = process.env.NODE_ENV !== 'production' && process.env.SKIP_WEBHOOK_AUTH === 'true'
+      const metaOk = verifyMetaSignature(rawBody, request.headers.get('x-hub-signature-256'), process.env.WHATSAPP_APP_SECRET)
+      const sharedSecret = process.env.MSG91_WEBHOOK_SECRET // legacy name; gates the simulate form
+      const sharedOk = verifySharedSecret(request.headers.get('x-webhook-secret'), sharedSecret)
       if (devBypass) log('auth_bypass', { note: 'dev mode' })
-      else if (!secret) { logError('auth_misconfigured', {}); return NextResponse.json({ error: 'Misconfigured' }, { status: 500 }) }
-      else {
-        const incoming = request.headers.get('x-webhook-secret')
-        if (!verifySharedSecret(incoming, secret)) {
-          // Debug: log header presence and lengths to diagnose mismatch (no values exposed)
-          logError('auth_rejected', {
-            header_present: !!incoming,
-            incoming_len: incoming?.length ?? 0,
-            expected_len: secret.length,
-          })
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-        }
+      else if (!metaOk && !sharedOk) {
+        logError('auth_rejected', {
+          meta_sig_present: !!request.headers.get('x-hub-signature-256'),
+          shared_present: !!request.headers.get('x-webhook-secret'),
+        })
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
 
@@ -70,14 +71,14 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Parse inbound ────────────────────────────────────────────────────
+    // Two sources: Meta Cloud API (real WhatsApp) and the dashboard "simulate
+    // lead" form post (forcedAgentId). MSG91 has been removed.
     const contentType = request.headers.get('content-type') || ''
-    let fromPhone = '', messageText = '', waMessageId = '', msg91IntegratedNumber = '', forcedAgentId = '', metaPhoneNumberId = ''
-    let incomingProvider: 'msg91' | 'meta' = 'msg91'
+    let fromPhone = '', messageText = '', waMessageId = '', forcedAgentId = '', metaPhoneNumberId = ''
     let isNonTextMedia = false
 
     if (contentType.includes('application/x-www-form-urlencoded')) {
-      const text = await request.text()
-      const params = new URLSearchParams(text)
+      const params = new URLSearchParams(rawBody)
       fromPhone = (params.get('From') || '').replace('whatsapp:', '').trim()
       if (fromPhone && !fromPhone.startsWith('+')) fromPhone = '+' + fromPhone
       messageText = params.get('Body') || ''
@@ -85,29 +86,9 @@ export async function POST(request: NextRequest) {
       forcedAgentId = params.get('AgentId') || ''
       if (!messageText || !fromPhone) return NextResponse.json({ status: 'no_text' })
     } else {
-      const body = await request.json()
-      if (body.integratedNumber && (body.customerNumber || body.messages)) {
-        incomingProvider = 'msg91'
-        msg91IntegratedNumber = String(body.integratedNumber)
-        fromPhone = body.customerNumber ? '+' + String(body.customerNumber).replace(/^\+/, '') : ''
-        waMessageId = body.uuid || ''
-        const pick = (...xs: any[]) => { for (const x of xs) if (typeof x === 'string' && x.trim()) return x; return '' }
-        let btn = body.button; if (typeof btn === 'string') { try { btn = JSON.parse(btn) } catch {} }
-        messageText = pick(body.text, btn?.text, btn?.payload, btn?.title, btn?.value,
-          typeof body.button === 'string' && !body.button.startsWith('{') ? body.button : '',
-          body.buttonText, body.button_text, body.payload, body.buttonPayload,
-          body.interactive?.button_reply?.title, body.interactive?.button_reply?.id,
-          body.interactive?.list_reply?.title, body.interactive?.list_reply?.id,
-          body.content?.text, typeof body.content === 'string' ? body.content : '',
-          body.message?.text, body.title)
-        const ct = body.contentType
-        if (ct && !['text', 'button', 'interactive', 'reply', 'quick_reply'].includes(ct) && !messageText) {
-          if (fromPhone && msg91IntegratedNumber) try { await sendViaMsg91(msg91IntegratedNumber, fromPhone, "I can only read text messages — could you type your question? 😊") } catch {}
-          return NextResponse.json({ status: 'ignored_non_text' })
-        }
-        if (!messageText || !fromPhone) { log('msg91_no_text', { payload: body }); return NextResponse.json({ status: 'no_text' }) }
-      } else if (body.object === 'whatsapp_business_account') {
-        incomingProvider = 'meta'
+      let body: any = {}
+      try { body = JSON.parse(rawBody) } catch {}
+      if (body.object === 'whatsapp_business_account') {
         const value = body.entry?.[0]?.changes?.[0]?.value
         if (!value?.messages?.length) return NextResponse.json({ status: 'no_messages' })
         metaPhoneNumberId = value.metadata?.phone_number_id || ''
@@ -121,19 +102,9 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Agent lookup ─────────────────────────────────────────────────────
+    // Meta: identify the agent by the business phone number that received it.
     let agent: any = null
-    if (incomingProvider === 'msg91') {
-      const inboundNum = msg91IntegratedNumber.replace(/\D/g, '')
-      if (inboundNum) {
-        const { data } = await supabaseAdmin.from('agents').select('*').eq('msg91_integrated_number', inboundNum).maybeSingle()
-        agent = data
-      }
-      if (!agent) {
-        const testId = process.env.MSG91_TEST_AGENT_ID
-        if (testId) { const { data } = await supabaseAdmin.from('agents').select('*').eq('id', testId).single(); agent = data }
-      }
-    } else if (incomingProvider === 'meta' && metaPhoneNumberId) {
-      // Meta-direct: identify the agent by the business phone number that received it.
+    if (metaPhoneNumberId) {
       const { data } = await supabaseAdmin.from('agents').select('*').eq('wa_phone_number_id', metaPhoneNumberId).maybeSingle()
       agent = data
     } else if (forcedAgentId) {
@@ -143,10 +114,8 @@ export async function POST(request: NextRequest) {
     if (!agent) return NextResponse.json({ status: 'agent_not_found' })
     setContext({ agentId: agent.id })
 
-    // How we reply: Meta Cloud API direct if the inbound came via Meta, else MSG91.
-    const channel: WaChannel = incomingProvider === 'meta'
-      ? { provider: 'meta', phoneNumberId: agent.wa_phone_number_id, accessToken: agent.wa_access_token }
-      : { provider: 'msg91', integratedNumber: msg91IntegratedNumber }
+    // Reply channel — Meta Cloud API direct (agent's own WABA credentials).
+    const channel: WaChannel = { phoneNumberId: agent.wa_phone_number_id, accessToken: agent.wa_access_token }
 
     // ── Agent rate limit ─────────────────────────────────────────────────
     {
