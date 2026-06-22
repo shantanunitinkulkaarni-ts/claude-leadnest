@@ -7,37 +7,22 @@ import { callLLM } from './llm'
 import { searchPropertiesByFallbackChain } from './propertySearch'
 import { buildPropertyBlock } from './propertyPresenter'
 import { sendViaMsg91, sendViaMsg91Media } from './whatsapp'
+import { sendEmail } from './email'
 
-// Send email using Resend with fallback
+// Send an email via Resend's REST API (lib/email.ts — no SDK dependency).
+// IMPORTANT: do NOT use the `resend` npm package here — it is not installed,
+// so require('resend') throws at runtime and silently drops every email.
 async function sendEmailViaResend(to: string, subject: string, body: string, fallbackEmail?: string): Promise<void> {
-  try {
-    const { Resend } = require('resend')
-    const resend = new Resend(process.env.RESEND_API_KEY)
-
-    try {
-      await resend.emails.send({
-        from: 'noreply@convorian.in',
-        to,
-        subject,
-        html: body.replace(/\n/g, '<br>'),
-      })
-      console.log(`[ai-bot] email sent to ${to}`)
-    } catch (err) {
-      if (fallbackEmail) {
-        console.log(`[ai-bot] email to ${to} failed, trying fallback to ${fallbackEmail}`)
-        await resend.emails.send({
-          from: 'noreply@convorian.in',
-          to: fallbackEmail,
-          subject,
-          html: body.replace(/\n/g, '<br>'),
-        })
-        console.log(`[ai-bot] email sent to ${fallbackEmail}`)
-      } else {
-        throw err
-      }
+  const html = body.replace(/\n/g, '<br>')
+  const res = await sendEmail({ to, subject, html })
+  if (!res.ok) {
+    console.error(`[ai-bot] email to ${to} failed: ${res.error}`)
+    if (fallbackEmail) {
+      const alt = await sendEmail({ to: fallbackEmail, subject, html })
+      console.log(`[ai-bot] fallback email to ${fallbackEmail}: ${alt.ok ? 'sent' : alt.error}`)
     }
-  } catch (err) {
-    console.error(`[ai-bot] failed to send email:`, err)
+  } else {
+    console.log(`[ai-bot] email sent to ${to} (id: ${res.id})`)
   }
 }
 
@@ -91,6 +76,18 @@ async function emailSuperadmin(subject: string, body: string): Promise<void> {
   const adminEmail = 'support@convorian.in'
   const fallbackEmail = 'convorian@gmail.com'
   await sendEmailViaResend(adminEmail, subject, body, fallbackEmail)
+}
+
+// Tell the agent a lead hit an abuse guard so a human can take over.
+async function notifyAgentOfTrollHalt(agent: any, lead: any, phone: string, reason: string): Promise<void> {
+  const leadName = lead?.name || phone
+  if (agent?.email) {
+    await sendEmailViaResend(
+      agent.email,
+      '🚦 Lead needs a human (auto-paused)',
+      `The bot paused automatically for a lead and needs you to take over.\n\nLead: ${leadName}\nPhone: ${phone}\nReason: ${reason}\n\nPlease reach out to them directly.`
+    )
+  }
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -651,7 +648,20 @@ export async function handleAiBotMessage(opts: {
     }
 
   } else if (decision.action === 'reschedule_visit') {
-    if (!newTime) {
+    // Troll/abuse halt: cap reschedules. Each reschedule adds one appointment
+    // row, so total rows = 1 original + N reschedules. At 4 reschedules already
+    // done (5 rows), stop accepting more and hand off to a human — this prevents
+    // someone wasting endless messages/tokens by rescheduling forever.
+    const { count: apptCount } = await supabaseAdmin
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .eq('lead_id', lead.id)
+    const RESCHEDULE_LIMIT = 5 // 1 booking + 4 reschedules
+
+    if ((apptCount || 0) >= RESCHEDULE_LIMIT) {
+      finalReply = `I see you've changed your visit time a few times already. To make sure we get it right, our team will personally connect with you to finalise a slot. 🙏`
+      await notifyAgentOfTrollHalt(agent, lead, phone, 'too many reschedules')
+    } else if (!newTime) {
       finalReply = `Sure, let's reschedule! What new date and time works for you? (e.g. "tomorrow 3 PM")`
     } else {
       // Cancel the old visit, then book the new time on the same property.
@@ -679,7 +689,16 @@ export async function handleAiBotMessage(opts: {
     }
   }
 
-  // 9. Send reply (and search results as a second message if needed)
+  // For property searches the code-built listing (searchReply) is the single
+  // source of truth — NEVER send the AI's own reply alongside it, because the AI
+  // tends to invent property names/prices ("Property A — ₹48 lakhs"). Replace
+  // finalReply with the clean listing so only verified facts go out.
+  if (searchReply) {
+    finalReply = searchReply
+    searchReply = null
+  }
+
+  // 9. Send reply
   await sendViaMsg91(integratedNumber, phone, finalReply)
   if (searchReply) {
     await sendViaMsg91(integratedNumber, phone, searchReply)
