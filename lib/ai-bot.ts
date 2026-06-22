@@ -93,7 +93,15 @@ function parseTimeString(timeStr: string): string | null {
   }
 
   date.setHours(hours, mins, 0, 0)
-  return date.toISOString()
+
+  // Format as ISO8601 with IST timezone (+05:30)
+  // This preserves the local time that the user intended
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const h = String(hours).padStart(2, '0')
+  const m = String(mins).padStart(2, '0')
+  return `${year}-${month}-${day}T${h}:${m}:00+05:30`
 }
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
@@ -444,11 +452,11 @@ export async function handleAiBotMessage(opts: {
   if (searchReply) history.push({ role: 'bot', text: searchReply, ts: new Date().toISOString() })
   leadUpdates.chat_history = history.slice(-MAX_HISTORY)
 
-  // Execute book_visit BEFORE saving (so visitTime is available)
+  // Execute book_visit BEFORE saving
+  // Simple: create appointment + email agent ONLY
   if (decision.action === 'book_visit' && leadUpdates.pending_appointment_time && lead.matched_property_id) {
     const visitTime = leadUpdates.pending_appointment_time
     const propertyId = lead.matched_property_id
-    const leadEmail = leadUpdates.email || lead.email
 
     // 1. Create appointment in DB
     const { error: appointmentErr } = await supabaseAdmin
@@ -461,32 +469,13 @@ export async function handleAiBotMessage(opts: {
         status: 'upcoming',
       })
 
-    if (!appointmentErr) {
-      console.log(`[ai-bot] appointment created for ${phone} at ${visitTime}`)
-    } else {
-      console.error(`[ai-bot] appointment creation failed:`, appointmentErr)
-    }
+    console.log(`[ai-bot] appointment created: ${phone} at ${visitTime}${appointmentErr ? ' (ERROR: ' + appointmentErr.message + ')' : ''}`)
 
-    // 2. Alert agent on WhatsApp
-    const agentPhone = (agent.phone || '').replace(/\D/g, '')
-    if (agentPhone) {
-      const leadName = leadUpdates.name || lead.name || 'A lead'
-      const visitDate = new Date(visitTime).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
-      const visitTime24 = new Date(visitTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-
-      const agentAlert =
-        `🔔 *New Site Visit Booked*\n\n` +
-        `👤 Lead: ${leadName}\n` +
-        `📞 ${phone}\n` +
-        `📅 Date & Time: ${visitDate} at ${visitTime24}\n\n` +
-        `Reply *CONFIRM* or *RESCHEDULE*`
-
-      await sendViaMsg91(integratedNumber, agentPhone, agentAlert)
-    }
-
-    // 3. Send confirmation email (TODO: integrate with Resend)
-    if (leadEmail) {
-      console.log(`[ai-bot] would send confirmation email to lead at ${leadEmail}`)
+    // 2. Email agent ONLY (no WhatsApp, no lead email for now)
+    if (agent.email) {
+      const leadName = leadUpdates.name || lead.name || phone
+      console.log(`[ai-bot] would email agent at ${agent.email}: Lead ${leadName} booked site visit for ${visitTime}`)
+      // TODO: implement email via Resend
     }
   }
 
