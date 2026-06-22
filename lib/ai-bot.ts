@@ -8,36 +8,89 @@ import { searchPropertiesByFallbackChain } from './propertySearch'
 import { buildPropertyBlock } from './propertyPresenter'
 import { sendViaMsg91, sendViaMsg91Media } from './whatsapp'
 
-// Send email to superadmin using Resend
-async function emailSuperadmin(subject: string, body: string): Promise<void> {
+// Send email using Resend with fallback
+async function sendEmailViaResend(to: string, subject: string, body: string, fallbackEmail?: string): Promise<void> {
   try {
     const { Resend } = require('resend')
     const resend = new Resend(process.env.RESEND_API_KEY)
 
-    const adminEmail = 'support@convorian.in'
-    const fallbackEmail = 'convorian@gmail.com'
-
     try {
       await resend.emails.send({
         from: 'noreply@convorian.in',
-        to: adminEmail,
+        to,
         subject,
         html: body.replace(/\n/g, '<br>'),
       })
-      console.log(`[ai-bot] superadmin email sent to ${adminEmail}`)
+      console.log(`[ai-bot] email sent to ${to}`)
     } catch (err) {
-      console.log(`[ai-bot] primary email to ${adminEmail} failed, trying fallback to ${fallbackEmail}`)
-      await resend.emails.send({
-        from: 'noreply@convorian.in',
-        to: fallbackEmail,
-        subject,
-        html: body.replace(/\n/g, '<br>'),
-      })
-      console.log(`[ai-bot] superadmin email sent to ${fallbackEmail}`)
+      if (fallbackEmail) {
+        console.log(`[ai-bot] email to ${to} failed, trying fallback to ${fallbackEmail}`)
+        await resend.emails.send({
+          from: 'noreply@convorian.in',
+          to: fallbackEmail,
+          subject,
+          html: body.replace(/\n/g, '<br>'),
+        })
+        console.log(`[ai-bot] email sent to ${fallbackEmail}`)
+      } else {
+        throw err
+      }
     }
   } catch (err) {
-    console.error(`[ai-bot] failed to email superadmin:`, err)
+    console.error(`[ai-bot] failed to send email:`, err)
   }
+}
+
+// Send confirmation email to customer
+async function sendCustomerConfirmation(customerEmail: string, leadName: string, propertyTitle: string, visitTime: string): Promise<void> {
+  const visitDate = new Date(visitTime).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
+  const visitTimeStr = new Date(visitTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
+
+  const body = `Hi ${leadName},
+
+Your site visit has been confirmed! ✅
+
+📍 Property: ${propertyTitle}
+📅 Date: ${visitDate}
+🕐 Time: ${visitTimeStr} IST
+
+Our team will reach out to you shortly with more details and directions.
+
+Thank you for choosing us!
+
+Best regards,
+Convorian Team`
+
+  await sendEmailViaResend(customerEmail, '✅ Your Site Visit is Confirmed', body)
+}
+
+// Send notification email to agent
+async function sendAgentNotification(agentEmail: string, leadName: string, leadPhone: string, leadEmail: string, propertyTitle: string, visitTime: string): Promise<void> {
+  const visitDate = new Date(visitTime).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })
+  const visitTimeStr = new Date(visitTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
+
+  const body = `New Site Visit Request
+
+Lead: ${leadName}
+Phone: ${leadPhone}
+Email: ${leadEmail}
+
+Property: ${propertyTitle}
+Scheduled: ${visitDate} at ${visitTimeStr} IST
+
+Please confirm if you can accommodate this visit.
+
+---
+This is an automated message from Convorian Bot`
+
+  await sendEmailViaResend(agentEmail, '🔔 New Site Visit Request', body)
+}
+
+// Send error alert to superadmin
+async function emailSuperadmin(subject: string, body: string): Promise<void> {
+  const adminEmail = 'support@convorian.in'
+  const fallbackEmail = 'convorian@gmail.com'
+  await sendEmailViaResend(adminEmail, subject, body, fallbackEmail)
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -84,10 +137,37 @@ const MAX_PHOTOS = 5
 
 // ─── Time Parsing ────────────────────────────────────────────────────────────────
 
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000 // India is UTC+5:30
+
 function parseTimeString(timeStr: string): string | null {
   if (!timeStr) return null
-  const now = new Date()
   const t = timeStr.toLowerCase().trim()
+
+  // FIRST: if a full ISO-style date is present (e.g. "2026-06-22" or
+  // "2026-06-22 11:00" or "2026-06-22T11:00"), read it exactly. This MUST run
+  // before the loose patterns below — otherwise the "2026" year gets misread
+  // (the old code grabbed "26" as the day, turning the 22nd into the 26th).
+  const isoMatch = t.match(/(\d{4})-(\d{1,2})-(\d{1,2})(?:[t\s]+(\d{1,2}):(\d{2}))?/)
+  if (isoMatch) {
+    const y = parseInt(isoMatch[1])
+    const mo = parseInt(isoMatch[2]) - 1
+    const d = parseInt(isoMatch[3])
+    let h = isoMatch[4] != null ? parseInt(isoMatch[4]) : 11 // default 11 AM if no time given
+    let mi = isoMatch[5] != null ? parseInt(isoMatch[5]) : 0
+    // Honour an am/pm that may appear after the time (e.g. "2026-06-22 3 pm")
+    const ap = t.match(/(am|pm)/)
+    if (ap) {
+      if (ap[1] === 'pm' && h < 12) h += 12
+      if (ap[1] === 'am' && h === 12) h = 0
+    }
+    const cal = new Date(Date.UTC(y, mo, d))
+    const yyyy = String(cal.getUTCFullYear())
+    const mm = String(cal.getUTCMonth() + 1).padStart(2, '0')
+    const dd = String(cal.getUTCDate()).padStart(2, '0')
+    const hh = String(h).padStart(2, '0')
+    const min = String(mi).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}:00+05:30`
+  }
 
   // Extract time (hh:mm or h am/pm)
   const timeMatch = t.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)?|\b(\d{1,2})\s*(am|pm)\b/i)
@@ -103,37 +183,45 @@ function parseTimeString(timeStr: string): string | null {
     return null // No time found
   }
 
-  // Extract date
-  let date = new Date(now)
+  // Work entirely in IST. The server runs on UTC, so we shift "now" by +5:30
+  // and read the UTC fields — that gives us today's date AS IT IS IN INDIA,
+  // which is what "today"/"tomorrow" must be relative to.
+  const istNow = new Date(Date.now() + IST_OFFSET_MS)
+  let year = istNow.getUTCFullYear()
+  let month = istNow.getUTCMonth() // 0-based
+  let day = istNow.getUTCDate()
+
   if (t.includes('tomorrow') || t.includes('next day')) {
-    date.setDate(date.getDate() + 1)
+    day += 1
   } else if (t.match(/today|this\s+morning|this\s+afternoon/)) {
-    // Use today's date
+    // keep today's IST date
   } else if (t.match(/day\s+after\s+tomorrow|in\s+2\s+days?/)) {
-    date.setDate(date.getDate() + 2)
+    day += 2
   } else if (t.match(/next\s+week/)) {
-    date.setDate(date.getDate() + 7)
-  } else if (t.match(/(\d{1,2})-(\d{1,2})/)) {
-    // Date format like 22-6 or 6-22
-    const parts = t.match(/(\d{1,2})-(\d{1,2})/)
+    day += 7
+  } else if (t.match(/\b(\d{1,2})[-/](\d{1,2})\b/)) {
+    // Explicit short date like "22-6" or "22/6" — assume dd-mm (common in India)
+    const parts = t.match(/\b(\d{1,2})[-/](\d{1,2})\b/)
     if (parts) {
-      const d = parseInt(parts[1])
-      const m = parseInt(parts[2])
-      // Assume dd-mm format (common in India)
-      date = new Date(date.getFullYear(), m - 1, d)
+      day = parseInt(parts[1])
+      month = parseInt(parts[2]) - 1
     }
   }
 
-  date.setHours(hours, mins, 0, 0)
+  // Normalise (handles day/month roll-over like 31 + 1) using a UTC date as a
+  // pure calendar calculator — no timezone shifting happens here.
+  const cal = new Date(Date.UTC(year, month, day))
+  year = cal.getUTCFullYear()
+  month = cal.getUTCMonth()
+  day = cal.getUTCDate()
 
-  // Format as ISO8601 with IST timezone (+05:30)
-  // This preserves the local time that the user intended
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const h = String(hours).padStart(2, '0')
-  const m = String(mins).padStart(2, '0')
-  return `${year}-${month}-${day}T${h}:${m}:00+05:30`
+  // Format as ISO8601 with IST timezone (+05:30) — the time the user intended.
+  const yyyy = String(year)
+  const mm = String(month + 1).padStart(2, '0')
+  const dd = String(day).padStart(2, '0')
+  const hh = String(hours).padStart(2, '0')
+  const min = String(mins).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}:00+05:30`
 }
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
@@ -378,27 +466,29 @@ export async function handleAiBotMessage(opts: {
       budget_max: budgetMax,
     })
 
+    // Prefer the customer's bedroom (BHK) preference, but only if it still
+    // leaves at least one match — otherwise show what we have rather than nothing.
+    const wantBhk = (decision.updates?.bhk || lead.bhk || '').toLowerCase().replace(/\s+/g, '')
+    if (wantBhk) {
+      const bhkMatches = result.properties.filter(
+        (p: any) => (p.bhk || '').toLowerCase().replace(/\s+/g, '') === wantBhk
+      )
+      if (bhkMatches.length > 0) result.properties = bhkMatches
+    }
+
     if (result.properties.length === 0) {
       const areaText = areas.join(', ') || 'that area'
       searchReply = `I looked through all our ${intent === 'rent' ? 'rental' : 'sale'} properties in ${areaText} but don't have a match right now. 😔\n\nTo serve you better, shall I schedule a call with our team? They may have options that aren't listed yet.`
     } else {
-      // Second AI call — format using real property data
-      try {
-        const raw2 = await callLLM([
-          { role: 'system', content: buildSystemPrompt(agent, lead, existingAppointment, result.properties) },
-          { role: 'user', content: `Present these ${Math.min(result.properties.length, 3)} properties to the customer in a warm WhatsApp message. Use emojis. Show all details for each. End by asking which one they like or if they want photos. Respond with JSON only.` },
-        ], { maxTokens: 1000, temperature: 0.3 })
-
-        const d2 = parseAIDecision(raw2)
-        if (d2?.reply) searchReply = d2.reply
-      } catch {
-        // Fallback: build blocks in code
-        const blocks = result.properties
-          .slice(0, 3)
-          .map(p => buildPropertyBlock(p))
-          .join('\n\n─────────────\n\n')
-        searchReply = `Here are the top matches for you:\n\n${blocks}\n\nWhich one interests you? I can share photos or arrange a site visit. 😊`
-      }
+      // Build the property message ENTIRELY in code — every price/size/spec is
+      // copied straight from the database. The AI is never allowed to type a
+      // property fact (that's how invented prices happen). This is also what
+      // fixed the malformed-listing bug.
+      const blocks = result.properties
+        .slice(0, 3)
+        .map(p => buildPropertyBlock(p))
+        .join('\n\n─────────────\n\n')
+      searchReply = `Here are the top matches for you:\n\n${blocks}\n\nWhich one interests you? I can share photos or arrange a site visit. 😊`
 
       // Track matched property
       await supabaseAdmin
@@ -456,18 +546,7 @@ export async function handleAiBotMessage(opts: {
     }
   }
 
-  // 7. Send reply (and search results as a second message if needed)
-  await sendViaMsg91(integratedNumber, phone, finalReply)
-  if (searchReply) {
-    await sendViaMsg91(integratedNumber, phone, searchReply)
-  }
-
-  // 8. Send photos (one by one)
-  for (const url of photosToSend) {
-    await sendViaMsg91Media(integratedNumber, phone, url)
-  }
-
-  // 9. Save updates to lead
+  // 7. Build the updates we'll save for this lead
   const leadUpdates: Record<string, any> = {
     last_message_at: new Date().toISOString(),
     bot_stage: decision.stage,
@@ -493,59 +572,103 @@ export async function handleAiBotMessage(opts: {
     if (!decision.action) decision.action = 'book_visit'
   }
 
-  // Save updated history
+  // 8. Execute booking BEFORE we send any reply — so we never tell the
+  //    customer "confirmed" for a visit that did not actually save.
+  if (decision.action === 'book_visit') {
+    const visitTime = leadUpdates.pending_appointment_time || lead.pending_appointment_time
+    const propertyId = lead.matched_property_id
+
+    if (existingAppointment) {
+      // Already has an upcoming visit — do not create a duplicate.
+      const when = new Date(existingAppointment.scheduled_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+      finalReply = `You already have a site visit booked for ${when}. Would you like to reschedule it? 😊`
+    } else if (!visitTime || !propertyId) {
+      // Missing a required piece — cannot book. Be honest + alert the team.
+      const leadName = leadUpdates.name || lead.name || phone
+      finalReply = `I have your details — our team will reach out shortly to lock in your visit slot. 🙏`
+      await emailSuperadmin(
+        '⚠️ Booking could not complete (missing data)',
+        `A booking was triggered but data was missing.\n\nLead: ${leadName}\nPhone: ${phone}\nEmail: ${leadUpdates.email || lead.email || 'MISSING'}\nVisit time: ${visitTime || 'MISSING'}\nProperty: ${propertyId || 'MISSING — no property matched yet'}`
+      )
+    } else {
+      // Create the appointment.
+      const { error: appointmentErr } = await supabaseAdmin
+        .from('appointments')
+        .insert({
+          agent_id: agentId,
+          lead_id: lead.id,
+          property_id: propertyId,
+          scheduled_at: visitTime,
+          status: 'upcoming',
+        })
+        .select()
+        .single()
+
+      if (appointmentErr) {
+        // Double-check it didn't actually land despite the error.
+        const { data: verifyAppointment } = await supabaseAdmin
+          .from('appointments')
+          .select('id')
+          .eq('lead_id', lead.id)
+          .eq('status', 'upcoming')
+          .maybeSingle()
+
+        if (!verifyAppointment) {
+          console.error(`[ai-bot] appointment creation FAILED for ${phone}:`, appointmentErr.message)
+          const leadName = leadUpdates.name || lead.name || phone
+          // Be honest with the customer instead of saying "confirmed".
+          finalReply = `I'm having a small issue saving your visit. Our team will call you shortly to confirm the slot. 🙏`
+          await emailSuperadmin(
+            '⚠️ Appointment Creation Failed',
+            `Site visit booking FAILED\n\nLead: ${leadName}\nPhone: ${phone}\nEmail: ${leadUpdates.email || lead.email}\nRequested Time: ${visitTime}\n\nError: ${appointmentErr.message}`
+          )
+        } else {
+          console.log(`[ai-bot] appointment exists despite insert error — treating as success`)
+        }
+      } else {
+        console.log(`[ai-bot] appointment created successfully at ${visitTime}`)
+
+        // Send confirmation emails (booking succeeded).
+        const leadName = leadUpdates.name || lead.name || 'Guest'
+        const customerEmail = leadUpdates.email || lead.email
+
+        const { data: prop } = await supabaseAdmin
+          .from('properties')
+          .select('title')
+          .eq('id', propertyId)
+          .single()
+        const propertyTitle = prop?.title || 'Selected Property'
+
+        if (customerEmail) {
+          await sendCustomerConfirmation(customerEmail, leadName, propertyTitle, visitTime)
+        }
+        if (agent.email) {
+          await sendAgentNotification(agent.email, leadName, phone, customerEmail || 'Not provided', propertyTitle, visitTime)
+        }
+      }
+    }
+  }
+
+  // 9. Send reply (and search results as a second message if needed)
+  await sendViaMsg91(integratedNumber, phone, finalReply)
+  if (searchReply) {
+    await sendViaMsg91(integratedNumber, phone, searchReply)
+  }
+
+  // 10. Send photos (one by one)
+  for (const url of photosToSend) {
+    await sendViaMsg91Media(integratedNumber, phone, url)
+  }
+
+  // 11. Save updated history (now that finalReply reflects the real outcome)
   history.push({ role: 'bot', text: finalReply, ts: new Date().toISOString() })
   if (searchReply) history.push({ role: 'bot', text: searchReply, ts: new Date().toISOString() })
   leadUpdates.chat_history = history.slice(-MAX_HISTORY)
 
-  // Execute book_visit BEFORE saving
-  if (decision.action === 'book_visit' && leadUpdates.pending_appointment_time && lead.matched_property_id) {
-    const visitTime = leadUpdates.pending_appointment_time
-    const propertyId = lead.matched_property_id
-
-    // 1. Create appointment in DB
-    const { error: appointmentErr, data: appointmentData } = await supabaseAdmin
-      .from('appointments')
-      .insert({
-        agent_id: agentId,
-        lead_id: lead.id,
-        property_id: propertyId,
-        scheduled_at: visitTime,
-        status: 'upcoming',
-      })
-      .select()
-      .single()
-
-    if (appointmentErr) {
-      console.error(`[ai-bot] appointment creation FAILED for ${phone}:`, appointmentErr.message)
-
-      // 2. Verify: try to fetch the appointment
-      const { data: verifyAppointment } = await supabaseAdmin
-        .from('appointments')
-        .select('id')
-        .eq('lead_id', lead.id)
-        .eq('status', 'upcoming')
-        .maybeSingle()
-
-      if (!verifyAppointment) {
-        // Appointment truly does not exist — send alert to superadmin
-        const leadName = leadUpdates.name || lead.name || phone
-        const errorBody = `Site visit booking FAILED\n\nLead: ${leadName}\nPhone: ${phone}\nEmail: ${leadUpdates.email || lead.email}\nRequested Time: ${visitTime}\n\nError: ${appointmentErr.message}`
-
-        await emailSuperadmin('⚠️ Appointment Creation Failed', errorBody)
-        console.log(`[ai-bot] superadmin alert sent for failed appointment`)
-      } else {
-        console.log(`[ai-bot] verification successful: appointment exists despite insert error`)
-      }
-    } else {
-      console.log(`[ai-bot] appointment created successfully at ${visitTime}`)
-    }
-  }
-
   await supabaseAdmin.from('leads').update(leadUpdates).eq('id', lead.id)
 
-  // 10. Log messages
-  await supabaseAdmin.from('messages').insert([
+  // 12. Log messages (include the property-listing message so the Inbox is complete)
+  const messageRows: any[] = [
     {
       lead_id: lead.id,
       agent_id: agentId,
@@ -560,7 +683,17 @@ export async function handleAiBotMessage(opts: {
       content: finalReply,
       sent_by: 'bot',
     },
-  ])
+  ]
+  if (searchReply) {
+    messageRows.push({
+      lead_id: lead.id,
+      agent_id: agentId,
+      direction: 'outbound',
+      content: searchReply,
+      sent_by: 'bot',
+    })
+  }
+  await supabaseAdmin.from('messages').insert(messageRows)
 
   console.log(`[ai-bot] handled message from ${phone}, stage: ${decision.stage}, action: ${decision.action}`)
 }
