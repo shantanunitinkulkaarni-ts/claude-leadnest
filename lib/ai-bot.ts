@@ -116,7 +116,7 @@ type ChatEntry = {
 type AIDecision = {
   stage: BotStage
   reply: string
-  action: 'search_properties' | 'send_photos' | 'book_visit' | 'share_contact' | 'handover' | null
+  action: 'search_properties' | 'send_photos' | 'book_visit' | 'reschedule_visit' | 'cancel_visit' | 'share_contact' | 'handover' | null
   updates: {
     name?: string
     language?: string
@@ -138,6 +138,20 @@ const MAX_PHOTOS = 5
 // ─── Time Parsing ────────────────────────────────────────────────────────────────
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000 // India is UTC+5:30
+
+// Human-friendly India-time label, e.g. "Mon, 23 Jun, 03:00 PM". Always renders
+// in IST regardless of the server timezone, so the bot and emails agree.
+function formatIST(isoTime: string): string {
+  try {
+    return new Date(isoTime).toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      weekday: 'short', day: 'numeric', month: 'short',
+      hour: '2-digit', minute: '2-digit',
+    })
+  } catch {
+    return isoTime
+  }
+}
 
 function parseTimeString(timeStr: string): string | null {
   if (!timeStr) return null
@@ -248,7 +262,7 @@ function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, prop
     email: lead.email || null,
     bot_stage: lead.bot_stage || 'greeting',
     existing_appointment: existingAppointment ? {
-      scheduled_at: existingAppointment.scheduled_at,
+      scheduled_at: formatIST(existingAppointment.scheduled_at),
       status: existingAppointment.status
     } : null,
   }, null, 2)
@@ -304,16 +318,19 @@ RULES:
 - Be warm, friendly, and concise — WhatsApp messages, not essays
 
 BOOKING LOGIC (critical — must follow):
-- CHECK FIRST: does the lead already have an upcoming appointment? See CURRENT LEAD DATA
-  - If YES → inform: "You already have a site visit booked for [date/time]. Would you like to reschedule?"
-  - If NO → proceed to ask for date/time
-- When user wants to book (and no existing appointment) → ask for date/time
-- When user provides date/time → ask for email
-- When you have BOTH date/time AND email saved → IMMEDIATELY set action to "book_visit"
-  This triggers the backend to:
-  1. Create the appointment in the database
-  2. Verify it was created — if creation FAILS, backend sends error email to superadmin
-- DO NOT say "booked" unless you are ALSO setting action to "book_visit"
+- CHECK FIRST: does the lead already have an upcoming appointment? See CURRENT LEAD DATA (existing_appointment).
+- NO existing appointment:
+  - When user wants to book → ask for date/time
+  - When user gives date/time → ask for email
+  - When you have BOTH date/time AND email → set action "book_visit"
+- HAS an existing appointment:
+  - If user wants a DIFFERENT time → put the new date/time in updates.visit_time and set action "reschedule_visit"
+  - If user wants to CANCEL → set action "cancel_visit"
+  - Otherwise → tell them their current booking and ask if they want to reschedule or cancel
+- The backend creates/cancels the appointment and sends confirmation emails. NEVER say "booked",
+  "confirmed", "cancelled" or "rescheduled" UNLESS you set the matching action. The backend writes
+  the final confirmation message, so keep your reply short and let the action do the work.
+- Always refer to the existing appointment time exactly as shown in existing_appointment (already in India time).
 
 CURRENT LEAD DATA:
 ${leadContext}
@@ -324,7 +341,7 @@ RESPOND WITH VALID JSON ONLY. No text outside the JSON block.
 {
   "stage": "greeting|language|name|intent|qualifying|property_shown|awaiting_visit_time|awaiting_email|visit_confirmed|handover",
   "reply": "your WhatsApp message to the customer",
-  "action": null or "search_properties"|"send_photos"|"book_visit"|"share_contact"|"handover",
+  "action": null or "search_properties"|"send_photos"|"book_visit"|"reschedule_visit"|"cancel_visit"|"share_contact"|"handover",
   "updates": {
     "name": "string or omit",
     "language": "en|hi|hinglish or omit",
@@ -420,7 +437,7 @@ export async function handleAiBotMessage(opts: {
   // Check if appointment already exists for this lead
   const { data: existingAppointment } = await supabaseAdmin
     .from('appointments')
-    .select('id, scheduled_at, status')
+    .select('id, scheduled_at, status, property_id')
     .eq('lead_id', lead.id)
     .eq('status', 'upcoming')
     .maybeSingle()
@@ -566,24 +583,91 @@ export async function handleAiBotMessage(opts: {
   }
   if (decision.updates?.email) leadUpdates.email = decision.updates.email
 
-  // Auto-trigger book_visit if we have both visit_time AND email
-  // This ensures booking happens even if AI forgets to set the action
-  if (leadUpdates.email && leadUpdates.pending_appointment_time) {
-    if (!decision.action) decision.action = 'book_visit'
+  // The time the customer gave THIS turn (already parsed to IST), if any.
+  const newTime: string | undefined = leadUpdates.pending_appointment_time
+
+  // Auto-trigger the right booking action even if the AI forgets to set one.
+  if (!decision.action) {
+    if (existingAppointment && newTime) {
+      decision.action = 'reschedule_visit'        // gave a new time while a visit exists
+    } else if (leadUpdates.email && newTime) {
+      decision.action = 'book_visit'              // first-time booking
+    }
+  }
+  // Giving a new time while a visit already exists is always a reschedule,
+  // never a second booking.
+  if (decision.action === 'book_visit' && existingAppointment && newTime) {
+    decision.action = 'reschedule_visit'
+  }
+  // Nothing to reschedule → treat as a fresh booking.
+  if (decision.action === 'reschedule_visit' && !existingAppointment) {
+    decision.action = 'book_visit'
   }
 
-  // 8. Execute booking BEFORE we send any reply — so we never tell the
-  //    customer "confirmed" for a visit that did not actually save.
-  if (decision.action === 'book_visit') {
-    const visitTime = leadUpdates.pending_appointment_time || lead.pending_appointment_time
-    const propertyId = lead.matched_property_id
+  // Shared helper: create an appointment + send confirmation emails.
+  // Returns the customer-facing message (clean success, or honest failure).
+  async function createAppointment(visitTime: string, propertyId: string): Promise<string> {
+    const leadName = leadUpdates.name || lead.name || 'Guest'
+    const customerEmail = leadUpdates.email || lead.email
+
+    const { error: appointmentErr } = await supabaseAdmin
+      .from('appointments')
+      .insert({ agent_id: agentId, lead_id: lead.id, property_id: propertyId, scheduled_at: visitTime, status: 'upcoming' })
+      .select()
+      .single()
+
+    if (appointmentErr) {
+      // Did it actually land despite the error? If not, be honest + alert.
+      const { data: verify } = await supabaseAdmin
+        .from('appointments').select('id').eq('lead_id', lead.id).eq('status', 'upcoming').maybeSingle()
+      if (!verify) {
+        console.error(`[ai-bot] appointment creation FAILED for ${phone}:`, appointmentErr.message)
+        await emailSuperadmin(
+          '⚠️ Appointment Creation Failed',
+          `Site visit booking FAILED\n\nLead: ${leadName}\nPhone: ${phone}\nEmail: ${customerEmail}\nRequested Time: ${visitTime}\n\nError: ${appointmentErr.message}`
+        )
+        return `I'm having a small issue saving your visit. Our team will call you shortly to confirm the slot. 🙏`
+      }
+    }
+
+    console.log(`[ai-bot] appointment saved for ${phone} at ${visitTime}`)
+    const { data: prop } = await supabaseAdmin.from('properties').select('title').eq('id', propertyId).single()
+    const propertyTitle = prop?.title || 'Selected Property'
+    if (customerEmail) await sendCustomerConfirmation(customerEmail, leadName, propertyTitle, visitTime)
+    if (agent!.email) await sendAgentNotification(agent!.email, leadName, phone, customerEmail || 'Not provided', propertyTitle, visitTime)
+
+    return `✅ Your site visit is confirmed for ${formatIST(visitTime)}.` +
+      (customerEmail ? ` A confirmation email is on its way to ${customerEmail}.` : '') +
+      ` See you then, ${leadName}! 😊`
+  }
+
+  // 8. Booking actions — run BEFORE we reply, so the message matches reality.
+  if (decision.action === 'cancel_visit') {
+    if (existingAppointment) {
+      await supabaseAdmin.from('appointments').update({ status: 'cancelled' }).eq('id', existingAppointment.id)
+      finalReply = `Done — your site visit for ${formatIST(existingAppointment.scheduled_at)} has been cancelled. Would you like to book a new time? 😊`
+    } else {
+      finalReply = `You don't have an upcoming site visit to cancel. Would you like to book one? 😊`
+    }
+
+  } else if (decision.action === 'reschedule_visit') {
+    if (!newTime) {
+      finalReply = `Sure, let's reschedule! What new date and time works for you? (e.g. "tomorrow 3 PM")`
+    } else {
+      // Cancel the old visit, then book the new time on the same property.
+      await supabaseAdmin.from('appointments').update({ status: 'cancelled' }).eq('id', existingAppointment!.id)
+      const propertyId = lead.matched_property_id || existingAppointment!.property_id
+      finalReply = await createAppointment(newTime, propertyId)
+    }
+
+  } else if (decision.action === 'book_visit') {
+    const visitTime = newTime || lead.pending_appointment_time
+    const propertyId = lead.matched_property_id || existingAppointment?.property_id
 
     if (existingAppointment) {
-      // Already has an upcoming visit — do not create a duplicate.
-      const when = new Date(existingAppointment.scheduled_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-      finalReply = `You already have a site visit booked for ${when}. Would you like to reschedule it? 😊`
+      // Don't double-book — offer reschedule or cancel.
+      finalReply = `You already have a site visit booked for ${formatIST(existingAppointment.scheduled_at)}. Would you like to reschedule it to a new time, or cancel it? 😊`
     } else if (!visitTime || !propertyId) {
-      // Missing a required piece — cannot book. Be honest + alert the team.
       const leadName = leadUpdates.name || lead.name || phone
       finalReply = `I have your details — our team will reach out shortly to lock in your visit slot. 🙏`
       await emailSuperadmin(
@@ -591,61 +675,7 @@ export async function handleAiBotMessage(opts: {
         `A booking was triggered but data was missing.\n\nLead: ${leadName}\nPhone: ${phone}\nEmail: ${leadUpdates.email || lead.email || 'MISSING'}\nVisit time: ${visitTime || 'MISSING'}\nProperty: ${propertyId || 'MISSING — no property matched yet'}`
       )
     } else {
-      // Create the appointment.
-      const { error: appointmentErr } = await supabaseAdmin
-        .from('appointments')
-        .insert({
-          agent_id: agentId,
-          lead_id: lead.id,
-          property_id: propertyId,
-          scheduled_at: visitTime,
-          status: 'upcoming',
-        })
-        .select()
-        .single()
-
-      if (appointmentErr) {
-        // Double-check it didn't actually land despite the error.
-        const { data: verifyAppointment } = await supabaseAdmin
-          .from('appointments')
-          .select('id')
-          .eq('lead_id', lead.id)
-          .eq('status', 'upcoming')
-          .maybeSingle()
-
-        if (!verifyAppointment) {
-          console.error(`[ai-bot] appointment creation FAILED for ${phone}:`, appointmentErr.message)
-          const leadName = leadUpdates.name || lead.name || phone
-          // Be honest with the customer instead of saying "confirmed".
-          finalReply = `I'm having a small issue saving your visit. Our team will call you shortly to confirm the slot. 🙏`
-          await emailSuperadmin(
-            '⚠️ Appointment Creation Failed',
-            `Site visit booking FAILED\n\nLead: ${leadName}\nPhone: ${phone}\nEmail: ${leadUpdates.email || lead.email}\nRequested Time: ${visitTime}\n\nError: ${appointmentErr.message}`
-          )
-        } else {
-          console.log(`[ai-bot] appointment exists despite insert error — treating as success`)
-        }
-      } else {
-        console.log(`[ai-bot] appointment created successfully at ${visitTime}`)
-
-        // Send confirmation emails (booking succeeded).
-        const leadName = leadUpdates.name || lead.name || 'Guest'
-        const customerEmail = leadUpdates.email || lead.email
-
-        const { data: prop } = await supabaseAdmin
-          .from('properties')
-          .select('title')
-          .eq('id', propertyId)
-          .single()
-        const propertyTitle = prop?.title || 'Selected Property'
-
-        if (customerEmail) {
-          await sendCustomerConfirmation(customerEmail, leadName, propertyTitle, visitTime)
-        }
-        if (agent.email) {
-          await sendAgentNotification(agent.email, leadName, phone, customerEmail || 'Not provided', propertyTitle, visitTime)
-        }
-      }
+      finalReply = await createAppointment(visitTime, propertyId)
     }
   }
 
