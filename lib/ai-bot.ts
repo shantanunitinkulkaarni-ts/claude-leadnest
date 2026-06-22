@@ -151,6 +151,38 @@ function formatIST(isoTime: string): string {
   }
 }
 
+// The IST hour (0-23) of a visit time built by parseTimeString (always +05:30).
+function visitHourIST(isoTime: string): number {
+  const m = (isoTime || '').match(/T(\d{2}):/)
+  return m ? parseInt(m[1]) : -1
+}
+
+// Parse an office-hours label like "9:00 AM" / "7:00 PM" → hour 0-23.
+function parseHourLabel(label: string): number | null {
+  const m = (label || '').trim().match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i)
+  if (!m) return null
+  let h = parseInt(m[1])
+  const ap = (m[3] || '').toLowerCase()
+  if (ap === 'pm' && h < 12) h += 12
+  if (ap === 'am' && h === 12) h = 0
+  return h
+}
+
+// If the requested visit falls outside the agent's office hours, returns a
+// friendly message asking for a time in-window; otherwise null (time is OK).
+function officeHoursIssue(visitTime: string, agent: any): string | null {
+  const openLabel = agent.office_open || '9:00 AM'
+  const closeLabel = agent.office_close || '7:00 PM'
+  const openH = parseHourLabel(openLabel) ?? 9
+  const closeH = parseHourLabel(closeLabel) ?? 19
+  const h = visitHourIST(visitTime)
+  if (h < 0) return null
+  if (h < openH || h >= closeH) {
+    return `Our site visits are between ${openLabel} and ${closeLabel}. Could you pick a time within those hours? 😊`
+  }
+  return null
+}
+
 function parseTimeString(timeStr: string): string | null {
   if (!timeStr) return null
   const t = timeStr.toLowerCase().trim()
@@ -325,6 +357,9 @@ BOOKING LOGIC (critical — must follow):
   - If user wants a DIFFERENT time → put the new date/time in updates.visit_time and set action "reschedule_visit"
   - If user wants to CANCEL → set action "cancel_visit"
   - Otherwise → tell them their current booking and ask if they want to reschedule or cancel
+- ONLY accept visit times within office hours (${openTime}–${closeTime}). If the customer asks for
+  a time outside that window (e.g. 1 AM), politely ask them to pick a time within office hours and do
+  NOT set a booking action.
 - The backend creates/cancels the appointment and sends confirmation emails. NEVER say "booked",
   "confirmed", "cancelled" or "rescheduled" UNLESS you set the matching action. The backend writes
   the final confirmation message, so keep your reply short and let the action do the work.
@@ -685,6 +720,10 @@ export async function handleAiBotMessage(opts: {
       await notifyAgentOfTrollHalt(agent, lead, phone, 'too many reschedules')
     } else if (!newTime) {
       finalReply = `Sure, let's reschedule! What new date and time works for you? (e.g. "tomorrow 3 PM")`
+    } else if (officeHoursIssue(newTime, agent)) {
+      // Outside office hours — don't cancel the old visit; ask for a valid time.
+      finalReply = officeHoursIssue(newTime, agent)!
+      leadUpdates.pending_appointment_time = null
     } else {
       // Cancel the old visit, then book the new time on the same property.
       await supabaseAdmin.from('appointments').update({ status: 'cancelled' }).eq('id', existingAppointment!.id)
@@ -706,6 +745,10 @@ export async function handleAiBotMessage(opts: {
         '⚠️ Booking could not complete (missing data)',
         `A booking was triggered but data was missing.\n\nLead: ${leadName}\nPhone: ${phone}\nEmail: ${leadUpdates.email || lead.email || 'MISSING'}\nVisit time: ${visitTime || 'MISSING'}\nProperty: ${propertyId || 'MISSING — no property matched yet'}`
       )
+    } else if (officeHoursIssue(visitTime, agent)) {
+      // Outside office hours — ask for a valid time, don't book the odd hour.
+      finalReply = officeHoursIssue(visitTime, agent)!
+      leadUpdates.pending_appointment_time = null
     } else {
       finalReply = await createAppointment(visitTime, propertyId)
     }
