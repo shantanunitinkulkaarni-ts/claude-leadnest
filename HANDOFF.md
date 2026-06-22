@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: 2026-06-22 10:30 IST — session 14 (customer + agent confirmation emails)*
+*Last updated: 2026-06-22 — session 15 (STABLE MILESTONE: full bot hardening + cleanup)*
 > ⏱️ This timestamp is set by hand at each update. If it looks stale vs. recent
 > git history (`git log -1`), assume parts of this doc are out of date and verify
 > against the code before trusting them.
@@ -8,19 +8,36 @@
 > **This is the single source of truth.** Every new chat: read this first, then update it (Done / Pending / Plan) at the end of the session. Deep business plan lives in `files/CONVORIAN_LAUNCH_BLUEPRINT.md`; user memory at `C:\Users\rahul\.claude\projects\C--LN\memory\`.
 >
 > **What Convorian is:** AI WhatsApp assistant for Indian real-estate agents. Agents connect their WhatsApp; the bot answers, qualifies, nurtures leads & books visits 24/7. SaaS at ₹999/mo. We are a **Tech Provider** (clients connect their own numbers). Category like Wati/Interakt, but niche (real estate) + AI-led.
-> **Stack:** Next.js 14 · Supabase (Postgres) · **LLM: GLM-4.5-Flash primary → Cerebras fallback** (`lib/llm.ts`; NOT Groq/Gemini/Claude) · **Vercel** (hosting) · Razorpay (payments, LIVE) · Resend (email) · WhatsApp via MSG91 BSP (Meta Cloud API per-agent). Repo: `C:\LN\claude-leadnest` → GitHub `shantanunitinkulkaarni-ts/claude-leadnest`. Live: **https://convorian.in**.
+> **Stack:** Next.js 14 · Supabase (Postgres) · **LLM: Groq `llama-3.3-70b-versatile` primary → GLM-4.5-Flash (Z.ai) fallback** (`lib/llm.ts`; DeepSeek removed, Cerebras retired, NOT Gemini/Claude) · **Vercel** (hosting) · Razorpay (payments, LIVE) · Resend REST (email) · WhatsApp via MSG91 BSP (Meta Cloud API per-agent). Repo: `C:\LN\claude-leadnest` → GitHub `shantanunitinkulkaarni-ts/claude-leadnest`. Live: **https://convorian.in**.
 
 ---
 
-## CURRENT SESSION STATUS
+## CURRENT SESSION STATUS — ⭐ MOST STABLE VERSION TO DATE
 
-**AI-first bot is LIVE on production.** Full conversation flow working end-to-end. Booking flow incomplete (missing date/time ask, agent alerts, DB write, confirmation emails). All other core flows (language → name → intent → qualify → search → show) solid.
+**The AI-first WhatsApp bot is LIVE and fully working end-to-end.** Booking, reschedule, cancel, IST date/time correctness, office-hours + weekly-day-off enforcement, confirmation emails (customer + agent + superadmin), and a full troll/abuse kit are all in production and tested. The live bot is **`lib/ai-bot.ts` (`handleAiBotMessage`)**; the old keyword bot is fully removed.
 
-**Test case (live 8:08 PM):** Shantanu asked for 2BHK rent in Baner, 30-50k budget. Bot found match (₹55k), offered photos, collected email for visit. All guardrails + LLM running cleanly.
+**⭐ STABLE CHECKPOINT: git tag `stable-2026-06-22` (pushed to GitHub).** This is the known-good baseline. **If anything breaks later, revert: `git checkout stable-2026-06-22` → redeploy.**
+
+**Meta App Review + Tech Provider APPROVED (2026-06-22)** — launch unblocked. NOT launched yet, zero real users. Next big thing = Job 2: Embedded Signup / Meta-direct (replaces MSG91). MSG91 stays live until then.
 
 ---
 
 ## 1. DONE ✅
+
+- **June 22 SESSION 15 — STABLE MILESTONE: full booking hardening, troll kit, LLM swap, cleanup:**
+  - **Booking correctness (`lib/ai-bot.ts`):**
+    - IST date math fixed — "today"/"tomorrow" no longer book a day early; full ISO dates (`2026-06-22`) parsed correctly (was misreading the year and jumping days).
+    - Confirmation emails + bot replies render India time (was UTC, 5.5h off).
+    - Booking happens BEFORE the reply is sent — bot never says "confirmed" for a failed save; honest message + superadmin alert on failure/missing data.
+    - **Real reschedule + cancel** actions (no more dead-end "already booked" loop). Duplicate-booking guard.
+    - **Office hours + weekly day-off enforcement**: refuses out-of-hours (e.g. 1 AM) and `weekly_off` days; hours shown human-readable ("9 AM to 7 PM").
+  - **Property listings**: always code-built (`buildPropertyBlock`); removed the 2nd AI call that invented "Property A — ₹48 lakhs". BHK preference applied to search.
+  - **Emails FIXED (were silently dropping):** the `resend` npm pkg isn't installed (`require('resend')` threw) AND `RESEND_FROM_EMAIL` was empty. Now uses `lib/email.ts` REST `sendEmail` + `RESEND_FROM_EMAIL=noreply@convorian.in` (set, verified by live test send).
+  - **Troll kit (`lib/botGuards.ts`, runs BEFORE the LLM = zero wasted tokens):** empty/gibberish/oversized input, identical-message loop, per-minute flood cap (12), per-day cap (80), + reschedule cap (4). Serious trips email the agent to take over.
+  - **LLM chain swapped (`lib/llm.ts`):** DeepSeek (balance zero) → **Groq `llama-3.3-70b-versatile` primary → GLM-4.5-Flash fallback**. Cerebras retired (5 req/min). Verified Groq live. (GLM key is the only remaining loose end — re-entered by founder; can't verify via pull since sensitive.)
+  - **`weekly_off` column** added to `agents` (migration `08_agent_weekly_off.sql`, applied to live DB). Day-off picker added to **onboarding** + **Settings** (dropdown).
+  - **Code hygiene:** removed the entire dead keyword-bot from `app/api/webhook/route.ts` (the `T` template object + ~15 helper fns + `aiDecode`), deleted unused `lib/cerebras.ts`, pruned dead imports. Webhook now just does parse → `handleAiBotMessage`. typecheck clean.
+  - Chat data reset (leads/appointments/messages cleared) for a clean slate.
 
 - **June 22 SESSION 14 — BOOKING CONFIRMATION EMAILS (customer + agent):**
   - **Added two email functions to `lib/ai-bot.ts`:**
