@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: 2026-06-23 — session 16 (META CLOUD API DIRECT — live & proven; MSG91 stripped)*
+*Last updated: 2026-06-24 — session 17 (Embedded Signup live; Nurture Engine V1 — data layer + reconciliation with existing A/B/C/D flow)*
 > ⏱️ This timestamp is set by hand at each update. If it looks stale vs. recent
 > git history (`git log -1`), assume parts of this doc are out of date and verify
 > against the code before trusting them.
@@ -8,7 +8,7 @@
 > **This is the single source of truth.** Every new chat: read this first, then update it (Done / Pending / Plan) at the end of the session. Deep business plan lives in `files/CONVORIAN_LAUNCH_BLUEPRINT.md`; user memory at `C:\Users\rahul\.claude\projects\C--LN\memory\`.
 >
 > **What Convorian is:** AI WhatsApp assistant for Indian real-estate agents. Agents connect their WhatsApp; the bot answers, qualifies, nurtures leads & books visits 24/7. SaaS at ₹999/mo. We are a **Tech Provider** (clients connect their own numbers). Category like Wati/Interakt, but niche (real estate) + AI-led.
-> **Stack:** Next.js 14 · Supabase (Postgres) · **LLM: Groq `llama-3.3-70b-versatile` primary → GLM-4.5-Flash (Z.ai) fallback** (`lib/llm.ts`; DeepSeek removed, Cerebras retired, NOT Gemini/Claude) · **Vercel** (hosting) · Razorpay (payments, LIVE) · Resend REST (email) · WhatsApp via MSG91 BSP (Meta Cloud API per-agent). Repo: `C:\LN\claude-leadnest` → GitHub `shantanunitinkulkaarni-ts/claude-leadnest`. Live: **https://convorian.in**.
+> **Stack:** Next.js 14 · Supabase (Postgres) · **LLM: Groq `llama-3.3-70b-versatile` primary → GLM-4.5-Flash (Z.ai) fallback** (`lib/llm.ts`; DeepSeek removed, Cerebras retired, NOT Gemini/Claude) · **Vercel** (hosting) · Razorpay (payments, LIVE) · Resend REST (email) · **WhatsApp via Meta Cloud API DIRECT** (per-agent `wa_phone_number_id`+`wa_access_token`; MSG91 stripped from live path). Repo: `C:\LN\claude-leadnest` → GitHub `shantanunitinkulkaarni-ts/claude-leadnest`. Live: **https://convorian.in**.
 
 ---
 
@@ -18,11 +18,19 @@
 
 **⭐ STABLE CHECKPOINT: git tag `stable-2026-06-22` (pushed to GitHub).** This is the known-good baseline. **If anything breaks later, revert: `git checkout stable-2026-06-22` → redeploy.**
 
-**Meta App Review + Tech Provider APPROVED (2026-06-22)** — launch unblocked. NOT launched yet, zero real users. Next big thing = Job 2: Embedded Signup / Meta-direct (replaces MSG91). MSG91 stays live until then.
+**Meta App Review + Tech Provider APPROVED (2026-06-22)** — launch unblocked. NOT launched yet, zero real users. **Meta-direct migration DONE; Embedded Signup (self-serve onboarding) BUILT.** Now building the **Nurture Engine V1** (the moat). Next: Meta message templates + finish nurture reconciliation.
 
 ---
 
 ## 1. DONE ✅
+
+- **June 24 SESSION 17 — Embedded Signup live + Nurture Engine V1 (data layer + reconciliation):**
+  - **Embedded Signup BUILT** (self-serve onboarding) — full detail under SESSION 16's note below; popup flow verified, full test-number rehearsal deferred until app is more complete.
+  - **Nurture Engine V1 — data foundation (migration 11, applied live):** per-lead `personality` (silent profile), `engagement` (response time / reply length / counts), `consent_tier`, `last_inbound/outbound_at`, `next_nurture_at`, `nurture_paused`, plus the **`nurture_events` learning log** (the data moat — every move + signals + outcome; RLS + grants applied). The bot (`lib/ai-bot.ts`) now **silently profiles** each lead every turn (`personality_cues` via the existing LLM call — NEVER shown to the customer) and records engagement signals + `consent_tier`.
+  - **AUDIT → reconcile, not replace.** `lib/nurtureFlow.ts` already holds the founder's tested **A/B/C/D engine** (in-window 3/6/12/23h nudges → Plan A→B→C→D post-window, quiet hours 9am–10pm IST, send slots, halt conditions). **This IS the "Plan B/C/D" — it's the moat's DECISION layer; kept.** My parallel engine was trimmed to `lib/nurtureEngine.ts` = personality→angle **ENRICHMENT only** (`pickAngle`, `personalityBrief`; Vastu/loan/ROI/family).
+  - **🔴 Critical fix shipped:** the reply-reset of nurture counters (`window_nudge_count`/`last_nudge_at`/`nurture_plan`/`plan_d_touches`) had been **dropped in the ai-bot rewrite** → the whole nurture timeline was silently broken. Restored in `lib/ai-bot.ts` (every inbound resets them). Also fixed: the silent profiler must NOT write `nurture_state` (owned by nurtureFlow's active/dormant/opted_out vocabulary).
+  - **Nurture posture (founder, see memory [[nurture-engine-moat]]):** consent-tiered — **protect the agent's NUMBER above any single lead.** Cold/bought leads → ONE soft compliant first-touch (a reply = implied consent → then aggressive). Goal = **sale or clean stop.** The moat = the **data + learned behaviour**, uncopyable; V1 captures everything from day one even before auto-learning is built.
+  - **⏳ PENDING to fully light up nurture V1:** (1) re-point `runNurtureFlowV2` post-window sends from `sendViaMsg91Template` → Meta templates (`sendWhatsAppTemplate`, agent's wa creds). (2) wire `personalityBrief()` into `generateNudge` (`lib/gemini.ts`) so nudges use the right angle. (3) log every nurture move to `nurture_events`. (4) **Meta message templates** — draft + submit for approval: appointment_reminder, nurture_checkin, nurture_new_options, nurture_last_nudge, cold_intro. (5) flip `NURTURE_FLOW_V2=true` after the above + a staging test. **Out-of-window nurture stays inert until the Meta templates are approved.**
 
 - **June 23 SESSION 16 — META CLOUD API DIRECT (migrated off MSG91):**
   - **Stripped MSG91 from the live bot path → Meta Cloud API only.** `WaChannel` is

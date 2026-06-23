@@ -42,8 +42,26 @@ Shantanu — non-developer founder. You are the sole developer (CTO role).
   Published (Live) for real inbound delivery.
   - Still on MSG91 templates (peripheral, NOT the live chat): nurture cron, reminders,
     alerts, manual reply — convert to Meta templates once those are approved.
-  - NEXT BIG BUILD: **Embedded Signup** = the in-app Facebook popup that lets an agent
-    self-connect their FB + WABA + number (the auto-onboard we want). Not built yet.
+  - **Embedded Signup BUILT** (self-serve onboarding): `components/ConnectWhatsAppButton.tsx`
+    (FB JS-SDK v4 popup, Configuration ID `27137467672622588`) → `/api/meta/onboard`
+    + `lib/metaOnboard.ts` (exchange code → subscribe WABA → IN storage → register →
+    save creds). Env: `NEXT_PUBLIC_META_APP_ID`, `NEXT_PUBLIC_META_CONFIG_ID`,
+    `WHATSAPP_APP_SECRET`. Gotcha: Facebook-Login-for-Business → "Login with the
+    JavaScript SDK" must be ON + `https://convorian.in` in Allowed Domains.
+
+## Nurture engine (the moat — see memory: nurture-engine-moat)
+- **Decision layer = `lib/nurtureFlow.ts`** — the founder's tested **A/B/C/D** timeline
+  (in-window 3/6/12/23h nudges → Plan A→B→C→D post-window, quiet hours, send slots).
+  Pure/unit-tested. Executed by the cron's `runNurtureFlowV2` (gated by `NURTURE_FLOW_V2`,
+  currently OFF). In-window sends via Meta (`sendToLead`); post-window still calls MSG91
+  templates → **must be re-pointed to Meta templates** (pending Meta template approval).
+- **New data/moat layer (built):** the bot silently profiles each lead (`leads.personality`,
+  via `personality_cues` in `lib/ai-bot.ts` — never shown to the customer) + records
+  `engagement` signals; `nurture_events` is the learning log. `lib/nurtureEngine.ts` =
+  personality→angle **enrichment** (`pickAngle`/`personalityBrief`), NOT a decision engine.
+- **A lead reply MUST reset** `window_nudge_count`/`nurture_plan`/`plan_d_touches` (done in
+  `lib/ai-bot.ts`) or the timeline silently breaks. Posture: consent-tiered, protect the
+  agent's number above any single lead; goal = sale or clean stop.
 
 ## Deploy
 Vercel git auto-deploy is DISCONNECTED. Deploy manually:

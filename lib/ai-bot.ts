@@ -730,6 +730,14 @@ export async function handleAiBotMessage(opts: {
   // Inbound = the lead is talking to us → mark consented (new field; does NOT touch
   // nurture_state, which the existing A/B/C/D flow in lib/nurtureFlow.ts owns).
   if (!lead.consent_tier) leadUpdates.consent_tier = 'consented'
+  // A reply restarts the nurture clock — reopen the 24h window (last_message_at
+  // above) and reset the A/B/C/D flow (lib/nurtureFlow.ts) so it naturally
+  // re-starts in-window on our next turn. The old webhook did this; the ai-bot
+  // rewrite had dropped it, silently breaking the nurture timeline.
+  leadUpdates.window_nudge_count = 0
+  leadUpdates.last_nudge_at = null
+  leadUpdates.nurture_plan = null
+  leadUpdates.plan_d_touches = 0
   // Merge the silently-inferred traits into the hidden personality profile.
   if (decision.personality_cues && typeof decision.personality_cues === 'object') {
     leadUpdates.personality = { ...(lead.personality || {}), ...decision.personality_cues }
