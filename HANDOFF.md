@@ -52,10 +52,22 @@
     forces full-ISO visit_time; parser now reads month-name dates, prefers an am/pm
     time over a day number, and returns null (asks again) instead of guessing.
     Verified "5th july 1pm" → 2026-07-05T13:00 → Sunday.
-  - **PENDING NEXT:** (1) connect the real number `7559197426` once MSG91 frees it
-    (add to WABA → verify OTP → register → set `wa_phone_number_id`). (2) Build
-    **Embedded Signup** (self-serve auto-onboard). (3) Convert MSG91 templates
-    (nurture/reminders/alerts) to approved Meta templates.
+  - **✅ REAL NUMBER LIVE (2026-06-23):** `+91 7559197426` (Phone Number ID
+    `1143463112186349`, real WABA `1016312184125965`, verified name "Convorian")
+    is connected and the bot replied to a real "hi" end-to-end. Now on the gmail
+    agent (44 props). **Migrating a number off another BSP — the gotcha chain:**
+    (a) add+verify in Meta API Setup (OTP); (b) `/register` failed "Cannot create
+    certificate" → the number had **two-step verification** left over → disable it;
+    (c) then `/register` failed asking for **data localization** (MSG91 had local
+    storage on) → on v21 you must `POST /{phone_number_id}/settings` with
+    `{storage_configuration:{status:"IN_COUNTRY_STORAGE_ENABLED",data_localization_region:"IN"}}`
+    FIRST (status enum: DEFAULT | IN_COUNTRY_STORAGE_ENABLED | IN_COUNTRY_STORAGE_DISABLED
+    | NO_STORAGE_ENABLED), THEN `/register` with the 6-digit PIN; (d) subscribe the
+    WABA (`POST /{WABA}/subscribed_apps`); (e) set `wa_phone_number_id` on the agent.
+  - **PENDING NEXT:** (1) Build **Embedded Signup** (self-serve auto-onboard) so
+    agents do all the above themselves. (2) Convert MSG91 templates
+    (nurture/reminders/alerts) to approved Meta templates. (3) Set up Claude Code on
+    AWS Bedrock (credits) for dev — verify Activate credits cover Bedrock + note expiry.
 
 - **June 22 SESSION 15 — STABLE MILESTONE: full booking hardening, troll kit, LLM swap, cleanup:**
   - **Booking correctness (`lib/ai-bot.ts`):**
