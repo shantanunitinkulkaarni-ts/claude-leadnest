@@ -727,11 +727,9 @@ export async function handleAiBotMessage(opts: {
   leadUpdates.engagement = eng
   leadUpdates.last_inbound_at = new Date(nowMs).toISOString()
   leadUpdates.last_outbound_at = new Date(nowMs).toISOString() // we reply this turn
-  // Inbound = the lead is talking to us → consented + engaged (the engine refines this later).
+  // Inbound = the lead is talking to us → mark consented (new field; does NOT touch
+  // nurture_state, which the existing A/B/C/D flow in lib/nurtureFlow.ts owns).
   if (!lead.consent_tier) leadUpdates.consent_tier = 'consented'
-  if (!lead.nurture_state || lead.nurture_state === 'new' || lead.nurture_state === 'dormant') {
-    leadUpdates.nurture_state = 'engaged'
-  }
   // Merge the silently-inferred traits into the hidden personality profile.
   if (decision.personality_cues && typeof decision.personality_cues === 'object') {
     leadUpdates.personality = { ...(lead.personality || {}), ...decision.personality_cues }
