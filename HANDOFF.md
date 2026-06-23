@@ -37,13 +37,15 @@
     `NURTURE_FLOW_V2=true` + `MSG91_TEMPLATES_LIVE=true`. Cron runs **every 15 min** (GitHub
     Action `nurture-cron.yml`, not the daily vercel.json one) — verified clean run (errors 0,
     respected IST quiet hours). The data moat captures from every chat.
-  - **⏳ Nurture remaining:** (1) approve **`visit_reminder`** (Utility), **`agent_open_question`**
-    (Plan B), **`agent_offer`** (Plan C) — specs in `META_TEMPLATES.md`. (2) After B/C clear:
-    add them to TEMPLATES/TEMPLATE_BODIES + return them from `planTemplateForFlow` (currently
-    returns null → those leads HOLD). (3) Add Hindi/Marathi variants to `lead_new_match`
-    `approvedLangs` once the founder fine-tunes + Meta approves them. (4) Rename the misleading
-    `MSG91_TEMPLATES_LIVE` env → a Meta name. (5) `visit_reminder` powers the appointment-
-    reminder path too (`sendAppointmentReminder` in lib/whatsapp.ts is still Meta-template-ready).
+  - **✅ ALL 6 TEMPLATES APPROVED + WIRED (2026-06-24) — FULL A→B→C→D LIVE.** `lead_new_match`
+    (en+hi+mr), `lead_visit_invite`, `lead_final_touch`, `visit_reminder`, `agent_open_question`
+    (Plan B), `agent_offer` (Plan C). B/C wired into `planTemplateForFlow`; `sendAppointmentReminder`
+    fixed → approved `visit_reminder` (5 vars incl. agency_name, IST, no wallet deduction).
+    Two clean verified cron runs (errors 0, respected IST quiet hours). The nurture engine is
+    fully operational end-to-end on Meta.
+  - **⏳ Nurture nice-to-haves (non-blocking):** rename the misleading `MSG91_TEMPLATES_LIVE`
+    env → a Meta name; add founder-fine-tuned hi/mr variants for visit_invite/final_touch/B/C
+    when ready; first real-lead end-to-end nurture observation during daytime IST.
 
 - **June 23 SESSION 16 — META CLOUD API DIRECT (migrated off MSG91):**
   - **Stripped MSG91 from the live bot path → Meta Cloud API only.** `WaChannel` is
