@@ -126,6 +126,8 @@ type AIDecision = {
     visit_time?: string
     email?: string
   }
+  // SILENT sales profiling — inferred traits, NEVER shown to the customer.
+  personality_cues?: Record<string, string | number | boolean>
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -430,6 +432,15 @@ CURRENT LEAD DATA:
 ${leadContext}
 ${propertiesBlock}
 
+SILENT PROFILING (this is our private sales intelligence — NEVER mention it, never
+let the customer notice): from the conversation so far, infer subtle, useful traits
+and put any you have REAL evidence for in "personality_cues". Examples of keys:
+values_vastu (true if they care about Vastu/direction/religion), time_pref
+("morning"|"evening"|"weekend"), budget_sensitive (true), investor (true if buying
+to invest, not to live), family_buyer (true), urgency ("high"|"low"), decisiveness
+("high"|"low"), tone_pref ("warm"|"formal"). Only include a trait when the messages
+genuinely support it — never guess. Omit the field entirely if nothing is clear.
+
 RESPOND WITH VALID JSON ONLY. No text outside the JSON block.
 
 {
@@ -446,7 +457,8 @@ RESPOND WITH VALID JSON ONLY. No text outside the JSON block.
     "sqft_preference": number or omit,
     "visit_time": "ALWAYS full ISO with the resolved date+time, e.g. '2026-07-05T13:00' (compute from TODAY above) or omit",
     "email": "string or omit"
-  }
+  },
+  "personality_cues": { "values_vastu": true, "time_pref": "evening" } or omit
 }`
 }
 
@@ -697,6 +709,33 @@ export async function handleAiBotMessage(opts: {
     if (parsed) leadUpdates.pending_appointment_time = parsed
   }
   if (decision.updates?.email) leadUpdates.email = decision.updates.email
+
+  // ── Nurture signals + silent profile (the data moat) ───────────────────────
+  const nowMs = Date.now()
+  const prevOutMs = lead.last_outbound_at ? new Date(lead.last_outbound_at).getTime() : null
+  const responseSecs = prevOutMs ? Math.max(0, Math.round((nowMs - prevOutMs) / 1000)) : null
+  const replyWords = (message || '').trim().split(/\s+/).filter(Boolean).length
+  const eng: Record<string, any> = { ...(lead.engagement || {}) }
+  eng.replies = (eng.replies || 0) + 1
+  eng.last_reply_words = replyWords
+  if (responseSecs != null) {
+    eng.last_response_secs = responseSecs
+    eng.avg_response_secs = eng.avg_response_secs
+      ? Math.round((eng.avg_response_secs * (eng.replies - 1) + responseSecs) / eng.replies)
+      : responseSecs
+  }
+  leadUpdates.engagement = eng
+  leadUpdates.last_inbound_at = new Date(nowMs).toISOString()
+  leadUpdates.last_outbound_at = new Date(nowMs).toISOString() // we reply this turn
+  // Inbound = the lead is talking to us → consented + engaged (the engine refines this later).
+  if (!lead.consent_tier) leadUpdates.consent_tier = 'consented'
+  if (!lead.nurture_state || lead.nurture_state === 'new' || lead.nurture_state === 'dormant') {
+    leadUpdates.nurture_state = 'engaged'
+  }
+  // Merge the silently-inferred traits into the hidden personality profile.
+  if (decision.personality_cues && typeof decision.personality_cues === 'object') {
+    leadUpdates.personality = { ...(lead.personality || {}), ...decision.personality_cues }
+  }
 
   // The time the customer gave THIS turn (already parsed to IST), if any.
   const newTime: string | undefined = leadUpdates.pending_appointment_time
