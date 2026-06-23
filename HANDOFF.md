@@ -64,10 +64,22 @@
     FIRST (status enum: DEFAULT | IN_COUNTRY_STORAGE_ENABLED | IN_COUNTRY_STORAGE_DISABLED
     | NO_STORAGE_ENABLED), THEN `/register` with the 6-digit PIN; (d) subscribe the
     WABA (`POST /{WABA}/subscribed_apps`); (e) set `wa_phone_number_id` on the agent.
-  - **PENDING NEXT:** (1) Build **Embedded Signup** (self-serve auto-onboard) so
-    agents do all the above themselves. (2) Convert MSG91 templates
-    (nurture/reminders/alerts) to approved Meta templates. (3) Set up Claude Code on
-    AWS Bedrock (credits) for dev — verify Activate credits cover Bedrock + note expiry.
+  - **✅ EMBEDDED SIGNUP BUILT (June 24):** self-serve onboarding is live. Backend
+    `lib/metaOnboard.ts` + `/api/meta/onboard` (exchange code → subscribe WABA → set
+    IN storage → register number → save creds to agent). Frontend
+    `components/ConnectWhatsAppButton.tsx` = Facebook JS SDK v4 popup via our
+    Configuration ID (`27137467672622588`), wired into onboarding Step 3 (replaced
+    the old "manual activation in 24h" flow). Env: NEXT_PUBLIC_META_APP_ID +
+    NEXT_PUBLIC_META_CONFIG_ID. **Gotcha:** in Facebook-Login-for-Business → Settings,
+    "Login with the JavaScript SDK" must be ON and `https://convorian.in` added to
+    Allowed Domains. **Popup flow verified working;** a full test-number connection
+    (end-to-end rehearsal) is deferred until the app is more complete.
+  - **PENDING NEXT (founder's order):** (1) **Meta message templates** → then convert
+    nurture/reminders/alerts off MSG91. (2) **Nurture flow** — build + fine-tune the
+    B/C/D sequences, test hard. (3) **Subscription gating** (free trial → active sub
+    required to use the bot). (4) **Pre-launch legal/security bucket** (refund policy,
+    DPDP consent/opt-in, 2FA + lockdown). (5) Bedrock-for-dev — deferred by founder
+    (Pro till July 6; credits expire June 2028).
 
 - **June 22 SESSION 15 — STABLE MILESTONE: full booking hardening, troll kit, LLM swap, cleanup:**
   - **Booking correctness (`lib/ai-bot.ts`):**
