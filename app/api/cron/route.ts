@@ -422,5 +422,17 @@ async function runNurtureFlowV2(nowMs: number, templatesLive: boolean, _template
 // already-approved suite via pickTemplate.
 function planTemplateForFlow(plan: NurturePlan, lead: any, agent: any, lang: string) {
   if (plan === 'A' || plan === 'D') return pickTemplate(lead, agent, lang)
-  return null // B / C: pending template approval (agent_open_question / agent_offer)
+  // Plan B (open question) + C (offer) — now approved on Meta (EN). Same 3 vars.
+  const name = (lead.name || '').trim().split(/\s+/)[0] || 'there'
+  const agency = agent?.agency_name || 'your property advisor'
+  const area = (Array.isArray(lead.preferred_areas) && lead.preferred_areas[0])
+    || (Array.isArray(agent?.areas) && agent.areas[0]) || 'your area'
+  const values = [
+    { name: 'customer_name', value: name },
+    { name: 'agency_name', value: agency },
+    { name: 'area', value: area },
+  ]
+  if (plan === 'B') return { name: 'agent_open_question', language: 'en', values }
+  if (plan === 'C') return { name: 'agent_offer', language: 'en', values }
+  return null
 }

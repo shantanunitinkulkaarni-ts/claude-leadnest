@@ -373,7 +373,7 @@ export async function deductWABalance(
 
 // ─── Templates ────────────────────────────────────────────────────────────────
 export const TEMPLATES = {
-  APPOINTMENT_REMINDER: 'leadnest_appointment_reminder',
+  APPOINTMENT_REMINDER: 'visit_reminder', // Meta-approved (Utility): customer_name, agency_name, property, visit_date, visit_time
   NURTURE_FOLLOWUP: 'leadnest_nurture_followup',
   REENGAGEMENT: 'leadnest_reengagement',
   KEEPALIVE: null
@@ -391,9 +391,10 @@ export async function sendAppointmentReminder(
       type: 'body',
       parameters: [
         { type: 'text', text: lead.name || 'there' },
+        { type: 'text', text: agent?.agency_name || 'your property advisor' },
         { type: 'text', text: property?.title || 'the property' },
-        { type: 'text', text: new Date(appointment.scheduled_at).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }) },
-        { type: 'text', text: new Date(appointment.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }
+        { type: 'text', text: new Date(appointment.scheduled_at).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' }) },
+        { type: 'text', text: new Date(appointment.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) }
       ]
     }
   ]
@@ -407,7 +408,7 @@ export async function sendAppointmentReminder(
     components
   )
 
-  await deductWABalance(agent.id, 0.32, `Appointment reminder — ${lead.name}`, TEMPLATES.APPOINTMENT_REMINDER, lead.id)
+  // Meta-direct: the agent pays Meta directly — no wallet deduction.
   return waMessageId
 }
 
