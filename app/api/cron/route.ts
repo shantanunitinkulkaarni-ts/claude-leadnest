@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { sendAppointmentReminder, sendToLead, sendViaMsg91Template, deductWABalance } from '@/lib/whatsapp'
+import { sendAppointmentReminder, sendToLead, sendViaMsg91Template, sendWhatsAppTemplate, deductWABalance } from '@/lib/whatsapp'
 import { generateNudge } from '@/lib/gemini'
 import { runNurtureEmails } from '@/lib/nurture'
 import { decideOutreach, pickTemplate, renderTemplate } from '@/lib/outreach'
@@ -311,7 +311,26 @@ export async function GET(request: NextRequest) {
 // (logged) until the template exists — see planTemplateForFlow.
 type CronResults = { nudges: number; templates: number; reminders: number; errors: number; nurture: any }
 
-async function runNurtureFlowV2(nowMs: number, templatesLive: boolean, templateCost: number, results: CronResults) {
+// Convert an MSG91-style template value list into Meta's components array.
+function metaTemplateComponents(values: any): any[] {
+  if (!Array.isArray(values) || !values.length) return []
+  const parameters = values.map((v: any) => ({ type: 'text', text: typeof v === 'string' ? v : String(v?.value ?? '') }))
+  return [{ type: 'body', parameters }]
+}
+
+// Log a nurture move to the learning log (the data moat). Never breaks a send.
+async function logNurtureMove(lead: any, agentId: string, move: string, channel: string, extra?: any) {
+  try {
+    await supabaseAdmin.from('nurture_events').insert({
+      lead_id: lead.id, agent_id: agentId,
+      state: lead.nurture_state || null, move, channel,
+      signals: { engagement: lead.engagement || {}, personality: lead.personality || {} },
+      meta: extra || null,
+    })
+  } catch { /* logging must never block the pipeline */ }
+}
+
+async function runNurtureFlowV2(nowMs: number, templatesLive: boolean, _templateCost: number, results: CronResults) {
   const { data: leads } = await supabaseAdmin
     .from('leads')
     .select('*, agents(*)')
@@ -353,12 +372,12 @@ async function runNurtureFlowV2(nowMs: number, templatesLive: boolean, templateC
           agent_id: agent.id, lead_id: lead.id, type: 'nudge_sent',
           title: `Follow-up sent (in-window ${decision.band}h)`, description: text.slice(0, 140),
         })
+        await logNurtureMove(lead, agent.id, `in_window_${decision.band}h_${intensity}`, 'free_text', { wa_message_id: waId })
         results.nudges++
       } else {
-        // Post-window: approved paid template only.
+        // Post-window: approved Meta template only (out-of-window needs a template).
         if (!templatesLive) continue
-        if (!agent.msg91_integrated_number) continue
-        if (Number(agent.wa_balance || 0) < templateCost) continue
+        if (!agent.wa_phone_number_id || !agent.wa_access_token) continue // Meta-direct creds required
 
         let lang = lead.language || 'en'
         if (!lead.language) {
@@ -367,14 +386,14 @@ async function runNurtureFlowV2(nowMs: number, templatesLive: boolean, templateC
         }
         const tmpl = planTemplateForFlow(decision.plan, lead, agent, lang)
         if (!tmpl) {
-          // Plan's template not approved yet (e.g. open-question / offer). Skip the
-          // send; the lead waits here until the template exists. Logged for visibility.
+          // Plan's template not approved yet (e.g. open-question / offer). Hold the
+          // lead here until the template exists. Logged for visibility.
           console.log(`[nurture-v2] plan ${decision.plan} template pending approval — lead ${lead.id} held`)
           continue
         }
-        const reqId = await sendViaMsg91Template(agent.msg91_integrated_number, lead.phone, tmpl.name, tmpl.values, tmpl.language)
+        // Send via Meta Cloud API (the agent pays Meta directly — no wallet markup).
+        const reqId = await sendWhatsAppTemplate(agent.wa_phone_number_id, agent.wa_access_token, lead.phone, tmpl.name, tmpl.language, metaTemplateComponents(tmpl.values))
         if (!reqId) { results.errors++; continue }
-        await deductWABalance(agent.id, templateCost, `Nurture plan ${decision.plan} (${tmpl.name}) — ${lead.name || lead.phone}`, tmpl.name, lead.id)
         await supabaseAdmin.from('messages').insert({
           lead_id: lead.id, agent_id: agent.id, direction: 'outbound',
           content: renderTemplate(tmpl.name, tmpl.language, tmpl.values), sent_by: 'bot',
@@ -387,6 +406,7 @@ async function runNurtureFlowV2(nowMs: number, templatesLive: boolean, templateC
           agent_id: agent.id, lead_id: lead.id, type: 'template_sent',
           title: `Nurture plan ${decision.plan} sent`, description: `${tmpl.name} (${tmpl.language})`,
         })
+        await logNurtureMove(lead, agent.id, `plan_${decision.plan}`, 'template', { template: tmpl.name })
         results.templates++
       }
     } catch (e) {
