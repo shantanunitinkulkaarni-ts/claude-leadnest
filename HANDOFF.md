@@ -30,7 +30,20 @@
   - **AUDIT → reconcile, not replace.** `lib/nurtureFlow.ts` already holds the founder's tested **A/B/C/D engine** (in-window 3/6/12/23h nudges → Plan A→B→C→D post-window, quiet hours 9am–10pm IST, send slots, halt conditions). **This IS the "Plan B/C/D" — it's the moat's DECISION layer; kept.** My parallel engine was trimmed to `lib/nurtureEngine.ts` = personality→angle **ENRICHMENT only** (`pickAngle`, `personalityBrief`; Vastu/loan/ROI/family).
   - **🔴 Critical fix shipped:** the reply-reset of nurture counters (`window_nudge_count`/`last_nudge_at`/`nurture_plan`/`plan_d_touches`) had been **dropped in the ai-bot rewrite** → the whole nurture timeline was silently broken. Restored in `lib/ai-bot.ts` (every inbound resets them). Also fixed: the silent profiler must NOT write `nurture_state` (owned by nurtureFlow's active/dormant/opted_out vocabulary).
   - **Nurture posture (founder, see memory [[nurture-engine-moat]]):** consent-tiered — **protect the agent's NUMBER above any single lead.** Cold/bought leads → ONE soft compliant first-touch (a reply = implied consent → then aggressive). Goal = **sale or clean stop.** The moat = the **data + learned behaviour**, uncopyable; V1 captures everything from day one even before auto-learning is built.
-  - **⏳ PENDING to fully light up nurture V1:** (1) re-point `runNurtureFlowV2` post-window sends from `sendViaMsg91Template` → Meta templates (`sendWhatsAppTemplate`, agent's wa creds). (2) wire `personalityBrief()` into `generateNudge` (`lib/gemini.ts`) so nudges use the right angle. (3) log every nurture move to `nurture_events`. (4) **Meta message templates** — draft + submit for approval: appointment_reminder, nurture_checkin, nurture_new_options, nurture_last_nudge, cold_intro. (5) flip `NURTURE_FLOW_V2=true` after the above + a staging test. **Out-of-window nurture stays inert until the Meta templates are approved.**
+  - **✅ NURTURE ENGINE V1 IS LIVE (2026-06-24).** Done: post-window re-pointed to Meta
+    (`sendWhatsAppTemplate`), `personalityBrief()` folded into `generateNudge`, every move
+    logged to `nurture_events`. **3 Meta templates approved (EN):** `lead_new_match`,
+    `lead_visit_invite`, `lead_final_touch` → **Plans A + D send on Meta now.** Flags ON:
+    `NURTURE_FLOW_V2=true` + `MSG91_TEMPLATES_LIVE=true`. Cron runs **every 15 min** (GitHub
+    Action `nurture-cron.yml`, not the daily vercel.json one) — verified clean run (errors 0,
+    respected IST quiet hours). The data moat captures from every chat.
+  - **⏳ Nurture remaining:** (1) approve **`visit_reminder`** (Utility), **`agent_open_question`**
+    (Plan B), **`agent_offer`** (Plan C) — specs in `META_TEMPLATES.md`. (2) After B/C clear:
+    add them to TEMPLATES/TEMPLATE_BODIES + return them from `planTemplateForFlow` (currently
+    returns null → those leads HOLD). (3) Add Hindi/Marathi variants to `lead_new_match`
+    `approvedLangs` once the founder fine-tunes + Meta approves them. (4) Rename the misleading
+    `MSG91_TEMPLATES_LIVE` env → a Meta name. (5) `visit_reminder` powers the appointment-
+    reminder path too (`sendAppointmentReminder` in lib/whatsapp.ts is still Meta-template-ready).
 
 - **June 23 SESSION 16 — META CLOUD API DIRECT (migrated off MSG91):**
   - **Stripped MSG91 from the live bot path → Meta Cloud API only.** `WaChannel` is
