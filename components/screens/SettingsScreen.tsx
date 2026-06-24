@@ -1,5 +1,6 @@
 ﻿'use client'
 import { useState, useEffect } from 'react'
+import TwoFactorSettings from '@/components/TwoFactorSettings'
 
 interface Props {
   agentId: string
@@ -328,6 +329,9 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
           </form>
         </div>
       )}
+
+      {/* Security: opt-in two-factor authentication */}
+      <TwoFactorSettings />
 
       {/* Inline Edit Modal */}
       {editModal && (

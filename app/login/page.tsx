@@ -19,6 +19,50 @@ export default function LoginPage() {
   const [otp, setOtp] = useState('')
   const [otpSent, setOtpSent] = useState(false)
 
+  // Opt-in 2FA: only shown to agents who enrolled a TOTP factor in Settings.
+  const [mfaPrompt, setMfaPrompt] = useState(false)
+  const [mfaCode, setMfaCode] = useState('')
+
+  // After a password/OTP sign-in, route to the right place — but if the agent
+  // has 2FA on, ask for their 6-digit code first. Non-enrolled agents skip this
+  // entirely (nextLevel stays 'aal1'), so no one can be locked out.
+  const finishLogin = async (supabase: any, userId: string) => {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+    if (aal?.nextLevel === 'aal2' && aal.nextLevel !== aal.currentLevel) {
+      setMfaPrompt(true)
+      setIsLoading(false)
+      return
+    }
+    await routeIn(supabase, userId)
+  }
+
+  const routeIn = async (supabase: any, userId: string) => {
+    const { data: sa } = await supabase
+      .from('superadmins').select('auth_user_id').eq('auth_user_id', userId).maybeSingle()
+    router.push(sa ? '/admin' : '/dashboard')
+  }
+
+  const handleMfaVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setIsLoading(true)
+    try {
+      const supabase = getSupabase()
+      const { data: factors } = await supabase.auth.mfa.listFactors()
+      const factor = (factors?.totp || [])[0]
+      if (!factor) throw new Error('No authenticator found.')
+      const ch = await supabase.auth.mfa.challenge({ factorId: factor.id })
+      if (ch.error) throw ch.error
+      const v = await supabase.auth.mfa.verify({ factorId: factor.id, challengeId: ch.data.id, code: mfaCode.trim() })
+      if (v.error) throw new Error('That code didn\'t match — check your authenticator app and try again.')
+      const { data: u } = await supabase.auth.getUser()
+      await routeIn(supabase, u.user!.id)
+    } catch (err: any) {
+      setError(err.message)
+      setIsLoading(false)
+    }
+  }
+
   const handleGoogleLogin = async () => {
     setError('')
     setIsLoading(true)
@@ -49,11 +93,9 @@ export default function LoginPage() {
       })
       if (error) throw error
       if (data.session) {
-        // Superadmins (who may have no agency) go straight to /admin instead of
-        // being bounced to onboarding by the dashboard.
-        const { data: sa } = await supabase
-          .from('superadmins').select('auth_user_id').eq('auth_user_id', data.session.user.id).maybeSingle()
-        router.push(sa ? '/admin' : '/dashboard')
+        // Superadmins (who may have no agency) go straight to /admin; agents with
+        // 2FA on are challenged first (finishLogin handles both).
+        await finishLogin(supabase, data.session.user.id)
       } else {
         setError('Please verify your email before logging in.')
         setIsLoading(false)
@@ -92,7 +134,7 @@ export default function LoginPage() {
       const { error, data } = await supabase.auth.verifyOtp({ phone, token: otp, type: 'sms' })
       if (error) throw error
       if (data.session) {
-        router.push('/dashboard')
+        await finishLogin(supabase, data.session.user.id)
       } else {
         setError('Failed to create session from OTP.')
         setIsLoading(false)
@@ -122,6 +164,21 @@ export default function LoginPage() {
           {error && <div style={{ background: '#FDF0F0', color: '#C0392B', padding: '12px 16px', borderRadius: 8, fontSize: 13, marginBottom: 24 }}>{error}</div>}
           {msg && <div style={{ background: '#EEF0FE', color: '#4338CA', padding: '12px 16px', borderRadius: 8, fontSize: 13, marginBottom: 24 }}>{msg}</div>}
 
+          {mfaPrompt && (
+            <form onSubmit={handleMfaVerify} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>🔒 Two-step verification</div>
+                <p style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 6 }}>Enter the 6-digit code from your authenticator app.</p>
+              </div>
+              <input required inputMode="numeric" value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))} autoFocus
+                style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 22, letterSpacing: 6, textAlign: 'center', fontFamily: 'inherit', outline: 'none' }} placeholder="123456" />
+              <button type="submit" className="btn-next" style={{ width: '100%' }} disabled={isLoading || mfaCode.length !== 6}>
+                {isLoading ? 'Verifying...' : 'Verify & continue'}
+              </button>
+            </form>
+          )}
+
+          {!mfaPrompt && (<>
           {/* Tabs */}
           <div style={{ display: 'flex', gap: 10, marginBottom: 24, borderBottom: '1px solid rgba(26,25,22,0.1)' }}>
             <button onClick={() => { setAuthMethod('google'); setError(''); setMsg(''); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderBottom: authMethod === 'google' ? '2px solid var(--ink)' : '2px solid transparent', color: authMethod === 'google' ? 'var(--ink)' : 'var(--ink-4)', fontWeight: authMethod === 'google' ? 500 : 400, cursor: 'pointer', transition: 'all 0.2s' }}>Google</button>
@@ -188,6 +245,8 @@ export default function LoginPage() {
               )}
             </div>
           )}
+
+          </>)}
 
           <div style={{ textAlign: 'center', marginTop: 30, fontSize: 13, color: 'var(--ink-4)' }}>
             Don't have an account? <span style={{ color: 'var(--green)', cursor: 'pointer', fontWeight: 500 }} onClick={() => router.push('/onboarding')}>Set up your Convorian</span>
