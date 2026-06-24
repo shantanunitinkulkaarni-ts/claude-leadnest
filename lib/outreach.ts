@@ -78,14 +78,15 @@ export function decideOutreach(
 // Names + which languages are APPROVED. Update `approvedLangs` as MSG91 clears
 // each. The cron only sends templates listed here as approved.
 export const TEMPLATES = {
-  // Meta approvals (2026-06-24): all approved. lead_new_match has en+hi+mr; the
-  // others stay EN until their hi/mr wording is finalised (the send only needs the
-  // language variant to exist on Meta with the same variable slots).
+  // Meta approvals (2026-06-24): ALL templates approved in en + hi + mr. A
+  // Hindi/Marathi-preferring lead now gets EVERY nurture message in their own
+  // language (no English mixing). Each language variant exists on Meta under the
+  // same template name with the same named variable slots.
   lead_new_match: { name: 'lead_new_match', approvedLangs: ['en', 'hi', 'mr'] as string[] },
-  lead_visit_invite: { name: 'lead_visit_invite', approvedLangs: ['en'] as string[] },
-  lead_final_touch: { name: 'lead_final_touch', approvedLangs: ['en'] as string[] },
-  lead_open_question: { name: 'lead_open_question', approvedLangs: ['en'] as string[] }, // Plan B
-  lead_offer: { name: 'lead_offer', approvedLangs: ['en'] as string[] },                 // Plan C
+  lead_visit_invite: { name: 'lead_visit_invite', approvedLangs: ['en', 'hi', 'mr'] as string[] },
+  lead_final_touch: { name: 'lead_final_touch', approvedLangs: ['en', 'hi', 'mr'] as string[] },
+  lead_open_question: { name: 'lead_open_question', approvedLangs: ['en', 'hi', 'mr'] as string[] }, // Plan B
+  lead_offer: { name: 'lead_offer', approvedLangs: ['en', 'hi', 'mr'] as string[] },                 // Plan C
   // visit_reminder (Utility, en) is sent from the appointment-reminder path.
 }
 
@@ -100,18 +101,28 @@ const TEMPLATE_BODIES: Record<string, Record<string, string>> = {
   },
   lead_visit_invite: {
     en: "Hi {{customer_name}}, it's {{agency_name}}. Would you like to see {{property}} in person? I can arrange a quick site visit this week at a time that suits you - morning or evening.",
+    hi: 'नमस्ते {{customer_name}}, {{agency_name}} की ओर से। क्या आप {{property}} को खुद देखना चाहेंगे? मैं इस हफ़्ते आपकी सुविधा अनुसार — सुबह या शाम — एक साइट विज़िट की व्यवस्था कर सकता हूँ।',
+    mr: 'नमस्कार {{customer_name}}, {{agency_name}} कडून. तुम्हाला {{property}} प्रत्यक्ष पाहायला आवडेल का? मी या आठवड्यात तुमच्या सोयीनुसार — सकाळी किंवा संध्याकाळी — साइट व्हिजिट ठरवू शकतो.',
   },
   lead_final_touch: {
     en: "Hi {{customer_name}}, it's {{agency_name}}. I don't want to crowd your inbox, so I'll ease off for now. Whenever you'd like to pick your home search in {{area}} back up, I'm just one message away. Shall I keep you posted on new options?",
+    hi: 'नमस्ते {{customer_name}}, {{agency_name}} की ओर से। मैं आपको बार-बार परेशान नहीं करना चाहता, इसलिए अभी के लिए कम संदेश भेजूँगा। जब भी आप {{area}} में अपनी घर की तलाश फिर से शुरू करना चाहें, मैं बस एक संदेश दूर हूँ। क्या मैं आपको नए विकल्पों की जानकारी देता रहूँ?',
+    mr: 'नमस्कार {{customer_name}}, {{agency_name}} कडून. मला तुम्हाला वारंवार त्रास द्यायचा नाही, म्हणून आत्ता कमी संदेश पाठवेन. जेव्हा तुम्हाला {{area}} मधील घराचा शोध पुन्हा सुरू करायचा असेल, तेव्हा मी फक्त एक संदेश दूर आहे. मी तुम्हाला नवीन पर्यायांची माहिती देत राहू का?',
   },
   lead_open_question: {
     en: "Hi {{customer_name}}, it's {{agency_name}}. I'd still love to help with your home search in {{area}}. What matters most to you — budget, location, or specific amenities? Just reply and I'll line up options that fit.",
+    hi: 'नमस्ते {{customer_name}}, {{agency_name}} की ओर से। मैं जानना चाहता था — {{area}} में आपकी प्रॉपर्टी खोज में कोई बात रुकावट तो नहीं डाल रही? बजट, लोकेशन या समय? मैं हर तरह से मदद के लिए तैयार हूँ।',
+    mr: 'नमस्कार {{customer_name}}, {{agency_name}} कडून. मला जाणून घ्यायचं होतं — {{area}} मधील तुमच्या प्रॉपर्टी शोधात काही अडचण येत आहे का? बजेट, लोकेशन की वेळ? मी प्रत्येक प्रकारे मदतीसाठी तयार आहे.',
   },
   lead_offer: {
     en: "Hi {{customer_name}}, {{agency_name}} here. Some great new options and limited-time offers just opened up in {{area}}. Want me to share the details and arrange a quick visit this week?",
+    hi: 'नमस्ते {{customer_name}}, {{agency_name}} की ओर से। अच्छी खबर — इस महीने {{area}} में घरों के लिए कुछ आकर्षक होम-लोन ऑफ़र चल रहे हैं। क्या मैं आपके बजट में फिट होने वाले कुछ विकल्प भेजूँ?',
+    mr: 'नमस्कार {{customer_name}}, {{agency_name}} कडून. एक चांगली बातमी — या महिन्यात {{area}} मधील घरांसाठी काही आकर्षक होम-लोन ऑफर्स सुरू आहेत. तुमच्या बजेटमध्ये बसणारे काही पर्याय मी पाठवू का?',
   },
   visit_reminder: {
     en: 'Hi {{customer_name}}, a reminder from {{agency_name}} about your site visit:\nProperty: {{property}}\nWhen: {{visit_date}} at {{visit_time}}\nReply here if you\'d like to reschedule - see you soon!',
+    hi: 'नमस्ते {{customer_name}}, {{agency_name}} की ओर से आपकी साइट विज़िट का रिमाइंडर:\nप्रॉपर्टी: {{property}}\nकब: {{visit_date}} को {{visit_time}} बजे\nरीशेड्यूल करना हो तो यहाँ जवाब दें — जल्द मिलते हैं!',
+    mr: 'नमस्कार {{customer_name}}, {{agency_name}} कडून तुमच्या साइट व्हिजिटची आठवण:\nप्रॉपर्टी: {{property}}\nकधी: {{visit_date}} रोजी {{visit_time}} वाजता\nरीशेड्यूल करायचं असल्यास इथे उत्तर द्या — लवकरच भेटूया!',
   },
 }
 

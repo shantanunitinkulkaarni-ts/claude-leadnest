@@ -399,12 +399,16 @@ export async function sendAppointmentReminder(
     }
   ]
 
+  // visit_reminder is approved in en/hi/mr (same named params) — send in the
+  // lead's chat language; fall back to English for anything else.
+  const reminderLang = ['en', 'hi', 'mr'].includes(lead.language) ? lead.language : 'en'
+
   const waMessageId = await sendWhatsAppTemplate(
     agent.wa_phone_number_id,
     agent.wa_access_token,
     lead.phone,
     TEMPLATES.APPOINTMENT_REMINDER,
-    'en',
+    reminderLang,
     components
   )
 
