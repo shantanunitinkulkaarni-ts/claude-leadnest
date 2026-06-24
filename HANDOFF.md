@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: 2026-06-21 20:15 IST — session 13 (AI-first bot launch)*
+*Last updated: 2026-06-24 — session 17 (Embedded Signup live; Nurture Engine V1 — data layer + reconciliation with existing A/B/C/D flow)*
 > ⏱️ This timestamp is set by hand at each update. If it looks stale vs. recent
 > git history (`git log -1`), assume parts of this doc are out of date and verify
 > against the code before trusting them.
@@ -8,19 +8,156 @@
 > **This is the single source of truth.** Every new chat: read this first, then update it (Done / Pending / Plan) at the end of the session. Deep business plan lives in `files/CONVORIAN_LAUNCH_BLUEPRINT.md`; user memory at `C:\Users\rahul\.claude\projects\C--LN\memory\`.
 >
 > **What Convorian is:** AI WhatsApp assistant for Indian real-estate agents. Agents connect their WhatsApp; the bot answers, qualifies, nurtures leads & books visits 24/7. SaaS at ₹999/mo. We are a **Tech Provider** (clients connect their own numbers). Category like Wati/Interakt, but niche (real estate) + AI-led.
-> **Stack:** Next.js 14 · Supabase (Postgres) · **LLM: GLM-4.5-Flash primary → Cerebras fallback** (`lib/llm.ts`; NOT Groq/Gemini/Claude) · **Vercel** (hosting) · Razorpay (payments, LIVE) · Resend (email) · WhatsApp via MSG91 BSP (Meta Cloud API per-agent). Repo: `C:\LN\claude-leadnest` → GitHub `shantanunitinkulkaarni-ts/claude-leadnest`. Live: **https://convorian.in**.
+> **Stack:** Next.js 14 · Supabase (Postgres) · **LLM: Groq `llama-3.3-70b-versatile` primary → GLM-4.5-Flash (Z.ai) fallback** (`lib/llm.ts`; DeepSeek removed, Cerebras retired, NOT Gemini/Claude) · **Vercel** (hosting) · Razorpay (payments, LIVE) · Resend REST (email) · **WhatsApp via Meta Cloud API DIRECT** (per-agent `wa_phone_number_id`+`wa_access_token`; MSG91 stripped from live path). Repo: `C:\LN\claude-leadnest` → GitHub `shantanunitinkulkaarni-ts/claude-leadnest`. Live: **https://convorian.in**.
 
 ---
 
-## CURRENT SESSION STATUS
+## CURRENT SESSION STATUS — ⭐ MOST STABLE VERSION TO DATE
 
-**AI-first bot is LIVE on production.** Full conversation flow working end-to-end. Booking flow incomplete (missing date/time ask, agent alerts, DB write, confirmation emails). All other core flows (language → name → intent → qualify → search → show) solid.
+**The AI-first WhatsApp bot is LIVE and fully working end-to-end.** Booking, reschedule, cancel, IST date/time correctness, office-hours + weekly-day-off enforcement, confirmation emails (customer + agent + superadmin), and a full troll/abuse kit are all in production and tested. The live bot is **`lib/ai-bot.ts` (`handleAiBotMessage`)**; the old keyword bot is fully removed.
 
-**Test case (live 8:08 PM):** Shantanu asked for 2BHK rent in Baner, 30-50k budget. Bot found match (₹55k), offered photos, collected email for visit. All guardrails + LLM running cleanly.
+**⭐ STABLE CHECKPOINT: git tag `stable-2026-06-22` (pushed to GitHub).** This is the known-good baseline. **If anything breaks later, revert: `git checkout stable-2026-06-22` → redeploy.**
+
+**Meta App Review + Tech Provider APPROVED (2026-06-22)** — launch unblocked. NOT launched yet, zero real users. **Meta-direct migration DONE; Embedded Signup (self-serve onboarding) BUILT.** Now building the **Nurture Engine V1** (the moat). Next: Meta message templates + finish nurture reconciliation.
 
 ---
 
 ## 1. DONE ✅
+
+- **June 24 — Subscription gating + Refund policy:**
+  - **Entitlement gate** (`lib/entitlement.ts` → wired into `/api/webhook`): the bot responds
+    only for entitled agents. Free trial = **500 msgs / 30 days** (set at onboarding) → then an
+    active subscription is required; blocks on `halted` (payment failed) / expired / over-quota.
+    **NULL `plan_expires_at` = grandfathered** (existing/internal agents never break — verified
+    against all live agents). Razorpay `activated`/`charged` lifts the agent off the trial cap
+    (`messages_limit`→`PAID_MESSAGES_LIMIT` env, default 5000; resets `messages_used`).
+  - **Refund & Cancellation Policy** — `files/REFUND_POLICY.md` + `/refund-policy` page (mirrors
+    privacy/terms), linked in footer (LegalShell + homepage) + sitemap. The Razorpay launch
+    requirement. Privacy policy already DPDP-compliant **with Grievance Officer = Shantanu**
+    (Sec.13); agent consent (terms+marketing+timestamp) + lead opt-in/opt-out already captured.
+    **TODO (founder): paste the policy URLs into the Razorpay dashboard.** Lawyer review of
+    T&C/Privacy stays PENDING until revenue (founder's call). 2FA = separate (security bucket).
+
+- **June 24 SESSION 17 — Embedded Signup live + Nurture Engine V1 (data layer + reconciliation):**
+  - **Embedded Signup BUILT** (self-serve onboarding) — full detail under SESSION 16's note below; popup flow verified, full test-number rehearsal deferred until app is more complete.
+  - **Nurture Engine V1 — data foundation (migration 11, applied live):** per-lead `personality` (silent profile), `engagement` (response time / reply length / counts), `consent_tier`, `last_inbound/outbound_at`, `next_nurture_at`, `nurture_paused`, plus the **`nurture_events` learning log** (the data moat — every move + signals + outcome; RLS + grants applied). The bot (`lib/ai-bot.ts`) now **silently profiles** each lead every turn (`personality_cues` via the existing LLM call — NEVER shown to the customer) and records engagement signals + `consent_tier`.
+  - **AUDIT → reconcile, not replace.** `lib/nurtureFlow.ts` already holds the founder's tested **A/B/C/D engine** (in-window 3/6/12/23h nudges → Plan A→B→C→D post-window, quiet hours 9am–10pm IST, send slots, halt conditions). **This IS the "Plan B/C/D" — it's the moat's DECISION layer; kept.** My parallel engine was trimmed to `lib/nurtureEngine.ts` = personality→angle **ENRICHMENT only** (`pickAngle`, `personalityBrief`; Vastu/loan/ROI/family).
+  - **🔴 Critical fix shipped:** the reply-reset of nurture counters (`window_nudge_count`/`last_nudge_at`/`nurture_plan`/`plan_d_touches`) had been **dropped in the ai-bot rewrite** → the whole nurture timeline was silently broken. Restored in `lib/ai-bot.ts` (every inbound resets them). Also fixed: the silent profiler must NOT write `nurture_state` (owned by nurtureFlow's active/dormant/opted_out vocabulary).
+  - **Nurture posture (founder, see memory [[nurture-engine-moat]]):** consent-tiered — **protect the agent's NUMBER above any single lead.** Cold/bought leads → ONE soft compliant first-touch (a reply = implied consent → then aggressive). Goal = **sale or clean stop.** The moat = the **data + learned behaviour**, uncopyable; V1 captures everything from day one even before auto-learning is built.
+  - **✅ NURTURE ENGINE V1 IS LIVE (2026-06-24).** Done: post-window re-pointed to Meta
+    (`sendWhatsAppTemplate`), `personalityBrief()` folded into `generateNudge`, every move
+    logged to `nurture_events`. **3 Meta templates approved (EN):** `lead_new_match`,
+    `lead_visit_invite`, `lead_final_touch` → **Plans A + D send on Meta now.** Flags ON:
+    `NURTURE_FLOW_V2=true` + `MSG91_TEMPLATES_LIVE=true`. Cron runs **every 15 min** (GitHub
+    Action `nurture-cron.yml`, not the daily vercel.json one) — verified clean run (errors 0,
+    respected IST quiet hours). The data moat captures from every chat.
+  - **✅ ALL 6 TEMPLATES APPROVED + WIRED (2026-06-24) — FULL A→B→C→D LIVE.** `lead_new_match`
+    (en+hi+mr), `lead_visit_invite`, `lead_final_touch`, `visit_reminder`, `agent_open_question`
+    (Plan B), `agent_offer` (Plan C). B/C wired into `planTemplateForFlow`; `sendAppointmentReminder`
+    fixed → approved `visit_reminder` (5 vars incl. agency_name, IST, no wallet deduction).
+    Two clean verified cron runs (errors 0, respected IST quiet hours). The nurture engine is
+    fully operational end-to-end on Meta.
+  - **🔴 FIXED (critical, 2026-06-24) by auditing the LIVE WABA `1016312184125965`:**
+    (a) templates use **NAMED vars** (`{{customer_name}}`…) but the Meta sender built
+    POSITIONAL params → **every template send would have failed.** Fixed
+    `metaTemplateComponents` + `sendAppointmentReminder` to emit `parameter_name`.
+    (b) Plan B/C are named **`lead_open_question`/`lead_offer`** on the live WABA (NOT
+    `agent_*`) → renamed in code. Verified live: a named-param send returned `accepted`.
+  - **Live WABA template inventory (`1016312184125965`, EN approved):** `lead_new_match`
+    (en+hi+mr), `lead_visit_invite`, `lead_final_touch`, `lead_open_question` (Plan B),
+    `lead_offer` (Plan C), `visit_reminder` (Utility), `reapprach_3rd_day`,
+    `agent_bot_handoff` (Utility). **hi/mr exist ONLY for `lead_new_match`.**
+  - **⏳ Hindi/Marathi for ALL templates — SUBMITTED to Meta 2026-06-24, status PENDING.**
+    10 variants via Graph API (hi+mr for `lead_visit_invite`, `lead_final_touch`,
+    `lead_open_question`, `lead_offer`, `visit_reminder`; NAMED params; founder-approved
+    wording). `lead_new_match` hi/mr already live. **When Meta approves:** add the hi/mr
+    bodies to `TEMPLATE_BODIES` + `'hi'`/`'mr'` to each `approvedLangs` in `lib/outreach.ts`
+    → non-English leads then get the FULL flow in their language (`pickTemplate` already
+    falls back to EN until then). Also still pending: rename misleading `MSG91_TEMPLATES_LIVE`
+    env; decide interim for non-EN leads (English fallback [current] vs hold).
+
+- **June 23 SESSION 16 — META CLOUD API DIRECT (migrated off MSG91):**
+  - **Stripped MSG91 from the live bot path → Meta Cloud API only.** `WaChannel` is
+    now Meta-only; `waSendText`/`waSendMedia`/`sendToLead` send via Meta. Webhook
+    parses Meta inbound, finds the agent by `wa_phone_number_id`, replies on Meta.
+  - **Webhook auth** now verifies Meta `X-Hub-Signature-256` (`WHATSAPP_APP_SECRET`)
+    OR the shared-secret header (dashboard simulate). Reads raw body once.
+  - **PROVEN END-TO-END on Meta test number `+1 555-664-3873`** (Phone Number ID
+    `1172303745966584`, WABA `1022532370720908`, attached to the gmail test agent).
+    Full convo worked: hi → language → name → rent → area.
+  - **Setup gotchas discovered (write these down):** (1) a number needs
+    `POST /{phone_number_id}/register` with a 6-digit PIN before it can send
+    ("Account not registered" otherwise; PIN used: 246810). (2) **The WABA must be
+    subscribed to our app** (`POST /{WABA}/subscribed_apps`) — this was the silent
+    message-eater; the dashboard webhook config does NOT do it for a sandbox WABA.
+    (3) App must be **Published/Live** for real inbound. (4) You can't cold-message a
+    test number from WhatsApp — the business must message first.
+  - **Env set:** `WHATSAPP_APP_SECRET` (Meta app secret), `WHATSAPP_VERIFY_TOKEN`
+    = `convorian_meta_verify_2026`. Webhook callback: `https://convorian.in/api/webhook`.
+  - **Fixed two bot bugs:** duplicate inbound logging (webhook + bot both inserted →
+    now bot inserts only its outbound), and outbound Meta message id now stored
+    (delivery tracking) with sent/failed status.
+  - **FIXED — named-date booking bug:** bot mis-read "5th July" (a Sunday) as
+    "closed on Wednesday". Causes: (a) the system prompt never told the AI today's
+    date; (b) `parseTimeString` couldn't read month names and silently defaulted to
+    today. Fix shipped: prompt now injects "TODAY (India time) is <weekday, date>" +
+    forces full-ISO visit_time; parser now reads month-name dates, prefers an am/pm
+    time over a day number, and returns null (asks again) instead of guessing.
+    Verified "5th july 1pm" → 2026-07-05T13:00 → Sunday.
+  - **✅ REAL NUMBER LIVE (2026-06-23):** `+91 7559197426` (Phone Number ID
+    `1143463112186349`, real WABA `1016312184125965`, verified name "Convorian")
+    is connected and the bot replied to a real "hi" end-to-end. Now on the gmail
+    agent (44 props). **Migrating a number off another BSP — the gotcha chain:**
+    (a) add+verify in Meta API Setup (OTP); (b) `/register` failed "Cannot create
+    certificate" → the number had **two-step verification** left over → disable it;
+    (c) then `/register` failed asking for **data localization** (MSG91 had local
+    storage on) → on v21 you must `POST /{phone_number_id}/settings` with
+    `{storage_configuration:{status:"IN_COUNTRY_STORAGE_ENABLED",data_localization_region:"IN"}}`
+    FIRST (status enum: DEFAULT | IN_COUNTRY_STORAGE_ENABLED | IN_COUNTRY_STORAGE_DISABLED
+    | NO_STORAGE_ENABLED), THEN `/register` with the 6-digit PIN; (d) subscribe the
+    WABA (`POST /{WABA}/subscribed_apps`); (e) set `wa_phone_number_id` on the agent.
+  - **✅ EMBEDDED SIGNUP BUILT (June 24):** self-serve onboarding is live. Backend
+    `lib/metaOnboard.ts` + `/api/meta/onboard` (exchange code → subscribe WABA → set
+    IN storage → register number → save creds to agent). Frontend
+    `components/ConnectWhatsAppButton.tsx` = Facebook JS SDK v4 popup via our
+    Configuration ID (`27137467672622588`), wired into onboarding Step 3 (replaced
+    the old "manual activation in 24h" flow). Env: NEXT_PUBLIC_META_APP_ID +
+    NEXT_PUBLIC_META_CONFIG_ID. **Gotcha:** in Facebook-Login-for-Business → Settings,
+    "Login with the JavaScript SDK" must be ON and `https://convorian.in` added to
+    Allowed Domains. **Popup flow verified working;** a full test-number connection
+    (end-to-end rehearsal) is deferred until the app is more complete.
+  - **PENDING NEXT (founder's order):** (1) **Meta message templates** → then convert
+    nurture/reminders/alerts off MSG91. (2) **Nurture flow** — build + fine-tune the
+    B/C/D sequences, test hard. (3) **Subscription gating** (free trial → active sub
+    required to use the bot). (4) **Pre-launch legal/security bucket** (refund policy,
+    DPDP consent/opt-in, 2FA + lockdown). (5) Bedrock-for-dev — deferred by founder
+    (Pro till July 6; credits expire June 2028).
+
+- **June 22 SESSION 15 — STABLE MILESTONE: full booking hardening, troll kit, LLM swap, cleanup:**
+  - **Booking correctness (`lib/ai-bot.ts`):**
+    - IST date math fixed — "today"/"tomorrow" no longer book a day early; full ISO dates (`2026-06-22`) parsed correctly (was misreading the year and jumping days).
+    - Confirmation emails + bot replies render India time (was UTC, 5.5h off).
+    - Booking happens BEFORE the reply is sent — bot never says "confirmed" for a failed save; honest message + superadmin alert on failure/missing data.
+    - **Real reschedule + cancel** actions (no more dead-end "already booked" loop). Duplicate-booking guard.
+    - **Office hours + weekly day-off enforcement**: refuses out-of-hours (e.g. 1 AM) and `weekly_off` days; hours shown human-readable ("9 AM to 7 PM").
+  - **Property listings**: always code-built (`buildPropertyBlock`); removed the 2nd AI call that invented "Property A — ₹48 lakhs". BHK preference applied to search.
+  - **Emails FIXED (were silently dropping):** the `resend` npm pkg isn't installed (`require('resend')` threw) AND `RESEND_FROM_EMAIL` was empty. Now uses `lib/email.ts` REST `sendEmail` + `RESEND_FROM_EMAIL=noreply@convorian.in` (set, verified by live test send).
+  - **Troll kit (`lib/botGuards.ts`, runs BEFORE the LLM = zero wasted tokens):** empty/gibberish/oversized input, identical-message loop, per-minute flood cap (12), per-day cap (80), + reschedule cap (4). Serious trips email the agent to take over.
+  - **LLM chain swapped (`lib/llm.ts`):** DeepSeek (balance zero) → **Groq `llama-3.3-70b-versatile` primary → GLM-4.5-Flash fallback**. Cerebras retired (5 req/min). Verified Groq live. (GLM key is the only remaining loose end — re-entered by founder; can't verify via pull since sensitive.)
+  - **`weekly_off` column** added to `agents` (migration `08_agent_weekly_off.sql`, applied to live DB). Day-off picker added to **onboarding** + **Settings** (dropdown).
+  - **Code hygiene:** removed the entire dead keyword-bot from `app/api/webhook/route.ts` (the `T` template object + ~15 helper fns + `aiDecode`), deleted unused `lib/cerebras.ts`, pruned dead imports. Webhook now just does parse → `handleAiBotMessage`. typecheck clean.
+  - Chat data reset (leads/appointments/messages cleared) for a clean slate.
+
+- **June 22 SESSION 14 — BOOKING CONFIRMATION EMAILS (customer + agent):**
+  - **Added two email functions to `lib/ai-bot.ts`:**
+    - `sendCustomerConfirmation(customerEmail, leadName, propertyTitle, visitTime)` — sends booking confirmation to lead's email with date/time/property details in local IST format.
+    - `sendAgentNotification(agentEmail, leadName, leadPhone, leadEmail, propertyTitle, visitTime)` — notifies agent of new site visit request.
+    - Both use Resend (from: noreply@convorian.in) with reusable `sendEmailViaResend()` helper.
+  - **Integrated into book_visit handler:** when appointment creation succeeds (lines ~520–545), now automatically:
+    1. Fetch property title from DB
+    2. Send confirmation email to `lead.email` (customer)
+    3. Send notification email to `agent.email` (agent)
+  - **Deployed live** to convorian.in via `vercel deploy --prod`. typecheck + build clean.
 
 - **June 21 SESSION 13 — AI-FIRST BOT ENGINE LIVE (MAJOR MILESTONE):**
   **Entire bot architecture replaced with new AI-first engine. All messages → DeepSeek V4 Flash → structured data → code acts.**

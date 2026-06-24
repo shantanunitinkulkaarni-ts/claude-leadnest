@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import ConnectWhatsAppButton from '@/components/ConnectWhatsAppButton'
 import { getSupabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import './onboarding.css'
@@ -31,9 +32,11 @@ export default function OnboardingPage() {
   const [botLanguage, setBotLanguage] = useState<string[]>(['english'])
   const [officeOpen, setOfficeOpen] = useState('09:00')
   const [officeClose, setOfficeClose] = useState('19:00')
+  const [weeklyOff, setWeeklyOff] = useState('')
 
   // Step 4: WhatsApp
   const [waStatus, setWaStatus] = useState('Pending')
+  const [agentId, setAgentId] = useState('') // the new agent's id, for Embedded Signup
 
   const [authMethod, setAuthMethod] = useState<'google' | 'email' | 'phone'>('email')
   const [signupPassword, setSignupPassword] = useState('')
@@ -218,6 +221,7 @@ export default function OnboardingPage() {
         languages: botLanguage,
         office_open: officeOpen,
         office_close: officeClose,
+        weekly_off: weeklyOff,
         bot_active: true,
         wa_balance: 10,
         messages_limit: 500,
@@ -232,6 +236,7 @@ export default function OnboardingPage() {
 
       if (agentError) throw agentError
       const agentData = agentDataRaw as any
+      setAgentId(agentData.id) // make the agent id available to the Connect-WhatsApp step
 
       // Insert into team_members (User)
       const { error: teamError } = await supabase.from('team_members').insert({
@@ -542,6 +547,20 @@ export default function OnboardingPage() {
                     ))}
                   </div>
                 </div>
+                <div className="field">
+                  <label className="field-label">Weekly day off (optional)</label>
+                  <select
+                    value={weeklyOff}
+                    onChange={e => setWeeklyOff(e.target.value)}
+                    style={{ width: '100%', padding: '11px 14px', borderRadius: 10, border: '1px solid var(--border, rgba(26,25,22,0.18))', fontSize: 14, fontFamily: 'inherit', outline: 'none', background: '#fff' }}
+                  >
+                    <option value="">No weekly off (open every day)</option>
+                    {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(day => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.5 }}>The bot won&apos;t book site visits on this day.</div>
+                </div>
               </div>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, margin: '20px 0 4px', fontSize: 13, color: 'var(--ink-2, #4A4843)', lineHeight: 1.5, cursor: 'pointer' }}>
                 <input
@@ -568,8 +587,8 @@ export default function OnboardingPage() {
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                 </div>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink)', marginBottom: 3 }}>Activate your WhatsApp number</div>
-                  <div style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.5 }}>Confirm the number you want your AI assistant to run on. Our team activates it for you — usually within 24 hours.</div>
+                  <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink)', marginBottom: 3 }}>Connect your WhatsApp</div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.5 }}>Tap Connect, log in with Facebook, and choose the WhatsApp number for your assistant. It goes live in about a minute — no waiting.</div>
                 </div>
               </div>
               <div className="wa-number-display">
@@ -582,12 +601,15 @@ export default function OnboardingPage() {
               <div style={{ fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.6, marginTop: 14, background: '#F4F8FD', border: '1px solid rgba(26,95,165,0.12)', borderRadius: 8, padding: '10px 12px' }}>
                 ℹ️ Tip: if you want to keep using WhatsApp normally on your current number, give us a separate number for the assistant — a number on the AI can&apos;t also be used in the WhatsApp app.
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
+              <div style={{ marginTop: 20 }}>
+                <ConnectWhatsAppButton
+                  agentId={agentId}
+                  onConnected={() => handleConnectWA()}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
                 <button className="btn-back" onClick={() => setCurrentStep(2)}>← Back</button>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <button className="btn-back" onClick={() => setCurrentStep(4)} style={{ border: '1px solid rgba(26,25,22,0.1)' }}>Skip for now</button>
-                  <button className="btn-next" onClick={handleConnectWA}>Submit for activation</button>
-                </div>
+                <button className="btn-back" onClick={() => setCurrentStep(4)} style={{ border: '1px solid rgba(26,25,22,0.1)' }}>Skip for now</button>
               </div>
             </div>
           )}
@@ -598,7 +620,7 @@ export default function OnboardingPage() {
                 <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
               </div>
               <div className="complete-title">You're all set, {firstName}!</div>
-              <div className="complete-sub">Your account is ready. Our team is activating your WhatsApp number — you&apos;ll get an email the moment it&apos;s live (usually within 24 hours). Meanwhile, add your properties and explore your dashboard so the bot is ready to convert from day one.</div>
+              <div className="complete-sub">Your account is ready. If you connected WhatsApp, your assistant is already live on your number. If you skipped, you can connect it anytime from Settings. Meanwhile, add your properties so the bot is ready to convert from day one.</div>
               <button className="btn-launch" onClick={() => router.push('/dashboard')}>
                 Open my dashboard
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>

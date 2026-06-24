@@ -32,6 +32,7 @@ export default function LegalShell({ children }: { children: React.ReactNode }) 
             <Link href="/help" style={{ color: '#4F46E5', textDecoration: 'none', margin: '0 10px' }}>Help & FAQ</Link>
             <Link href="/privacy-policy" style={{ color: '#4F46E5', textDecoration: 'none', margin: '0 10px' }}>Privacy Policy</Link>
             <Link href="/terms-of-service" style={{ color: '#4F46E5', textDecoration: 'none', margin: '0 10px' }}>Terms of Service</Link>
+            <Link href="/refund-policy" style={{ color: '#4F46E5', textDecoration: 'none', margin: '0 10px' }}>Refund Policy</Link>
           </div>
           © {new Date().getFullYear()} Convorian · Pune, Maharashtra, India · <a href="mailto:support@convorian.in" style={{ color: '#4F46E5', textDecoration: 'none' }}>support@convorian.in</a>
         </div>

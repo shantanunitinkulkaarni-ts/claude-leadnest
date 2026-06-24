@@ -191,6 +191,23 @@ export async function sendViaMsg91Media(
   }
 }
 
+// ─── Reply channel (Meta Cloud API direct) ───────────────────────────────────
+// A WaChannel carries the agent's Meta credentials so the bot can reply. We run
+// Meta-direct only (Tech Provider) — MSG91 has been removed from the live path.
+export type WaChannel = { phoneNumberId: string; accessToken: string }
+
+// Send free-text to a lead via Meta Cloud API. Normalised to a SendOutcome.
+export async function waSendText(ch: WaChannel, toPhone: string, message: string): Promise<SendOutcome> {
+  const id = await sendViaMeta(ch.phoneNumberId, ch.accessToken, toPhone.replace(/^\+/, ''), message)
+  return { id, error: id ? null : 'meta send failed', retryable: !id }
+}
+
+// Send an image to a lead via Meta Cloud API.
+export async function waSendMedia(ch: WaChannel, toPhone: string, mediaUrl: string, caption?: string): Promise<SendOutcome> {
+  const id = await sendMetaImage(ch.phoneNumberId, ch.accessToken, toPhone.replace(/^\+/, ''), mediaUrl, caption)
+  return { id, error: id ? null : 'meta media failed', retryable: !id }
+}
+
 // ─── Meta image message (within the 24h window) ──────────────────────────────
 export async function sendMetaImage(
   phoneNumberId: string,
@@ -273,20 +290,14 @@ export async function sendViaMsg91Template(
   }
 }
 
-// ─── Provider-aware free-text send to a lead ─────────────────────────────────
-// Picks the right channel for an agent automatically: MSG91 if the agent has an
-// integrated number (current primary BSP), else Meta Cloud API. Used by the
-// nurture cron + reminders so follow-ups work regardless of provider. Free-text
-// = only valid inside the lead's 24h window (caller must check).
+// ─── Free-text send to a lead (Meta Cloud API) ───────────────────────────────
+// Used by the nurture cron + reminders. Free-text = only valid inside the lead's
+// 24h window (caller must check).
 export async function sendToLead(agent: any, lead: any, message: string): Promise<string | null> {
-  const integrated = String(agent?.msg91_integrated_number || '').replace(/\D/g, '')
-  if (integrated) {
-    return (await sendWithRetry(() => sendViaMsg91(integrated, lead.phone, message))).id
-  }
   if (agent?.wa_phone_number_id && agent?.wa_access_token) {
     return sendViaMeta(agent.wa_phone_number_id, agent.wa_access_token, lead.phone, message)
   }
-  console.warn('sendToLead: agent has no MSG91 or Meta credentials', agent?.id)
+  console.warn('sendToLead: agent has no Meta credentials', agent?.id)
   return null
 }
 
@@ -362,7 +373,7 @@ export async function deductWABalance(
 
 // ─── Templates ────────────────────────────────────────────────────────────────
 export const TEMPLATES = {
-  APPOINTMENT_REMINDER: 'leadnest_appointment_reminder',
+  APPOINTMENT_REMINDER: 'visit_reminder', // Meta-approved (Utility): customer_name, agency_name, property, visit_date, visit_time
   NURTURE_FOLLOWUP: 'leadnest_nurture_followup',
   REENGAGEMENT: 'leadnest_reengagement',
   KEEPALIVE: null
@@ -379,24 +390,29 @@ export async function sendAppointmentReminder(
     {
       type: 'body',
       parameters: [
-        { type: 'text', text: lead.name || 'there' },
-        { type: 'text', text: property?.title || 'the property' },
-        { type: 'text', text: new Date(appointment.scheduled_at).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' }) },
-        { type: 'text', text: new Date(appointment.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }
+        { type: 'text', parameter_name: 'customer_name', text: lead.name || 'there' },
+        { type: 'text', parameter_name: 'agency_name', text: agent?.agency_name || 'your property advisor' },
+        { type: 'text', parameter_name: 'property', text: property?.title || 'the property' },
+        { type: 'text', parameter_name: 'visit_date', text: new Date(appointment.scheduled_at).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' }) },
+        { type: 'text', parameter_name: 'visit_time', text: new Date(appointment.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) }
       ]
     }
   ]
+
+  // visit_reminder is approved in en/hi/mr (same named params) — send in the
+  // lead's chat language; fall back to English for anything else.
+  const reminderLang = ['en', 'hi', 'mr'].includes(lead.language) ? lead.language : 'en'
 
   const waMessageId = await sendWhatsAppTemplate(
     agent.wa_phone_number_id,
     agent.wa_access_token,
     lead.phone,
     TEMPLATES.APPOINTMENT_REMINDER,
-    'en',
+    reminderLang,
     components
   )
 
-  await deductWABalance(agent.id, 0.32, `Appointment reminder — ${lead.name}`, TEMPLATES.APPOINTMENT_REMINDER, lead.id)
+  // Meta-direct: the agent pays Meta directly — no wallet deduction.
   return waMessageId
 }
 

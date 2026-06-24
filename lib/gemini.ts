@@ -6,6 +6,7 @@ import { filterPropertiesForLead, findNearMatches, isValidMatchedProperty } from
 import { validateReply } from './replyValidator'
 import { guardReplyFacts } from './factGuard'
 import { shouldRefreshSummary, refreshConversationSummary, SUMMARY_OLDER_WINDOW } from './conversationSummary'
+import { personalityBrief } from './nurtureEngine'
 import { formatKnowledgeGapsForPrompt } from './knowledgeGaps'
 import { parseBudgetRupees } from './budgetParse'
 
@@ -848,7 +849,9 @@ CONTEXT:
 - Stage: ${stage}${lead.post_visit_result ? ` | Visit outcome: ${lead.post_visit_result}` : ''}
 - ${propContext}
 
-TASK: ${stageOverride || intensityGuide}
+TASK: ${stageOverride || intensityGuide}${personalityBrief(lead.personality) ? `
+
+PERSONALIZE (silent sales intelligence we inferred about this lead — apply it naturally, NEVER reveal you know it): ${personalityBrief(lead.personality)}` : ''}
 
 HARD RULES:
 1. Do NOT start with "Hi" or "Hello" — you are mid-conversation.

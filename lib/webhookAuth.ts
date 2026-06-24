@@ -1,12 +1,10 @@
-import { timingSafeEqual } from 'crypto'
+import { timingSafeEqual, createHmac } from 'crypto'
 
-// ─── MSG91 shared-secret header verification ─────────────────────────────────
-// MSG91 does not sign payloads with HMAC. Their security mechanism is a custom
-// header you configure in the MSG91 dashboard (WhatsApp > Webhook settings):
+// ─── Shared-secret header verification ───────────────────────────────────────
+// Used by the dashboard "simulate lead" form post, which sends a custom header:
 //   Header name:  x-webhook-secret
 //   Header value: <MSG91_WEBHOOK_SECRET env var>
-// MSG91 echoes that header on every inbound POST. We compare it constant-time
-// to prevent timing-oracle attacks.
+// Compared constant-time to prevent timing-oracle attacks.
 export function verifySharedSecret(
   incoming: string | null | undefined,
   expected: string | null | undefined
@@ -24,27 +22,19 @@ export function verifySharedSecret(
   }
 }
 
-// ─── Meta X-Hub-Signature-256 stub ───────────────────────────────────────────
-// TODO: activate when Meta App Review completes and Meta Cloud API goes live.
-//
-// Meta signs every webhook POST body with HMAC-SHA256 using WHATSAPP_APP_SECRET:
+// ─── Meta X-Hub-Signature-256 verification ───────────────────────────────────
+// Meta signs every webhook POST body with HMAC-SHA256 using the app secret:
 //   Header: X-Hub-Signature-256: sha256=<hex>
-//   Key:    WHATSAPP_APP_SECRET env var
-//   Input:  raw request body bytes (must be read before JSON.parse)
-//
-// Activation checklist:
-//   1. Read the raw body BEFORE any parsing (use request.arrayBuffer() or similar).
-//   2. Call verifyMetaSignature(rawBody, request.headers.get('x-hub-signature-256'), secret).
-//   3. Reject with 403 if false.
-//   4. Remove this comment and the NotImplementedError.
-//
-// import { createHmac } from 'crypto'
-// export function verifyMetaSignature(
-//   rawBody: Buffer,
-//   signatureHeader: string | null,
-//   appSecret: string
-// ): boolean {
-//   if (!signatureHeader?.startsWith('sha256=') || !appSecret) return false
-//   const expected = 'sha256=' + createHmac('sha256', appSecret).update(rawBody).digest('hex')
-//   return verifySharedSecret(signatureHeader, expected)
-// }
+//   Key:    WHATSAPP_APP_SECRET env var (Meta app → Settings → Basic → App Secret)
+//   Input:  the raw request body (read with request.text() BEFORE JSON.parse)
+// Returns false if the secret/header is missing — so Meta inbound is rejected
+// until WHATSAPP_APP_SECRET is configured.
+export function verifyMetaSignature(
+  rawBody: string,
+  signatureHeader: string | null | undefined,
+  appSecret: string | null | undefined
+): boolean {
+  if (!signatureHeader || !signatureHeader.startsWith('sha256=') || !appSecret) return false
+  const expected = 'sha256=' + createHmac('sha256', appSecret).update(rawBody, 'utf8').digest('hex')
+  return verifySharedSecret(signatureHeader, expected)
+}

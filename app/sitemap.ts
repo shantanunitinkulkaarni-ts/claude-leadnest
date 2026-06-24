@@ -4,7 +4,7 @@ import type { MetadataRoute } from 'next'
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = 'https://convorian.in'
   const now = new Date()
-  const routes = ['', '/help', '/privacy-policy', '/terms-of-service', '/login']
+  const routes = ['', '/help', '/privacy-policy', '/terms-of-service', '/refund-policy', '/login']
   return routes.map(path => ({
     url: `${base}${path}`,
     lastModified: now,
