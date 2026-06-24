@@ -43,9 +43,23 @@
     fixed → approved `visit_reminder` (5 vars incl. agency_name, IST, no wallet deduction).
     Two clean verified cron runs (errors 0, respected IST quiet hours). The nurture engine is
     fully operational end-to-end on Meta.
-  - **⏳ Nurture nice-to-haves (non-blocking):** rename the misleading `MSG91_TEMPLATES_LIVE`
-    env → a Meta name; add founder-fine-tuned hi/mr variants for visit_invite/final_touch/B/C
-    when ready; first real-lead end-to-end nurture observation during daytime IST.
+  - **🔴 FIXED (critical, 2026-06-24) by auditing the LIVE WABA `1016312184125965`:**
+    (a) templates use **NAMED vars** (`{{customer_name}}`…) but the Meta sender built
+    POSITIONAL params → **every template send would have failed.** Fixed
+    `metaTemplateComponents` + `sendAppointmentReminder` to emit `parameter_name`.
+    (b) Plan B/C are named **`lead_open_question`/`lead_offer`** on the live WABA (NOT
+    `agent_*`) → renamed in code. Verified live: a named-param send returned `accepted`.
+  - **Live WABA template inventory (`1016312184125965`, EN approved):** `lead_new_match`
+    (en+hi+mr), `lead_visit_invite`, `lead_final_touch`, `lead_open_question` (Plan B),
+    `lead_offer` (Plan C), `visit_reminder` (Utility), `reapprach_3rd_day`,
+    `agent_bot_handoff` (Utility). **hi/mr exist ONLY for `lead_new_match`.**
+  - **⏳ PENDING — HINDI/MARATHI FOR ALL TEMPLATES (founder asked; wants to fine-tune the
+    wording first).** Today a non-English lead gets EN for everything except `lead_new_match`
+    (jarring). Drafts in `META_TEMPLATES.md` (note: submit under the LIVE names
+    `lead_open_question`/`lead_offer`, and base hi/mr on the founder's actual EN wording).
+    Flow: founder fine-tunes → submit (Graph API or WhatsApp Manager) → add bodies + `'hi'`/`'mr'`
+    to `approvedLangs` in `lib/outreach.ts`. Also pending: rename misleading `MSG91_TEMPLATES_LIVE`
+    env; pick interim for non-EN leads (English fallback [current] vs hold until their lang is ready).
 
 - **June 23 SESSION 16 — META CLOUD API DIRECT (migrated off MSG91):**
   - **Stripped MSG91 from the live bot path → Meta Cloud API only.** `WaChannel` is
