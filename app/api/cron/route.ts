@@ -311,10 +311,16 @@ export async function GET(request: NextRequest) {
 // (logged) until the template exists — see planTemplateForFlow.
 type CronResults = { nudges: number; templates: number; reminders: number; errors: number; nurture: any }
 
-// Convert an MSG91-style template value list into Meta's components array.
+// Build Meta's body components from our {name,value} list. Our templates use
+// NAMED variables ({{customer_name}}…), so each parameter MUST carry parameter_name
+// or Meta rejects the send.
 function metaTemplateComponents(values: any): any[] {
   if (!Array.isArray(values) || !values.length) return []
-  const parameters = values.map((v: any) => ({ type: 'text', text: typeof v === 'string' ? v : String(v?.value ?? '') }))
+  const parameters = values.map((v: any) =>
+    typeof v === 'string'
+      ? { type: 'text', text: v }
+      : { type: 'text', parameter_name: v.name, text: String(v?.value ?? '') }
+  )
   return [{ type: 'body', parameters }]
 }
 
@@ -432,7 +438,7 @@ function planTemplateForFlow(plan: NurturePlan, lead: any, agent: any, lang: str
     { name: 'agency_name', value: agency },
     { name: 'area', value: area },
   ]
-  if (plan === 'B') return { name: 'agent_open_question', language: 'en', values }
-  if (plan === 'C') return { name: 'agent_offer', language: 'en', values }
+  if (plan === 'B') return { name: 'lead_open_question', language: 'en', values }
+  if (plan === 'C') return { name: 'lead_offer', language: 'en', values }
   return null
 }

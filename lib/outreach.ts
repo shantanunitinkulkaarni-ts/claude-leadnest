@@ -84,8 +84,8 @@ export const TEMPLATES = {
   lead_new_match: { name: 'lead_new_match', approvedLangs: ['en', 'hi', 'mr'] as string[] },
   lead_visit_invite: { name: 'lead_visit_invite', approvedLangs: ['en'] as string[] },
   lead_final_touch: { name: 'lead_final_touch', approvedLangs: ['en'] as string[] },
-  agent_open_question: { name: 'agent_open_question', approvedLangs: ['en'] as string[] }, // Plan B
-  agent_offer: { name: 'agent_offer', approvedLangs: ['en'] as string[] },                 // Plan C
+  lead_open_question: { name: 'lead_open_question', approvedLangs: ['en'] as string[] }, // Plan B
+  lead_offer: { name: 'lead_offer', approvedLangs: ['en'] as string[] },                 // Plan C
   // visit_reminder (Utility, en) is sent from the appointment-reminder path.
 }
 
@@ -104,11 +104,11 @@ const TEMPLATE_BODIES: Record<string, Record<string, string>> = {
   lead_final_touch: {
     en: "Hi {{customer_name}}, it's {{agency_name}}. I don't want to crowd your inbox, so I'll ease off for now. Whenever you'd like to pick your home search in {{area}} back up, I'm just one message away. Shall I keep you posted on new options?",
   },
-  agent_open_question: {
-    en: "Hi {{customer_name}}, it's {{agency_name}}. I wanted to check in — is there anything holding you back on your property search in {{area}}? Budget, location, or timing? Happy to help however I can.",
+  lead_open_question: {
+    en: "Hi {{customer_name}}, it's {{agency_name}}. I'd still love to help with your home search in {{area}}. What matters most to you — budget, location, or specific amenities? Just reply and I'll line up options that fit.",
   },
-  agent_offer: {
-    en: "Hi {{customer_name}}, it's {{agency_name}}. Good news — there are some attractive home-loan offers running this month for homes in {{area}}. Want me to share a few options that fit your budget?",
+  lead_offer: {
+    en: "Hi {{customer_name}}, {{agency_name}} here. Some great new options and limited-time offers just opened up in {{area}}. Want me to share the details and arrange a quick visit this week?",
   },
   visit_reminder: {
     en: 'Hi {{customer_name}}, a reminder from {{agency_name}} about your site visit:\nProperty: {{property}}\nWhen: {{visit_date}} at {{visit_time}}\nReply here if you\'d like to reschedule - see you soon!',

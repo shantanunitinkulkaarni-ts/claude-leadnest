@@ -390,11 +390,11 @@ export async function sendAppointmentReminder(
     {
       type: 'body',
       parameters: [
-        { type: 'text', text: lead.name || 'there' },
-        { type: 'text', text: agent?.agency_name || 'your property advisor' },
-        { type: 'text', text: property?.title || 'the property' },
-        { type: 'text', text: new Date(appointment.scheduled_at).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' }) },
-        { type: 'text', text: new Date(appointment.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) }
+        { type: 'text', parameter_name: 'customer_name', text: lead.name || 'there' },
+        { type: 'text', parameter_name: 'agency_name', text: agent?.agency_name || 'your property advisor' },
+        { type: 'text', parameter_name: 'property', text: property?.title || 'the property' },
+        { type: 'text', parameter_name: 'visit_date', text: new Date(appointment.scheduled_at).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' }) },
+        { type: 'text', parameter_name: 'visit_time', text: new Date(appointment.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) }
       ]
     }
   ]
