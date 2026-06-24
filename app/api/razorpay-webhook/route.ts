@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
   const nextCharge = sub.charge_at ? new Date(sub.charge_at * 1000).toISOString() : null
 
   const update: Record<string, any> = {}
+  const PAID_MESSAGES_LIMIT = Number(process.env.PAID_MESSAGES_LIMIT || '5000') // monthly cap for paying agents
 
   switch (event) {
     case 'subscription.activated':
@@ -64,13 +65,18 @@ export async function POST(request: NextRequest) {
       update.plan_started_at = new Date().toISOString()
       update.plan_expires_at = paidThrough
       update.subscription_charge_at = nextCharge
+      // Lift the agent off the trial cap + reset the period counter.
+      update.messages_limit = PAID_MESSAGES_LIMIT
+      update.messages_used = 0
       break
 
     case 'subscription.charged':
-      // A monthly payment succeeded — extend access to the new period end.
+      // A monthly payment succeeded — extend access to the new period end + reset quota.
       update.plan_status = 'active'
       update.plan_expires_at = paidThrough
       update.subscription_charge_at = nextCharge
+      update.messages_limit = PAID_MESSAGES_LIMIT
+      update.messages_used = 0
       break
 
     case 'subscription.pending':

@@ -8,6 +8,7 @@ import { verifySharedSecret, verifyMetaSignature } from '@/lib/webhookAuth'
 import { createLogger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rateLimit'
 import { handleAiBotMessage } from '@/lib/ai-bot'
+import { agentEntitlement } from '@/lib/entitlement'
 import { randomUUID } from 'crypto'
 import * as Sentry from '@sentry/nextjs'
 
@@ -123,8 +124,12 @@ export async function POST(request: NextRequest) {
       if (!al.allowed) return NextResponse.json({ status: 'rate_limited_agent' }, { status: 429 })
     }
 
-    // ── Gate check ───────────────────────────────────────────────────────
-    if (!agent.bot_active) return NextResponse.json({ status: 'bot_paused' })
+    // ── Gate check: paused, or subscription/trial entitlement ─────────────
+    const ent = agentEntitlement(agent)
+    if (!ent.entitled) {
+      log('not_entitled', { agentId: agent.id, reason: ent.reason })
+      return NextResponse.json({ status: 'not_entitled', reason: ent.reason })
+    }
 
     // ── Lead lookup / create ──────────────────────────────────────────────
     const now = new Date().toISOString()
