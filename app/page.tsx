@@ -382,7 +382,8 @@ function Footer() {
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: G.dark, marginBottom: 10 }}>Legal</div>
             <a href="/privacy-policy" style={{ display: 'block', fontSize: 13, color: G.muted, textDecoration: 'none', marginBottom: 8 }}>Privacy Policy</a>
-            <a href="/terms-of-service" style={{ display: 'block', fontSize: 13, color: G.muted, textDecoration: 'none' }}>Terms of Service</a>
+            <a href="/terms-of-service" style={{ display: 'block', fontSize: 13, color: G.muted, textDecoration: 'none', marginBottom: 8 }}>Terms of Service</a>
+            <a href="/refund-policy" style={{ display: 'block', fontSize: 13, color: G.muted, textDecoration: 'none' }}>Refund Policy</a>
           </div>
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, color: G.dark, marginBottom: 10 }}>Contact</div>
