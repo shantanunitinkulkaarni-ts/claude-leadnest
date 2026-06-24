@@ -53,13 +53,14 @@
     (en+hi+mr), `lead_visit_invite`, `lead_final_touch`, `lead_open_question` (Plan B),
     `lead_offer` (Plan C), `visit_reminder` (Utility), `reapprach_3rd_day`,
     `agent_bot_handoff` (Utility). **hi/mr exist ONLY for `lead_new_match`.**
-  - **⏳ PENDING — HINDI/MARATHI FOR ALL TEMPLATES (founder asked; wants to fine-tune the
-    wording first).** Today a non-English lead gets EN for everything except `lead_new_match`
-    (jarring). Drafts in `META_TEMPLATES.md` (note: submit under the LIVE names
-    `lead_open_question`/`lead_offer`, and base hi/mr on the founder's actual EN wording).
-    Flow: founder fine-tunes → submit (Graph API or WhatsApp Manager) → add bodies + `'hi'`/`'mr'`
-    to `approvedLangs` in `lib/outreach.ts`. Also pending: rename misleading `MSG91_TEMPLATES_LIVE`
-    env; pick interim for non-EN leads (English fallback [current] vs hold until their lang is ready).
+  - **⏳ Hindi/Marathi for ALL templates — SUBMITTED to Meta 2026-06-24, status PENDING.**
+    10 variants via Graph API (hi+mr for `lead_visit_invite`, `lead_final_touch`,
+    `lead_open_question`, `lead_offer`, `visit_reminder`; NAMED params; founder-approved
+    wording). `lead_new_match` hi/mr already live. **When Meta approves:** add the hi/mr
+    bodies to `TEMPLATE_BODIES` + `'hi'`/`'mr'` to each `approvedLangs` in `lib/outreach.ts`
+    → non-English leads then get the FULL flow in their language (`pickTemplate` already
+    falls back to EN until then). Also still pending: rename misleading `MSG91_TEMPLATES_LIVE`
+    env; decide interim for non-EN leads (English fallback [current] vs hold).
 
 - **June 23 SESSION 16 — META CLOUD API DIRECT (migrated off MSG91):**
   - **Stripped MSG91 from the live bot path → Meta Cloud API only.** `WaChannel` is
