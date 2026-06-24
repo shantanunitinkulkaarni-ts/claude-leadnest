@@ -6,11 +6,7 @@ interface Props {
   onTopUp?: () => void
 }
 
-export default function BalanceScreen({ agentId, onTopUp }: Props) {
-  const [balance, setBalance] = useState<number | null>(null)
-  const [isToppingUp, setIsToppingUp] = useState(false)
-  const [customAmount, setCustomAmount] = useState('')
-  const [error, setError] = useState<string | null>(null)
+export default function BalanceScreen({ agentId }: Props) {
 
   // Subscription state
   const [planStatus, setPlanStatus] = useState<string | null>(null)
@@ -29,7 +25,6 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
       .then(r => r.json())
       .then(d => {
         if (d.data) {
-          setBalance(d.data.wa_balance || 0)
           setPlanStatus(d.data.plan_status || null)
           setPlanExpiresAt(d.data.plan_expires_at || null)
           setNextChargeAt(d.data.subscription_charge_at || null)
@@ -119,69 +114,6 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
     s.onerror = () => resolve(false)
     document.body.appendChild(s)
   })
-
-  const handleTopup = async (amountStr: string | number) => {
-    const amount = typeof amountStr === 'string' ? parseInt(amountStr.replace(/[^0-9]/g, ''), 10) : amountStr
-    if (isNaN(amount) || amount <= 0) return
-    setError(null)
-    setIsToppingUp(true)
-    try {
-      // 1. Create order server-side
-      const orderRes = await fetch('/api/payments/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent_id: agentId, amount })
-      })
-      const orderData = await orderRes.json()
-      if (!orderRes.ok) throw new Error(orderData.error || 'Could not start payment')
-
-      // 2. Load Razorpay Checkout
-      const ok = await loadRazorpay()
-      if (!ok) throw new Error('Could not load payment gateway. Check your connection.')
-
-      // 3. Open Checkout
-      const options = {
-        key: orderData.keyId,
-        order_id: orderData.order.id,
-        amount: orderData.order.amount,
-        currency: 'INR',
-        name: 'Convorian',
-        description: 'WhatsApp balance top-up',
-        theme: { color: '#4F46E5' },
-        handler: async (resp: any) => {
-          // 4. Verify signature server-side, then credit balance
-          try {
-            const vRes = await fetch('/api/payments/verify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                agent_id: agentId,
-                razorpay_order_id: resp.razorpay_order_id,
-                razorpay_payment_id: resp.razorpay_payment_id,
-                razorpay_signature: resp.razorpay_signature
-              })
-            })
-            const vData = await vRes.json()
-            if (!vRes.ok) throw new Error(vData.error || 'Verification failed')
-            setBalance(vData.wa_balance)
-            loadTxns()
-            onTopUp?.()
-          } catch (e: any) {
-            setError(e.message || 'Payment verification failed. If money was deducted, it will reflect shortly.')
-          } finally {
-            setIsToppingUp(false)
-          }
-        },
-        modal: { ondismiss: () => setIsToppingUp(false) }
-      }
-      const rzp = new (window as any).Razorpay(options)
-      rzp.on('payment.failed', (r: any) => { setError(r?.error?.description || 'Payment failed'); setIsToppingUp(false) })
-      rzp.open()
-    } catch (e: any) {
-      setError(e.message || 'Something went wrong')
-      setIsToppingUp(false)
-    }
-  }
 
   // Credit/usage history (top-ups + template deductions) from wa_transactions
   const [txns, setTxns] = useState<{ id: string; type: string; amount: number; description: string; created_at: string }[]>([])
@@ -302,52 +234,16 @@ export default function BalanceScreen({ agentId, onTopUp }: Props) {
         </>
       )}
 
-      <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>Messaging credits</div>
-      <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: 24, marginBottom: 14 }}>
-        <div style={{ fontSize: 12, color: '#9E9B92' }}>Available credits</div>
-        <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 42, color: '#15161B', lineHeight: 1, margin: '4px 0' }}>
-          ₹{balance !== null ? balance : '...'}
+      <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>WhatsApp messaging</div>
+      <div data-tour="wa-topup" style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: 24, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, color: '#3D3B34', lineHeight: 1.7 }}>
+          Proactive WhatsApp messages — visit reminders, follow-ups and re-engagement templates — are billed <strong>directly by Meta</strong> to your own WhatsApp Business account. Convorian adds no markup and doesn’t hold your balance. Add a payment method and top up from your Meta account.
         </div>
-        <div style={{ fontSize: 12, color: '#9E9B92' }}>Used for proactive WhatsApp messages (reminders, follow-ups) · deducted automatically</div>
-        {error && (
-          <div style={{ background: '#FDF0F0', color: '#8B1A1A', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginTop: 14 }}>⚠️ {error}</div>
-        )}
-        <div data-tour="wa-topup" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 18 }}>
-          {['+ ₹100', '+ ₹500', '+ ₹1000'].map(a => (
-            <button 
-              key={a} 
-              onClick={() => handleTopup(a)}
-              disabled={isToppingUp}
-              style={{ 
-                padding: 11, borderRadius: 9, border: '1px solid rgba(26,25,22,0.18)', 
-                background: '#F4F3EE', cursor: isToppingUp ? 'default' : 'pointer', textAlign: 'center', 
-                fontSize: 13, fontWeight: 500, color: '#3D3B34', fontFamily: 'inherit', transition: 'all 0.15s',
-                opacity: isToppingUp ? 0.6 : 1
-              }}
-            >
-              {a}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <input 
-            type="number" 
-            placeholder="Custom amount (₹)" 
-            value={customAmount}
-            onChange={e => setCustomAmount(e.target.value)}
-            style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, outline: 'none' }}
-          />
-          <button 
-            onClick={() => handleTopup(parseInt(customAmount, 10))}
-            disabled={!customAmount || isToppingUp}
-            style={{ 
-              padding: '10px 16px', borderRadius: 8, background: '#1A5FA5', color: '#fff', border: 'none', 
-              cursor: (!customAmount || isToppingUp) ? 'default' : 'pointer', fontSize: 13, fontWeight: 500, opacity: (!customAmount || isToppingUp) ? 0.6 : 1 
-            }}
-          >
-            Add
-          </button>
-        </div>
+        <a href="https://business.facebook.com/billing_hub/accounts" target="_blank" rel="noopener noreferrer"
+          style={{ display: 'inline-block', marginTop: 16, padding: '11px 20px', borderRadius: 9, background: '#4F46E5', color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>
+          Recharge on Meta →
+        </a>
+        <div style={{ fontSize: 11.5, color: '#9E9B92', marginTop: 14 }}>Your ₹999/month Convorian subscription (above) is separate and billed by us.</div>
       </div>
       <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '18px 20px' }}>
         <div style={{ fontSize: 11, fontWeight: 500, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>Transaction history</div>
