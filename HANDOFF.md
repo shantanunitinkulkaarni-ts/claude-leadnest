@@ -24,6 +24,20 @@
 
 ## 1. DONE ✅
 
+- **June 24 — Subscription gating + Refund policy:**
+  - **Entitlement gate** (`lib/entitlement.ts` → wired into `/api/webhook`): the bot responds
+    only for entitled agents. Free trial = **500 msgs / 30 days** (set at onboarding) → then an
+    active subscription is required; blocks on `halted` (payment failed) / expired / over-quota.
+    **NULL `plan_expires_at` = grandfathered** (existing/internal agents never break — verified
+    against all live agents). Razorpay `activated`/`charged` lifts the agent off the trial cap
+    (`messages_limit`→`PAID_MESSAGES_LIMIT` env, default 5000; resets `messages_used`).
+  - **Refund & Cancellation Policy** — `files/REFUND_POLICY.md` + `/refund-policy` page (mirrors
+    privacy/terms), linked in footer (LegalShell + homepage) + sitemap. The Razorpay launch
+    requirement. Privacy policy already DPDP-compliant **with Grievance Officer = Shantanu**
+    (Sec.13); agent consent (terms+marketing+timestamp) + lead opt-in/opt-out already captured.
+    **TODO (founder): paste the policy URLs into the Razorpay dashboard.** Lawyer review of
+    T&C/Privacy stays PENDING until revenue (founder's call). 2FA = separate (security bucket).
+
 - **June 24 SESSION 17 — Embedded Signup live + Nurture Engine V1 (data layer + reconciliation):**
   - **Embedded Signup BUILT** (self-serve onboarding) — full detail under SESSION 16's note below; popup flow verified, full test-number rehearsal deferred until app is more complete.
   - **Nurture Engine V1 — data foundation (migration 11, applied live):** per-lead `personality` (silent profile), `engagement` (response time / reply length / counts), `consent_tier`, `last_inbound/outbound_at`, `next_nurture_at`, `nurture_paused`, plus the **`nurture_events` learning log** (the data moat — every move + signals + outcome; RLS + grants applied). The bot (`lib/ai-bot.ts`) now **silently profiles** each lead every turn (`personality_cues` via the existing LLM call — NEVER shown to the customer) and records engagement signals + `consent_tier`.
