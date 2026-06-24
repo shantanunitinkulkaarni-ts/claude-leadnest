@@ -74,7 +74,6 @@ export default function Sidebar({ activeScreen, onNavigate, agent, isOpen = fals
   const agentName = agent?.name || 'Loading...'
   const agencyName = agent?.agency_name || ''
   const initials = agentName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
-  const waBalance = agent?.wa_balance ? `₹${Number(agent.wa_balance).toFixed(0)}` : '₹0'
   const msgUsed = agent?.messages_used || 0
   const msgLimit = agent?.messages_limit || 5000
   const balancePct = Math.min((msgUsed / msgLimit) * 100, 100)
@@ -173,16 +172,15 @@ export default function Sidebar({ activeScreen, onNavigate, agent, isOpen = fals
               <NavItem key={item.screen} item={item} active={activeScreen === item.screen} onClick={() => handleNav(item.screen)} />
             ))}
           </div>
-          {/* WA Balance */}
+          {/* AI message usage (WhatsApp messaging itself is billed by Meta) */}
           <div style={{ padding: '14px 20px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>WA balance</span>
-              <span style={{ fontSize: 11, fontWeight: 500, color: '#fff' }}>{waBalance}</span>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>AI messages</span>
+              <span style={{ fontSize: 11, fontWeight: 500, color: '#fff' }}>{msgUsed.toLocaleString()} / {msgLimit.toLocaleString()}</span>
             </div>
             <div style={{ height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${balancePct}%`, background: 'linear-gradient(90deg,#4F46E5,#818CF8)', borderRadius: 2 }} />
             </div>
-            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', marginTop: 4 }}>{msgUsed.toLocaleString()} / {msgLimit.toLocaleString()} messages</div>
           </div>
         </div>
 

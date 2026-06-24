@@ -59,8 +59,8 @@ const STEPS: Step[] = [
     target: '[data-tour="nav-analytics"]'
   },
   {
-    title: 'WhatsApp Balance',
-    text: 'Your bot uses WhatsApp balance to send messages. Top it up here whenever you need — quick amounts or a custom value.',
+    title: 'WhatsApp Messaging',
+    text: 'Proactive WhatsApp messages are billed directly by Meta to your own WhatsApp account — no markup from us. Manage and top up that balance from here in one tap.',
     navigate: 'balance',
     target: '[data-tour="wa-topup"]'
   },
