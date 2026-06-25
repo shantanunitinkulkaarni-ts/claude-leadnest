@@ -202,51 +202,33 @@ export default function OnboardingPage() {
       const finalName = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : (userMeta.full_name || userMeta.name || 'Agent')
       const finalPhone = phone || userMeta.phone || ''
 
-      // Free-forever tier: no expiry, 100-message AI allowance, 10 leads / 5
-      // properties (see lib/planLimits). WhatsApp charges are billed by Meta
-      // directly (Model A) — no in-app wallet.
-      const nowIso = new Date().toISOString()
-
-      // Insert into agents (Workspace)
-      const { data: agentDataRaw, error: agentError } = await supabase.from('agents').insert({
-        email: finalEmail,
-        name: finalName,
-        phone: finalPhone,
-        agency_name: agencyName,
-        city,
-        state: stateLoc,
-        areas,
-        property_types: propertyTypes,
-        bot_tone: botTone,
-        languages: botLanguage,
-        office_open: officeOpen,
-        office_close: officeClose,
-        weekly_off: weeklyOff,
-        bot_active: true,
-        messages_limit: 100,
-        plan: 'free',
-        plan_status: 'free',
-        plan_started_at: nowIso,
-        consent_terms: true,
-        consent_marketing: true,
-        consent_at: nowIso
-      }).select().single()
-
-      if (agentError) throw agentError
-      const agentData = agentDataRaw as any
-      setAgentId(agentData.id) // make the agent id available to the Connect-WhatsApp step
-
-      // Insert into team_members (User)
-      const { error: teamError } = await supabase.from('team_members').insert({
-        agent_id: agentData.id,
-        auth_user_id: userData.user.id,
-        role: 'owner',
-        name: finalName,
-        email: finalEmail,
-        phone: finalPhone
+      // Create the workspace SERVER-SIDE (service role) so we don't rely on
+      // permissive client-insert RLS (which allowed workspace takeover). The
+      // route verifies the logged-in user and creates the agents + owner
+      // team_members rows atomically, keyed to this user. Free-forever plan +
+      // limits are forced server-side. See app/api/onboarding/workspace.
+      const res = await fetch('/api/onboarding/workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: finalEmail,
+          name: finalName,
+          phone: finalPhone,
+          agency_name: agencyName,
+          city,
+          state: stateLoc,
+          areas,
+          property_types: propertyTypes,
+          bot_tone: botTone,
+          languages: botLanguage,
+          office_open: officeOpen,
+          office_close: officeClose,
+          weekly_off: weeklyOff,
+        }),
       })
-
-      if (teamError) throw teamError
+      const out = await res.json()
+      if (!res.ok) throw new Error(out.error || 'Could not create your workspace')
+      setAgentId(out.agent.id) // make the agent id available to the Connect-WhatsApp step
 
       setCurrentStep(3)
     } catch (err: any) {
