@@ -21,9 +21,61 @@ const STEPS: Step[] = [
   },
   {
     title: 'Try the bot — right now 🤖',
-    text: 'We added "Priya (Sample Lead)" + sample properties so you can see the bot work before connecting WhatsApp. Open Priya\'s chat, click "Simulate lead", and just tap the suggested replies — we\'ll hand-hold you through every step, and you\'ll watch the AI qualify her, match a property, and book a visit (it even emails you the confirmation).',
+    text: 'We added "Priya (Sample Lead)" + sample properties so you can see the bot work before connecting WhatsApp. In the inbox, click "Priya (Sample Lead)", then click "Simulate lead" at the top. Click Next when you\'re ready.',
     navigate: 'inbox',
     target: '[data-tour="nav-inbox"]'
+  },
+  {
+    title: 'Step 1 — The greeting',
+    text: 'Tap the suggested "Hi" in the chat. The bot greets the lead warmly and asks their preferred language — its very first qualification move.',
+    navigate: 'inbox',
+    target: '[data-tour="sim-panel"]',
+    doneEvent: 'sim-sent',
+    actionHint: '👉 Tap a suggested reply in the chat to continue.'
+  },
+  {
+    title: 'Step 2 — Understanding the need',
+    text: 'Tap the next suggested reply. From plain English the bot extracts buy-vs-rent, the area, and the BHK — no forms, just natural conversation.',
+    navigate: 'inbox',
+    target: '[data-tour="sim-panel"]',
+    doneEvent: 'sim-sent',
+    actionHint: '👉 Tap the suggested reply.'
+  },
+  {
+    title: 'Step 3 — Qualifying the lead',
+    text: 'Keep answering what it asks (name, budget). The bot builds a full profile so it only ever shows the RIGHT properties — never wasting the lead\'s time or yours.',
+    navigate: 'inbox',
+    target: '[data-tour="sim-panel"]',
+    doneEvent: 'sim-sent',
+    actionHint: '👉 Tap a suggested reply.'
+  },
+  {
+    title: 'Step 4 — The perfect match',
+    text: 'Now the bot presents a property from YOUR list that fits — with real, verified details (it never invents facts). Tap the reply to show interest.',
+    navigate: 'inbox',
+    target: '[data-tour="sim-panel"]',
+    doneEvent: 'sim-sent',
+    actionHint: '👉 Tap the suggested reply.'
+  },
+  {
+    title: 'Step 5 — Booking the visit',
+    text: 'Give a day/time and your email — the bot books the site visit and emails the confirmation to BOTH you and the lead. Tap through to finish, then click Next.',
+    navigate: 'inbox',
+    target: '[data-tour="sim-panel"]',
+    doneEvent: 'sim-sent',
+    actionHint: '👉 Tap the suggested replies to finish booking.'
+  },
+  {
+    title: 'The visit is booked 🎉',
+    text: 'The bot just qualified the lead and booked a site visit — completely on its own. Here it is on your Appointments page.',
+    navigate: 'appointments',
+    target: '[data-tour="appt-list"]'
+  },
+  {
+    title: 'Manage every appointment',
+    text: 'Every booked visit lands here. You can reschedule or CANCEL it right here (cancelling needs your PIN). After a visit, log the feedback so the bot follows up to close the deal.',
+    navigate: 'appointments',
+    target: '[data-tour="appt-list"]'
   },
   {
     title: 'Your AI Sales Bot',
@@ -31,32 +83,20 @@ const STEPS: Step[] = [
     target: '[data-tour="agent-card"]'
   },
   {
-    title: 'Step 1 — Add your first Lead',
-    text: 'Click "+ Add Lead", enter a name and WhatsApp number, and save. (Leads also arrive automatically when someone messages you.) Try it now — this step unlocks once your lead is added.',
+    title: 'Now add your own Lead',
+    text: 'Click "+ Add Lead", enter a name and WhatsApp number, and save. (Leads also arrive automatically when someone messages you.) Try it now — this unlocks once your lead is added.',
     navigate: 'leads',
     target: '[data-tour="add-lead"]',
     doneEvent: 'lead-added',
     actionHint: '👉 Add a lead using the highlighted button to continue.'
   },
   {
-    title: 'Step 2 — Add your first Property',
+    title: 'Add your own Property',
     text: 'Click "+ Add detailed property" and fill in price, location, BHK and features. Your AI uses these to recommend matches to leads. Add one to continue.',
     navigate: 'properties',
     target: '[data-tour="add-property"]',
     doneEvent: 'property-added',
     actionHint: '👉 Add a property using the highlighted button to continue.'
-  },
-  {
-    title: 'Step 3 — The Inbox',
-    text: 'Every conversation lives here. The bot replies on its own, but you can "Take over" to chat manually, "Simulate lead" to test it, or "Book visit" to schedule a site visit.',
-    navigate: 'inbox',
-    target: '[data-tour="nav-inbox"]'
-  },
-  {
-    title: 'Step 4 — Appointments',
-    text: 'Booked site visits show here. After a visit, log the feedback — the AI uses your notes to follow up and push the lead toward a purchase. This is how Convorian closes deals.',
-    navigate: 'appointments',
-    target: '[data-tour="nav-appointments"]'
   },
   {
     title: 'Track your ROI',

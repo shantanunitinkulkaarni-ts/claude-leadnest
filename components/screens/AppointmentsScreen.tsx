@@ -247,7 +247,7 @@ export default function AppointmentsScreen({ agentId }: { agentId: string }) {
   }
 
   return (
-    <div style={{ padding: '24px 28px', maxWidth: 800 }}>
+    <div data-tour="appt-list" style={{ padding: '24px 28px', maxWidth: 800 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B' }}>Appointments</div>
