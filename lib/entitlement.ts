@@ -1,7 +1,8 @@
 // ── Subscription entitlement gate ────────────────────────────────────────────
 // Decides whether an agent's bot is allowed to respond right now. Reads the
-// existing plan fields (set by signup + the Razorpay webhook). Free trial =
-// 1 month / 500 messages; after that an active paid subscription is required.
+// existing plan fields (set by signup + the Razorpay webhook). Free-forever tier
+// = no time expiry, 100-message AI allowance (lib/planLimits); once that's used
+// up an active paid subscription is required to keep replying.
 //
 // Design: a NULL plan_expires_at means "no gate" (grandfathered / internal/test
 // agents) so we never break existing accounts — the gate only bites once an

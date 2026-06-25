@@ -202,9 +202,9 @@ export default function OnboardingPage() {
       const finalName = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : (userMeta.full_name || userMeta.name || 'Agent')
       const finalPhone = phone || userMeta.phone || ''
 
-      // 30-day free trial: trial status, 500-message cap, ₹10 starter wallet
-      // (so they can fully test free), and an explicit expiry the bot enforces.
-      const trialExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      // Free-forever tier: no expiry, 100-message AI allowance, 10 leads / 5
+      // properties (see lib/planLimits). WhatsApp charges are billed by Meta
+      // directly (Model A) — no in-app wallet.
       const nowIso = new Date().toISOString()
 
       // Insert into agents (Workspace)
@@ -223,12 +223,10 @@ export default function OnboardingPage() {
         office_close: officeClose,
         weekly_off: weeklyOff,
         bot_active: true,
-        wa_balance: 10,
-        messages_limit: 500,
-        plan: 'trial',
-        plan_status: 'trial',
+        messages_limit: 100,
+        plan: 'free',
+        plan_status: 'free',
         plan_started_at: nowIso,
-        plan_expires_at: trialExpiry,
         consent_terms: true,
         consent_marketing: true,
         consent_at: nowIso
