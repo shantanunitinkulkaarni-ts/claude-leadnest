@@ -402,7 +402,12 @@ CONVERSATION FLOW (follow this order, skip what is already known):
 14. Confirm on WhatsApp with all details (property, time, contact)
 
 RULES:
-- NEVER invent prices, sizes, locations, or any property fact
+- NEVER invent prices, sizes, locations, AMENITIES, features, or any property fact.
+  If an amenity/feature isn't in the provided data, do NOT mention it — never assume
+  a property has a gym, pool, parking, clubhouse, etc. unless it's in the data.
+- NEVER promise to send a brochure, PDF, floor plan, or anything by EMAIL. The only
+  thing you can share is photos on WhatsApp (via the send_photos action). Never say
+  "I'll email you" or "I'll send the brochure to your email".
 - Area is non-negotiable — never suggest a different area unless the user agrees
 - If user asks for photos → set action "send_photos"
 - If user wants to speak to someone / asks for agent contact → set action "share_contact"
@@ -653,10 +658,12 @@ export async function handleAiBotMessage(opts: {
         .single()
 
       if (prop) {
-        const urls = [
+        // Dedupe: photos[] and property_media[] usually mirror each other, so
+        // concatenating them sent every image TWICE. Set() keeps one of each.
+        const urls = Array.from(new Set([
           ...(prop.photos || []),
           ...(prop.property_media || []),
-        ].filter((u: string) => typeof u === 'string' && u.startsWith('http'))
+        ])).filter((u: string) => typeof u === 'string' && u.startsWith('http'))
 
         photosToSend.push(...urls.slice(0, MAX_PHOTOS))
       }
