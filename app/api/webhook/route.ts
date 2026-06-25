@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const MANUAL_MODE_AUTO_RESUME_MS = 30 * 60 * 1000
+    const MANUAL_MODE_AUTO_RESUME_MS = 5 * 60 * 1000
     // Read the raw body ONCE — Meta signature verification needs exact bytes.
     const rawBody = await request.text()
 

@@ -220,7 +220,7 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
         <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid rgba(26,25,22,0.08)' }}>Bot controls</div>
         {[
           { k: 'Bot active', v: 'Running on WhatsApp 24/7', on: botActive, action: handleToggleBot },
-          { k: 'Manual mode auto-resume', v: 'If a lead stays quiet for 30 minutes, the bot takes over again automatically.', on: true, action: () => {} },
+          { k: 'Manual mode auto-resume', v: 'If a lead stays quiet for 5 minutes, the bot takes over again automatically.', on: true, action: () => {} },
           { k: 'Low balance alerts', v: 'Notify at \u20b950 remaining', on: lowBalanceAlert, action: toggleLowBalance }
         ].map((row, i, arr) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < arr.length - 1 ? '1px solid rgba(26,25,22,0.06)' : 'none' }}>
