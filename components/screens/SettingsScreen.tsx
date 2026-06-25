@@ -294,7 +294,10 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
                 : 'Disabling keep-alive may let WhatsApp windows expire. Enter your master PIN to confirm.'}
             </div>
             {pinError && <div style={{ background: '#FDF0F0', color: '#8B1A1A', padding: '8px 12px', borderRadius: 8, fontSize: 12, marginBottom: 12 }}>\u26a0\ufe0f {pinError}</div>}
-            <input type="password" value={pinInput} onChange={e => setPinInput(e.target.value)} placeholder="Enter PIN" onKeyDown={e => e.key === 'Enter' && handlePinSubmit()} autoFocus style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', marginBottom: 16, outline: 'none', boxSizing: 'border-box' }} />
+            <input type="password" value={pinInput} onChange={e => setPinInput(e.target.value)} placeholder="Enter PIN" onKeyDown={e => e.key === 'Enter' && handlePinSubmit()} autoFocus style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', marginBottom: 12, outline: 'none', boxSizing: 'border-box' }} />
+            <div style={{ fontSize: 11, color: '#9E9B92', marginBottom: 14, lineHeight: 1.5 }}>
+              Forgot your PIN? Email <a href="mailto:support@convorian.in?subject=PIN%20reset%20request" style={{ color: '#4F46E5', textDecoration: 'none' }}>support@convorian.in</a> — we verify your identity, then reset it.
+            </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => { setPinPurpose(null); setPinInput(''); setPinError('') }} disabled={pinLoading} style={{ padding: '8px 16px', borderRadius: 8, background: '#F4F3EE', color: '#6B6860', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>Cancel</button>
               <button onClick={handlePinSubmit} disabled={pinLoading || !pinInput} style={{ padding: '8px 16px', borderRadius: 8, background: pinPurpose === 'outreach' ? '#4F46E5' : '#C0392B', color: '#fff', border: 'none', cursor: pinLoading ? 'wait' : 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', opacity: pinLoading ? 0.7 : 1 }}>

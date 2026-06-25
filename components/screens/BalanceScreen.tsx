@@ -269,7 +269,7 @@ export default function BalanceScreen({ agentId }: Props) {
             </div>
           )
         }) : (
-          <div style={{ fontSize: 12, color: '#9E9B92', textAlign: 'center', padding: '20px 0' }}>No transactions yet. Top-ups and message charges will appear here.</div>
+          <div style={{ fontSize: 12, color: '#9E9B92', textAlign: 'center', padding: '20px 0' }}>No transactions yet. Your subscription payments will appear here.</div>
         )}
       </div>
 
