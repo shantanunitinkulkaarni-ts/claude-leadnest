@@ -486,8 +486,10 @@ export async function handleAiBotMessage(opts: {
   message: string
   agentId: string
   channel: WaChannel   // how to reply — MSG91 or Meta Cloud API direct
+  simulate?: boolean   // onboarding simulation: run the real bot but DON'T send
+                       // real WhatsApp messages (replies are still saved to the inbox)
 }): Promise<void> {
-  const { phone, message, agentId, channel } = opts
+  const { phone, message, agentId, channel, simulate } = opts
 
   // 1. Load agent
   const { data: agent } = await supabaseAdmin
@@ -876,16 +878,20 @@ export async function handleAiBotMessage(opts: {
     searchReply = null
   }
 
-  // 9. Send reply (capture the Meta message id for delivery tracking)
-  const finalOut = await waSendText(channel, phone, finalReply)
+  // 9. Send reply (capture the Meta message id for delivery tracking).
+  // In simulate mode we skip the real WhatsApp send entirely — the reply is still
+  // saved below so it shows in the inbox, but nothing goes out over Meta.
+  const finalOut = simulate ? { id: null } : await waSendText(channel, phone, finalReply)
   let searchOut: { id: string | null } | null = null
   if (searchReply) {
-    searchOut = await waSendText(channel, phone, searchReply)
+    searchOut = simulate ? { id: null } : await waSendText(channel, phone, searchReply)
   }
 
-  // 10. Send photos (one by one)
-  for (const url of photosToSend) {
-    await waSendMedia(channel, phone, url)
+  // 10. Send photos (one by one) — skipped in simulation.
+  if (!simulate) {
+    for (const url of photosToSend) {
+      await waSendMedia(channel, phone, url)
+    }
   }
 
   // 11. Save updated history (now that finalReply reflects the real outcome)
@@ -905,7 +911,7 @@ export async function handleAiBotMessage(opts: {
       content: finalReply,
       sent_by: 'bot',
       wa_message_id: finalOut?.id || null,
-      status: finalOut?.id ? 'sent' : 'failed',
+      status: (simulate || finalOut?.id) ? 'sent' : 'failed',
     },
   ]
   if (searchReply) {
@@ -916,7 +922,7 @@ export async function handleAiBotMessage(opts: {
       content: searchReply,
       sent_by: 'bot',
       wa_message_id: searchOut?.id || null,
-      status: searchOut?.id ? 'sent' : 'failed',
+      status: (simulate || searchOut?.id) ? 'sent' : 'failed',
     })
   }
   await supabaseAdmin.from('messages').insert(messageRows)

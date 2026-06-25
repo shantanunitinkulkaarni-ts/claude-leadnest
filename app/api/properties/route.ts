@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   // Free-plan cap: total properties limited (nudge upgrade). Legacy/paid uncapped.
   const { data: planRow } = await supabaseAdmin.from('agents').select('plan').eq('id', body.agent_id).single()
   if (isFreePlan(planRow)) {
-    const { count } = await supabaseAdmin.from('properties').select('id', { count: 'exact', head: true }).eq('agent_id', body.agent_id)
+    const { count } = await supabaseAdmin.from('properties').select('id', { count: 'exact', head: true }).eq('agent_id', body.agent_id).eq('is_sample', false)
     if ((count || 0) >= FREE_PROPERTY_CAP) {
       return NextResponse.json({ error: `The free plan is limited to ${FREE_PROPERTY_CAP} properties. Upgrade to add more.`, code: 'free_limit' }, { status: 403 })
     }

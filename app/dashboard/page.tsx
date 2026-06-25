@@ -81,6 +81,12 @@ export default function DashboardPage() {
       setAgentId(teamMember.agent_id)
       await refreshAgent(teamMember.agent_id)
       setIsLoading(false)
+
+      // Seed the onboarding sample lead + properties (idempotent — only once).
+      fetch('/api/sample-data', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: teamMember.agent_id }),
+      }).catch(() => {})
     }
     init()
   }, [router, refreshAgent])
