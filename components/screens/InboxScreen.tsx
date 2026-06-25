@@ -19,6 +19,7 @@ export default function InboxScreen({ agentId }: Props) {
   
   const [isManual, setIsManual] = useState(false)
   const [isSimulating, setIsSimulating] = useState(false)
+  const [simStep, setSimStep] = useState(0)
 
   const [activeTab, setActiveTab] = useState<'chat' | 'profile' | 'matched' | 'activity'>('chat')
   const [filter, setFilter] = useState('all')
@@ -305,20 +306,21 @@ export default function InboxScreen({ agentId }: Props) {
     }
   }
 
-  const handleSimulateLeadMessage = async () => {
-    if (!msgInput.trim() || !selected) return
-    
+  const handleSimulateLeadMessage = async (overrideText?: string) => {
+    const inputContent = (overrideText ?? msgInput).trim()
+    if (!inputContent || !selected) return
+
     // Optimistic UI update
     const optimisticMsg = {
       id: Date.now(),
       direction: 'inbound',
-      content: msgInput,
+      content: inputContent,
       created_at: new Date().toISOString(),
       sent_by: 'lead'
     }
     setMessages(prev => [...prev, optimisticMsg])
-    const inputContent = msgInput
     setMsgInput('')
+    setSimStep(s => s + 1) // advance the guided walkthrough
 
     try {
       // Runs the REAL bot in simulate mode (no WhatsApp send). Only works on the
@@ -470,7 +472,7 @@ export default function InboxScreen({ agentId }: Props) {
                       <ConnectWhatsAppButton agentId={agentId} onConnected={fetchAgent} />
                     </div>
                   )}
-                  <button className="inbox-btn" onClick={() => { setIsSimulating(!isSimulating); }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: '1px solid', borderColor: isSimulating ? '#1A5FA5' : 'rgba(26,95,165,0.2)', background: isSimulating ? '#EEF4FC' : '#F4F8FD', color: isSimulating ? '#1A5FA5' : '#4A88C6', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>{isSimulating ? 'Stop simulating' : 'Simulate lead'}</button>
+                  <button className="inbox-btn" onClick={() => { setSimStep(0); setIsSimulating(!isSimulating); }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: '1px solid', borderColor: isSimulating ? '#1A5FA5' : 'rgba(26,95,165,0.2)', background: isSimulating ? '#EEF4FC' : '#F4F8FD', color: isSimulating ? '#1A5FA5' : '#4A88C6', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>{isSimulating ? 'Stop simulating' : 'Simulate lead'}</button>
                   <button className="inbox-btn" onClick={() => handleToggleManualMode(false)} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: '1px solid', borderColor: isManual ? '#4F46E5' : 'rgba(192,57,43,0.2)', background: isManual ? '#EEF0FE' : '#FDF0F0', color: isManual ? '#4338CA' : '#C0392B', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>{isManual ? 'Resume bot' : 'Take over'}</button>
                   <button className="inbox-btn-dark" onClick={openBookModal} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: 'none', background: '#15161B', color: '#fff', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>Book visit</button>
                 </div>
@@ -519,6 +521,37 @@ export default function InboxScreen({ agentId }: Props) {
                       ))}
                       <div ref={messagesEndRef} />
                     </div>
+                    {isSimulating && selected?.is_sample && (() => {
+                      const email = agent?.email || 'you@email.com'
+                      const SCRIPT: { caption: string; suggestions: string[] }[] = [
+                        { caption: 'Start like a real buyer would — say hello.', suggestions: ['Hi'] },
+                        { caption: 'Tell the bot what you want — plain English works.', suggestions: ['I want to buy a 2 BHK in Wakad'] },
+                        { caption: 'It qualifies the lead. Answer what it asks (name, budget…).', suggestions: ['My name is Rahul', 'Budget around ₹90 lakh'] },
+                        { caption: 'Keep answering until it shows a matching property.', suggestions: ['Yes, show me the options'] },
+                        { caption: 'Now act interested — ask to visit the property.', suggestions: ["I'd like to visit this one"] },
+                        { caption: 'Give it a day and time for the site visit.', suggestions: ['Saturday at 11 AM'] },
+                        { caption: 'It needs an email to send the confirmation — give yours.', suggestions: [email] },
+                        { caption: '🎉 Done! The bot qualified the lead, booked a visit, and emailed the confirmation — exactly what it does 24/7 on real WhatsApp leads once you connect. Add your own leads & properties anytime.', suggestions: [] },
+                      ]
+                      const stepIdx = Math.min(simStep, SCRIPT.length - 1)
+                      const cur = SCRIPT[stepIdx]
+                      const isDone = stepIdx >= SCRIPT.length - 1
+                      return (
+                        <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(26,95,165,0.18)', background: '#F4F8FD' }}>
+                          <div style={{ fontSize: 11.5, marginBottom: cur.suggestions.length ? 8 : 0, display: 'flex', gap: 6, lineHeight: 1.5 }}>
+                            <strong style={{ color: '#1A5FA5', whiteSpace: 'nowrap' }}>{isDone ? '✅' : `Step ${stepIdx + 1}/7`}</strong>
+                            <span style={{ color: '#3D5A80' }}>{cur.caption}</span>
+                          </div>
+                          {cur.suggestions.length > 0 && (
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              {cur.suggestions.map((s, i) => (
+                                <button key={i} onClick={() => handleSimulateLeadMessage(s)} style={{ fontSize: 12, padding: '6px 12px', borderRadius: 16, border: '1px solid rgba(26,95,165,0.3)', background: '#fff', color: '#1A5FA5', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>💬 {s}</button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
                     <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(26,25,22,0.08)', background: '#fff', display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
                       <input 
                         value={msgInput} 
