@@ -18,6 +18,8 @@ export default function BalanceScreen({ agentId }: Props) {
   const [subError, setSubError] = useState<string | null>(null)
   const [subMsg, setSubMsg] = useState<string | null>(null)
 
+  const [waConnected, setWaConnected] = useState(false)
+
   // Billing history (subscription receipts)
   const [invoices, setInvoices] = useState<{ id: string; date: string; amount: number; payment_id: string }[]>([])
 
@@ -30,6 +32,7 @@ export default function BalanceScreen({ agentId }: Props) {
           setPlanExpiresAt(d.data.plan_expires_at || null)
           setNextChargeAt(d.data.subscription_charge_at || null)
           setHasSubscription(!!d.data.razorpay_subscription_id)
+          setWaConnected(!!(d.data.wa_verified || d.data.wa_phone_number_id))
         }
       })
   }
@@ -237,10 +240,16 @@ export default function BalanceScreen({ agentId }: Props) {
 
       <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>WhatsApp messaging</div>
       <div data-tour="wa-topup" style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: 24, marginBottom: 14 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B', marginBottom: 10 }}>Connect your WhatsApp</div>
-        <div style={{ marginBottom: 16 }}>
-          <ConnectWhatsAppButton agentId={agentId} onConnected={loadAgent} />
-        </div>
+        {waConnected ? (
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#1B7A43', marginBottom: 16 }}>WhatsApp connected ✓</div>
+        ) : (
+          <>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B', marginBottom: 10 }}>Connect your WhatsApp</div>
+            <div style={{ marginBottom: 16 }}>
+              <ConnectWhatsAppButton agentId={agentId} onConnected={loadAgent} />
+            </div>
+          </>
+        )}
         <div style={{ fontSize: 13, color: '#3D3B34', lineHeight: 1.7 }}>
           Proactive WhatsApp messages — visit reminders, follow-ups and re-engagement templates — are billed <strong>directly by Meta</strong> to your own WhatsApp Business account. Convorian adds no markup and doesn’t hold your balance. Add a payment method and top up from your Meta account.
         </div>

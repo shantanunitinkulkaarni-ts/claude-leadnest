@@ -44,7 +44,6 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const MANUAL_MODE_AUTO_RESUME_MS = 5 * 60 * 1000
     // Read the raw body ONCE — Meta signature verification needs exact bytes.
     const rawBody = await request.text()
 
@@ -184,15 +183,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'msg_insert_failed' })
     }
 
-    if (lead.bot_paused) {
-      const inactiveForMs = lead.last_message_at ? Date.now() - new Date(lead.last_message_at).getTime() : Number.POSITIVE_INFINITY
-      if (inactiveForMs >= MANUAL_MODE_AUTO_RESUME_MS) {
-        await supabaseAdmin.from('leads').update({ bot_paused: false }).eq('id', lead.id)
-        lead.bot_paused = false
-      } else {
-        return NextResponse.json({ status: 'manual_mode' })
-      }
-    }
+    // Manual mode = agent is handling this conversation: the bot stays SILENT and
+    // never replies. Resuming happens only in the background (cron auto-resumes a
+    // lead after 5 min of silence), so the bot only speaks again once resumed.
+    if (lead.bot_paused) return NextResponse.json({ status: 'manual_mode' })
 
     // ── Guardrails: NSFW / spam / prompt injection ──────────────────────
     // Simple pattern-based check (no AI)
