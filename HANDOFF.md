@@ -494,6 +494,20 @@
 
 ## 2. PENDING ⏳
 
+**🟣 CODEX WORKFLOW (Session 18 — parallel, non-blocking):**
+```
+Codex:  local branch → git push → PR opens
+         ↓
+GitHub: CI runs (typecheck/lint/tests) on PR
+         ↓
+Codex:  STOPS (does not deploy)
+         ↓
+You:    review PR → merge to main → deploy to prod
+```
+- **Codex branches:** `codex/admin-wiring`, `codex/inactivity-timer`, etc. (isolated, safe)
+- **CI:** Runs automatically on each PR (same checks as your PRs)
+- **You gate prod:** Only you merge & deploy (bot safety guaranteed)
+
 **🟣 CODEX ASSIGNMENTS (Session 18 — work in parallel, non-blocking to bot):**
 - **Admin panel wiring + analytics:** Codex built a solid admin page; **wire it to real `/api/admin/ops` data** (agent list, counts, stats). See `CODEX_ADMIN_BRIEF.md` for spec. Status: admin page built, needs backend connection.
 - **Minor cosmetic/UX:** onboarding copy, Settings icon tweaks, dashboard Polish (within scope of brief).
