@@ -360,7 +360,7 @@ export default function InboxScreen({ agentId }: Props) {
   let resumeCountdown: { text: string; state: 'countdown' | 'resuming' } | null = null
   if (selected?.bot_paused) {
     const baseTime = new Date(selected.last_message_at || selected.updated_at || selected.created_at).getTime()
-    const diffMs = (baseTime + 30 * 60 * 1000) - now
+    const diffMs = (baseTime + 5 * 60 * 1000) - now
     if (diffMs <= 0) {
       resumeCountdown = { text: 'Resuming automatically...', state: 'resuming' }
     } else {
