@@ -39,6 +39,8 @@ export default function LeadsScreen({ agentId }: Props) {
   // New Modals State
   const [showAddModal, setShowAddModal] = useState(false)
   const [showBulkModal, setShowBulkModal] = useState(false)
+  const [showOutreachModal, setShowOutreachModal] = useState(false)
+  const [pendingEntryMode, setPendingEntryMode] = useState<null | 'single' | 'bulk'>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
 
@@ -83,6 +85,43 @@ export default function LeadsScreen({ agentId }: Props) {
       setPinInput('')
     } else {
       alert('Incorrect PIN')
+    }
+  }
+
+  const hasSeenOutreachWarning = () => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem(`convorian_outreach_warning_seen_${agentId}`) === 'true'
+  }
+
+  const markOutreachWarningSeen = () => {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(`convorian_outreach_warning_seen_${agentId}`, 'true')
+  }
+
+  const openLeadEntry = (mode: 'single' | 'bulk') => {
+    if (hasSeenOutreachWarning()) {
+      if (mode === 'single') {
+        setShowAddModal(true)
+        setAddError(null)
+      } else {
+        setShowBulkModal(true)
+      }
+      return
+    }
+    setPendingEntryMode(mode)
+    setShowOutreachModal(true)
+  }
+
+  const handleOutreachConsent = () => {
+    markOutreachWarningSeen()
+    const mode = pendingEntryMode
+    setShowOutreachModal(false)
+    setPendingEntryMode(null)
+    if (mode === 'single') {
+      setShowAddModal(true)
+      setAddError(null)
+    } else if (mode === 'bulk') {
+      setShowBulkModal(true)
     }
   }
 
@@ -282,14 +321,14 @@ export default function LeadsScreen({ agentId }: Props) {
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button 
-            onClick={() => setShowBulkModal(true)}
+            onClick={() => openLeadEntry('bulk')}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#fff', color: '#15161B', border: '1px solid rgba(26,25,22,0.18)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}
           >
             Bulk Upload CSV
           </button>
           <button
             data-tour="add-lead"
-            onClick={() => { setShowAddModal(true); setAddError(null) }}
+            onClick={() => openLeadEntry('single')}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}
           >
             + Add Lead
@@ -318,7 +357,7 @@ export default function LeadsScreen({ agentId }: Props) {
           <div style={{ fontSize: 13, marginBottom: 24 }}>
             Add your first lead manually, or leads will appear automatically when someone messages you on WhatsApp.
           </div>
-          <button onClick={() => { setShowAddModal(true); setAddError(null) }} style={{ padding: '10px 20px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>
+          <button onClick={() => openLeadEntry('single')} style={{ padding: '10px 20px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>
             + Add your first lead
           </button>
         </div>
@@ -376,6 +415,39 @@ export default function LeadsScreen({ agentId }: Props) {
           )
         })}
       </div>
+      )}
+
+      {showOutreachModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.58)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 110, backdropFilter: 'blur(4px)' }}>
+          <div style={{ background: '#fff', borderRadius: 18, width: 520, maxWidth: 'calc(100vw - 32px)', boxShadow: '0 24px 60px rgba(0,0,0,0.22)', overflow: 'hidden' }}>
+            <div style={{ padding: '22px 24px 16px', borderBottom: '1px solid rgba(26,25,22,0.08)' }}>
+              <div style={{ fontSize: 17, fontWeight: 700, color: '#15161B' }}>Before outreach starts</div>
+              <div style={{ fontSize: 12, color: '#6B6860', marginTop: 6, lineHeight: 1.55 }}>
+                Convorian will message these leads on your behalf. That uses your WhatsApp setup and may use your messaging credits when outreach triggers.
+              </div>
+            </div>
+            <div style={{ padding: 24 }}>
+              <div style={{ display: 'grid', gap: 10, marginBottom: 18 }}>
+                <div style={{ padding: '12px 14px', borderRadius: 10, background: '#F7F5EE', border: '1px solid rgba(26,25,22,0.08)', fontSize: 12, color: '#3D3B34', lineHeight: 1.55 }}>
+                  Only add leads who have clearly agreed to be contacted on WhatsApp.
+                </div>
+                <div style={{ padding: '12px 14px', borderRadius: 10, background: '#EEF4FC', border: '1px solid rgba(26,95,165,0.12)', fontSize: 12, color: '#0F3D6E', lineHeight: 1.55 }}>
+                  If a lead never replies, outreach can still spend credits based on your follow-up settings.
+                </div>
+                <div style={{ padding: '12px 14px', borderRadius: 10, background: '#FFF8E6', border: '1px solid #F0D98C', fontSize: 12, color: '#7A5200', lineHeight: 1.55 }}>
+                  Messaging people without consent can get your WhatsApp number blocked by Meta.
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: '#6B6860', lineHeight: 1.55 }}>
+                This notice is shown once per workspace. You will still confirm consent again while adding the lead itself.
+              </div>
+            </div>
+            <div style={{ padding: '16px 24px', background: '#FAFAFB', borderTop: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button type="button" onClick={() => { setShowOutreachModal(false); setPendingEntryMode(null) }} style={{ padding: '8px 16px', borderRadius: 8, background: '#fff', color: '#6B6860', border: '1px solid rgba(26,25,22,0.18)', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>Cancel</button>
+              <button type="button" onClick={handleOutreachConsent} style={{ padding: '8px 16px', borderRadius: 8, background: '#15161B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}>I understand, continue</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* PIN Modal */}

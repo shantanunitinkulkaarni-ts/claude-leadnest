@@ -219,6 +219,7 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
         <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid rgba(26,25,22,0.08)' }}>Bot controls</div>
         {[
           { k: 'Bot active', v: 'Running on WhatsApp 24/7', on: botActive, action: handleToggleBot },
+          { k: 'Manual mode auto-resume', v: 'If a lead stays quiet for 30 minutes, the bot takes over again automatically.', on: true, action: () => {} },
           { k: '24h window keep-alive', v: 'Auto re-engage before the 24h WhatsApp window closes (PIN to disable)', on: keepAlive, action: toggleKeepAlive },
           { k: 'Low balance alerts', v: 'Notify at \u20b950 remaining', on: lowBalanceAlert, action: toggleLowBalance }
         ].map((row, i, arr) => (
@@ -227,7 +228,7 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
               <div style={{ fontSize: 13, color: '#3D3B34' }}>{row.k}</div>
               <div style={{ fontSize: 11, color: '#9E9B92', marginTop: 1 }}>{row.v}</div>
             </div>
-            <div onClick={row.action} style={{ width: 36, height: 20, borderRadius: 20, background: row.on ? '#4F46E5' : '#ECEAE0', position: 'relative', cursor: 'pointer', flexShrink: 0, transition: 'background 0.2s', border: `1px solid ${row.on ? '#4F46E5' : 'rgba(26,25,22,0.18)'}` }}>
+            <div onClick={row.k === 'Manual mode auto-resume' ? undefined : row.action} style={{ width: 36, height: 20, borderRadius: 20, background: row.on ? '#4F46E5' : '#ECEAE0', position: 'relative', cursor: row.k === 'Manual mode auto-resume' ? 'default' : 'pointer', flexShrink: 0, transition: 'background 0.2s', border: `1px solid ${row.on ? '#4F46E5' : 'rgba(26,25,22,0.18)'}`, opacity: row.k === 'Manual mode auto-resume' ? 0.9 : 1 }}>
               <div style={{ position: 'absolute', width: 14, height: 14, borderRadius: '50%', background: '#fff', top: 2, left: row.on ? 18 : 2, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }} />
             </div>
           </div>
