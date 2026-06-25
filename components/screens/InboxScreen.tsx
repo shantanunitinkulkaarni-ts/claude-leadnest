@@ -321,6 +321,10 @@ export default function InboxScreen({ agentId }: Props) {
     setMessages(prev => [...prev, optimisticMsg])
     setMsgInput('')
     setSimStep(s => s + 1) // advance the guided walkthrough
+    // Advance the spotlight tutorial when it's gating on a simulation send.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('leadnest:tour-action', { detail: 'sim-sent' }))
+    }
 
     try {
       // Runs the REAL bot in simulate mode (no WhatsApp send). Only works on the
@@ -509,7 +513,7 @@ export default function InboxScreen({ agentId }: Props) {
               {/* Tab content */}
               <div style={{ flex: 1, overflowY: 'auto' }}>
                 {activeTab === 'chat' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                  <div data-tour="sim-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                     <div style={{ flex: 1, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
                       {messages.length === 0 && <div style={{ textAlign: 'center', color: '#9E9B92', fontSize: 13, marginTop: 20 }}>No messages yet.</div>}
                       {messages.map(msg => (
