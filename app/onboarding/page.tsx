@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect } from 'react'
-import ConnectWhatsAppButton from '@/components/ConnectWhatsAppButton'
 import { getSupabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import './onboarding.css'
@@ -34,15 +33,8 @@ export default function OnboardingPage() {
   const [officeClose, setOfficeClose] = useState('19:00')
   const [weeklyOff, setWeeklyOff] = useState('')
 
-  // Step 4: WhatsApp
-  const [waStatus, setWaStatus] = useState('Pending')
-  const [agentId, setAgentId] = useState('') // the new agent's id, for Embedded Signup
-
-  const [authMethod, setAuthMethod] = useState<'google' | 'email' | 'phone'>('email')
+  const [authMethod, setAuthMethod] = useState<'google' | 'email'>('email')
   const [signupPassword, setSignupPassword] = useState('')
-  const [otpToken, setOtpToken] = useState('')
-  const [otpSent, setOtpSent] = useState(false)
-  const [phoneSignup, setPhoneSignup] = useState('')
 
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -77,50 +69,13 @@ export default function OnboardingPage() {
     }
   }
 
-  const handleSendOtpSignup = async () => {
-    setError('')
-    if (!phoneSignup || !firstName) { setError('Name and phone number are required'); return; }
-    setIsSubmitting(true)
-    try {
-      const supabase = getSupabase()
-      const { error } = await supabase.auth.signInWithOtp({ 
-        phone: phoneSignup,
-        options: { data: { full_name: `${firstName} ${lastName}`.trim() } }
-      })
-      if (error) throw error
-      setOtpSent(true)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleVerifyOtpSignup = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    if (!otpToken) return
-    setIsSubmitting(true)
-    try {
-      const supabase = getSupabase()
-      const { error } = await supabase.auth.verifyOtp({ phone: phoneSignup, token: otpToken, type: 'sms' })
-      if (error) throw error
-      setPhone(phoneSignup)
-      setCurrentStep(1)
-    } catch (err: any) {
-      setError(err.message)
-      setIsSubmitting(false)
-    }
-  }
-
   const headers = [
     ['Create your account', "Let's get you set up in under 5 minutes"],
     ['Your business details', 'Tell us about your agency'],
     ['Bot preferences', 'How should your assistant behave?'],
-    ['Connect WhatsApp', 'Link your business number to go live'],
-    ["You're live!", 'Convorian is now active on your WhatsApp']
+    ["You're all set!", 'Your account is ready']
   ]
-  const progVals = [20, 40, 60, 80, 100]
+  const progVals = [25, 50, 75, 100]
 
   const toggleArrayItem = (arr: string[], setArr: any, item: string) => {
     if (arr.includes(item)) setArr(arr.filter((i) => i !== item))
@@ -228,7 +183,6 @@ export default function OnboardingPage() {
       })
       const out = await res.json()
       if (!res.ok) throw new Error(out.error || 'Could not create your workspace')
-      setAgentId(out.agent.id) // make the agent id available to the Connect-WhatsApp step
 
       setCurrentStep(3)
     } catch (err: any) {
@@ -236,25 +190,6 @@ export default function OnboardingPage() {
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  const handleConnectWA = async () => {
-    // The number isn't auto-connected — our team activates it on the WhatsApp
-    // provider within 24h. Submit the request + alert the team, then proceed.
-    setWaStatus('Submitting...')
-    try {
-      await fetch('/api/notify-signup', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agency_name: agencyName,
-          name: `${firstName} ${lastName}`.trim(),
-          phone: phone,
-          email: email,
-        }),
-      })
-    } catch { /* never block onboarding on a failed alert */ }
-    setWaStatus('Requested')
-    setTimeout(() => setCurrentStep(4), 600)
   }
 
   return (
@@ -334,15 +269,14 @@ export default function OnboardingPage() {
               ) : (
                 <>
                   <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                    <div className="form-card-icon" style={{ background: '#EEF2FF', margin: '0 auto 16px' }}>🚀</div>
+                    <div className="form-card-icon" style={{ background: '#EEF2FF', margin: '0 auto 16px', fontSize: 24, fontWeight: 700 }}>C</div>
                     <div className="form-card-title" style={{ fontSize: 24 }}>Welcome to Convorian</div>
                     <div className="form-card-desc">Create your account to set up your WhatsApp AI assistant.</div>
                   </div>
               
               <div style={{ display: 'flex', gap: 10, marginBottom: 24, borderBottom: '1px solid rgba(26,25,22,0.1)' }}>
-                <button onClick={() => { setAuthMethod('google'); setError(''); setOtpSent(false); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderBottom: authMethod === 'google' ? '2px solid var(--ink)' : '2px solid transparent', color: authMethod === 'google' ? 'var(--ink)' : 'var(--ink-4)', fontWeight: authMethod === 'google' ? 500 : 400, cursor: 'pointer', transition: 'all 0.2s' }}>Google</button>
-                <button onClick={() => { setAuthMethod('email'); setError(''); setOtpSent(false); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderBottom: authMethod === 'email' ? '2px solid var(--ink)' : '2px solid transparent', color: authMethod === 'email' ? 'var(--ink)' : 'var(--ink-4)', fontWeight: authMethod === 'email' ? 500 : 400, cursor: 'pointer', transition: 'all 0.2s' }}>Email</button>
-                <button onClick={() => { setAuthMethod('phone'); setError(''); setOtpSent(false); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderBottom: authMethod === 'phone' ? '2px solid var(--ink)' : '2px solid transparent', color: authMethod === 'phone' ? 'var(--ink)' : 'var(--ink-4)', fontWeight: authMethod === 'phone' ? 500 : 400, cursor: 'pointer', transition: 'all 0.2s' }}>Phone OTP</button>
+                <button onClick={() => { setAuthMethod('google'); setError(''); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderBottom: authMethod === 'google' ? '2px solid var(--ink)' : '2px solid transparent', color: authMethod === 'google' ? 'var(--ink)' : 'var(--ink-4)', fontWeight: authMethod === 'google' ? 500 : 400, cursor: 'pointer', transition: 'all 0.2s' }}>Google</button>
+                <button onClick={() => { setAuthMethod('email'); setError(''); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderBottom: authMethod === 'email' ? '2px solid var(--ink)' : '2px solid transparent', color: authMethod === 'email' ? 'var(--ink)' : 'var(--ink-4)', fontWeight: authMethod === 'email' ? 500 : 400, cursor: 'pointer', transition: 'all 0.2s' }}>Email</button>
               </div>
 
               {authMethod === 'google' && (
@@ -383,48 +317,9 @@ export default function OnboardingPage() {
                 </form>
               )}
 
-              {authMethod === 'phone' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {!otpSent ? (
-                    <>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>First Name</label>
-                          <input required type="text" value={firstName} onChange={e => setFirstName(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} placeholder="John" />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>Last Name</label>
-                          <input required type="text" value={lastName} onChange={e => setLastName(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} placeholder="Doe" />
-                        </div>
-                      </div>
-                      <div>
-                        <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>Phone Number (with country code)</label>
-                        <input required type="tel" value={phoneSignup} onChange={e => setPhoneSignup(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} placeholder="+91 9000000000" />
-                      </div>
-                      <button onClick={handleSendOtpSignup} className="btn-next" style={{ width: '100%', marginTop: 8 }} disabled={isSubmitting || !phoneSignup}>
-                        {isSubmitting ? 'Sending...' : 'Send OTP'}
-                      </button>
-                    </>
-                  ) : (
-                    <form onSubmit={handleVerifyOtpSignup} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>Enter 6-digit OTP sent to {phoneSignup}</label>
-                        <input required type="text" value={otpToken} onChange={e => setOtpToken(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none', letterSpacing: '2px' }} placeholder="123456" />
-                      </div>
-                      <button type="submit" className="btn-next" style={{ width: '100%', marginTop: 8 }} disabled={isSubmitting || !otpToken}>
-                        {isSubmitting ? 'Verifying...' : 'Verify & Continue'}
-                      </button>
-                      <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink-4)', marginTop: 8 }}>
-                        <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => { setOtpSent(false); setOtpToken(''); }}>Change phone number</span>
-                      </div>
-                    </form>
-                  )}
-                </div>
-              )}
-
-                  <div style={{ marginTop: 24, fontSize: 13, color: 'var(--ink-4)', textAlign: 'center' }}>
-                    Already have an account? <span style={{ color: 'var(--green)', cursor: 'pointer', fontWeight: 500 }} onClick={() => router.push('/login')}>Sign in</span>
-                  </div>
+              <div style={{ marginTop: 24, fontSize: 13, color: 'var(--ink-4)', textAlign: 'center' }}>
+                Already have an account? <span style={{ color: 'var(--green)', cursor: 'pointer', fontWeight: 500 }} onClick={() => router.push('/login')}>Sign in</span>
+              </div>
                 </>
               )}
             </div>
@@ -561,46 +456,12 @@ export default function OnboardingPage() {
           )}
 
           {currentStep === 3 && (
-            <div className="whatsapp-connect">
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 20, paddingBottom: 20, borderBottom: '1px solid var(--border)' }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#E7F8EE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                </div>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink)', marginBottom: 3 }}>Connect your WhatsApp</div>
-                  <div style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.5 }}>Tap Connect, log in with Facebook, and choose the WhatsApp number for your assistant. It goes live in about a minute — no waiting.</div>
-                </div>
-              </div>
-              <div className="wa-number-display">
-                <div className="wa-number-text">
-                  <div className="wa-number-label">Your WhatsApp number</div>
-                  <div className="wa-number-val">{phone || '+91 -'}</div>
-                </div>
-                <span className={`wa-status ${(waStatus === 'Requested' || waStatus === 'Submitting...') ? 'connected' : ''}`}>{waStatus === 'Requested' ? 'Submitted ✓' : waStatus === 'Submitting...' ? 'Submitting…' : 'Pending'}</span>
-              </div>
-              <div style={{ fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.6, marginTop: 14, background: '#F4F8FD', border: '1px solid rgba(26,95,165,0.12)', borderRadius: 8, padding: '10px 12px' }}>
-                ℹ️ Tip: if you want to keep using WhatsApp normally on your current number, give us a separate number for the assistant — a number on the AI can&apos;t also be used in the WhatsApp app.
-              </div>
-              <div style={{ marginTop: 20 }}>
-                <ConnectWhatsAppButton
-                  agentId={agentId}
-                  onConnected={() => handleConnectWA()}
-                />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-                <button className="btn-back" onClick={() => setCurrentStep(2)}>← Back</button>
-                <button className="btn-back" onClick={() => setCurrentStep(4)} style={{ border: '1px solid rgba(26,25,22,0.1)' }}>Skip for now</button>
-              </div>
-            </div>
-          )}
-
-          {currentStep === 4 && (
             <div className="complete-card">
               <div className="complete-icon">
                 <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
               </div>
               <div className="complete-title">You're all set, {firstName}!</div>
-              <div className="complete-sub">Your account is ready. If you connected WhatsApp, your assistant is already live on your number. If you skipped, you can connect it anytime from Settings. Meanwhile, add your properties so the bot is ready to convert from day one.</div>
+              <div className="complete-sub">Your account is ready. Next, add your properties so the bot is ready. Then you can connect your WhatsApp from Settings — our team will assist with the setup.</div>
               <button className="btn-launch" onClick={() => router.push('/dashboard')}>
                 Open my dashboard
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>

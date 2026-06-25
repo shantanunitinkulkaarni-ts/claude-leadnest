@@ -10,14 +10,10 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [msg, setMsg] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [authMethod, setAuthMethod] = useState<'google' | 'email' | 'phone'>('email')
+  const [authMethod, setAuthMethod] = useState<'google' | 'email'>('email')
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-
-  const [phone, setPhone] = useState('')
-  const [otp, setOtp] = useState('')
-  const [otpSent, setOtpSent] = useState(false)
 
   // Opt-in 2FA: only shown to agents who enrolled a TOTP factor in Settings.
   const [mfaPrompt, setMfaPrompt] = useState(false)
@@ -106,44 +102,6 @@ export default function LoginPage() {
     }
   }
 
-  const handleSendOtp = async () => {
-    setError('')
-    setMsg('')
-    if (!phone) { setError('Phone number is required'); return; }
-    setIsLoading(true)
-    try {
-      const supabase = getSupabase()
-      const { error } = await supabase.auth.signInWithOtp({ phone })
-      if (error) throw error
-      setOtpSent(true)
-      setMsg('OTP sent! Please check your phone.')
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    if (!otp) return
-    setIsLoading(true)
-    try {
-      const supabase = getSupabase()
-      const { error, data } = await supabase.auth.verifyOtp({ phone, token: otp, type: 'sms' })
-      if (error) throw error
-      if (data.session) {
-        await finishLogin(supabase, data.session.user.id)
-      } else {
-        setError('Failed to create session from OTP.')
-        setIsLoading(false)
-      }
-    } catch (err: any) {
-      setError(err.message)
-      setIsLoading(false)
-    }
-  }
 
   return (
     <div className="onboarding-app" style={{ justifyContent: 'center', alignItems: 'center' }}>
@@ -183,7 +141,6 @@ export default function LoginPage() {
           <div style={{ display: 'flex', gap: 10, marginBottom: 24, borderBottom: '1px solid rgba(26,25,22,0.1)' }}>
             <button onClick={() => { setAuthMethod('google'); setError(''); setMsg(''); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderBottom: authMethod === 'google' ? '2px solid var(--ink)' : '2px solid transparent', color: authMethod === 'google' ? 'var(--ink)' : 'var(--ink-4)', fontWeight: authMethod === 'google' ? 500 : 400, cursor: 'pointer', transition: 'all 0.2s' }}>Google</button>
             <button onClick={() => { setAuthMethod('email'); setError(''); setMsg(''); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderBottom: authMethod === 'email' ? '2px solid var(--ink)' : '2px solid transparent', color: authMethod === 'email' ? 'var(--ink)' : 'var(--ink-4)', fontWeight: authMethod === 'email' ? 500 : 400, cursor: 'pointer', transition: 'all 0.2s' }}>Email</button>
-            <button onClick={() => { setAuthMethod('phone'); setError(''); setMsg(''); }} style={{ flex: 1, padding: '10px', background: 'transparent', border: 'none', borderBottom: authMethod === 'phone' ? '2px solid var(--ink)' : '2px solid transparent', color: authMethod === 'phone' ? 'var(--ink)' : 'var(--ink-4)', fontWeight: authMethod === 'phone' ? 500 : 400, cursor: 'pointer', transition: 'all 0.2s' }}>Phone OTP</button>
           </div>
 
           {authMethod === 'google' && (
@@ -215,35 +172,6 @@ export default function LoginPage() {
                 {isLoading ? 'Signing in...' : 'Sign in with Email'}
               </button>
             </form>
-          )}
-
-          {authMethod === 'phone' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {!otpSent ? (
-                <>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>Phone Number (with country code)</label>
-                    <input required type="tel" value={phone} onChange={e => setPhone(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none' }} placeholder="+91 9000000000" />
-                  </div>
-                  <button onClick={handleSendOtp} className="btn-next" style={{ width: '100%', marginTop: 8 }} disabled={isLoading || !phone}>
-                    {isLoading ? 'Sending...' : 'Send OTP'}
-                  </button>
-                </>
-              ) : (
-                <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 13, marginBottom: 6, color: 'var(--ink-2)' }}>Enter 6-digit OTP</label>
-                    <input required type="text" value={otp} onChange={e => setOtp(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', outline: 'none', letterSpacing: '2px' }} placeholder="123456" />
-                  </div>
-                  <button type="submit" className="btn-next" style={{ width: '100%', marginTop: 8 }} disabled={isLoading || !otp}>
-                    {isLoading ? 'Verifying...' : 'Verify & Sign in'}
-                  </button>
-                  <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--ink-4)', marginTop: 8 }}>
-                    <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => { setOtpSent(false); setOtp(''); }}>Change phone number</span>
-                  </div>
-                </form>
-              )}
-            </div>
           )}
 
           </>)}
