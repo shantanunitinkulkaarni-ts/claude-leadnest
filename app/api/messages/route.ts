@@ -35,6 +35,19 @@ export async function POST(request: NextRequest) {
   if ('error' in leadAccess) return leadAccess.error
   if (leadAccess.agentId !== body.agent_id) return NextResponse.json({ error: 'Lead does not belong to agent' }, { status: 400 })
 
+  // SECURITY: the recipient is the VERIFIED lead's own number, never a
+  // client-supplied phone. Otherwise an agent could send from their business
+  // number to an arbitrary phone while logging it under someone else's lead
+  // (consent / billing / audit problem, and a Meta-ban risk).
+  const { data: lead } = await supabaseAdmin
+    .from('leads')
+    .select('phone, opted_in')
+    .eq('id', body.lead_id)
+    .single()
+  if (!lead?.phone) return NextResponse.json({ error: 'This lead has no phone number on file' }, { status: 400 })
+  if (lead.opted_in === false) return NextResponse.json({ error: 'This lead opted out — messaging is not allowed' }, { status: 400 })
+  const toPhone = lead.phone
+
   const { data: agent } = await supabaseAdmin
     .from('agents')
     .select('wa_phone_number_id, wa_access_token, msg91_integrated_number')
@@ -50,14 +63,14 @@ export async function POST(request: NextRequest) {
   let sendError: string | null = null
   if (agent.msg91_integrated_number) {
     const { sendViaMsg91, sendWithRetry } = await import('@/lib/whatsapp')
-    const r = await sendWithRetry(() => sendViaMsg91(agent.msg91_integrated_number, body.phone, body.content))
+    const r = await sendWithRetry(() => sendViaMsg91(agent.msg91_integrated_number, toPhone, body.content))
     waId = r.id; sendError = r.error
   } else {
     const { sendWhatsAppMessage } = await import('@/lib/whatsapp')
     waId = await sendWhatsAppMessage(
       agent.wa_phone_number_id,
       agent.wa_access_token,
-      body.phone,
+      toPhone,
       body.content
     )
     if (!waId) sendError = 'meta_send_returned_null'

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { sendEmail } from '@/lib/email'
+import { sendEmail, escapeHtml } from '@/lib/email'
 import { checkRateLimit } from '@/lib/rateLimit'
 
 const SUPPORT_INBOX = 'support@convorian.in'
@@ -49,13 +49,13 @@ export async function POST(request: NextRequest) {
         to: SUPPORT_INBOX,
         replyTo: email || undefined,
         subject: `[Ticket] ${subject}`,
-        html: `<p><strong>From:</strong> ${name || 'Unknown'} ${email ? `&lt;${email}&gt;` : ''}</p><p><strong>Agent ID:</strong> ${agent_id || '—'}</p><p><strong>Ticket:</strong> ${ticket?.id}</p><hr/><p>${message.replace(/\n/g, '<br/>')}</p>`,
+        html: `<p><strong>From:</strong> ${escapeHtml(name || 'Unknown')} ${email ? `&lt;${escapeHtml(email)}&gt;` : ''}</p><p><strong>Agent ID:</strong> ${escapeHtml(agent_id || '—')}</p><p><strong>Ticket:</strong> ${escapeHtml(ticket?.id || '')}</p><hr/><p>${escapeHtml(message).replace(/\n/g, '<br/>')}</p>`,
       })
       if (email) {
         await sendEmail({
           to: email,
           subject: 'We received your request — Convorian Support',
-          html: `<p>Hi ${name || 'there'},</p><p>Thanks for reaching out. We've logged your request and our team will get back to you soon.</p><p><strong>Your message:</strong><br/>${message.replace(/\n/g, '<br/>')}</p><p>— Team Convorian</p>`,
+          html: `<p>Hi ${escapeHtml(name || 'there')},</p><p>Thanks for reaching out. We've logged your request and our team will get back to you soon.</p><p><strong>Your message:</strong><br/>${escapeHtml(message).replace(/\n/g, '<br/>')}</p><p>— Team Convorian</p>`,
         })
       }
     } catch (mailErr: any) {

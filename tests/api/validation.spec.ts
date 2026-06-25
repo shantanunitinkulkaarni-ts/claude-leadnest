@@ -9,21 +9,9 @@ import { test, expect } from '@playwright/test'
  * are validated manually / in staging since they need live Razorpay + Supabase.
  */
 
-test.describe('Payment verification guards (/api/payments/verify)', () => {
-  test('rejects request with missing payment fields', async ({ request }) => {
-    const res = await request.post('/api/payments/verify', {
-      data: { agent_id: 'x' }, // missing razorpay_* fields
-    })
-    expect(res.status()).toBe(400)
-    const body = await res.json()
-    expect(body.error).toContain('Missing payment fields')
-  })
-
-  test('rejects completely empty body', async ({ request }) => {
-    const res = await request.post('/api/payments/verify', { data: {} })
-    expect(res.status()).toBe(400)
-  })
-})
+// NOTE: the wallet top-up endpoints (/api/payments/create-order, /api/payments/verify)
+// were removed with the WhatsApp wallet (Meta-direct, Model A) — Meta bills agents
+// directly, so there is nothing for us to charge/verify here anymore.
 
 test.describe('Subscription guards (/api/subscription/*)', () => {
   test('create rejects missing agent_id', async ({ request }) => {

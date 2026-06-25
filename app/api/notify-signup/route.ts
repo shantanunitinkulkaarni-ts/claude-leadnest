@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
-import { sendEmail } from '@/lib/email'
+import { sendEmail, escapeHtml } from '@/lib/email'
 import { checkRateLimit } from '@/lib/rateLimit'
 
 // Alerts the Convorian team that a new agent signed up and needs their WhatsApp
@@ -22,10 +22,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'rate_limited' }, { status: 429 })
     }
     const b = await request.json()
-    const agency = String(b.agency_name || '—').slice(0, 120)
-    const name = String(b.name || '—').slice(0, 120)
-    const phone = String(b.phone || '—').slice(0, 30)
-    const email = String(b.email || '—').slice(0, 160)
+    const agency = escapeHtml(String(b.agency_name || '—').slice(0, 120))
+    const name = escapeHtml(String(b.name || '—').slice(0, 120))
+    const phone = escapeHtml(String(b.phone || '—').slice(0, 30))
+    const email = escapeHtml(String(b.email || '—').slice(0, 160))
 
     await sendEmail({
       to: ALERT_TO,
