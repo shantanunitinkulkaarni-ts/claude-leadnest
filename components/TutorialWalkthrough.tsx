@@ -17,7 +17,13 @@ interface Step {
 const STEPS: Step[] = [
   {
     title: 'Welcome to Convorian 👋',
-    text: "Let's take a quick hands-on tour. You'll actually add your first lead and property as we go — by the end you'll know how to run the whole app."
+    text: "Let's take a quick hands-on tour. First you'll watch the AI handle a sample lead live, then add your own — by the end you'll know how to run the whole app."
+  },
+  {
+    title: 'Try the bot — right now 🤖',
+    text: 'We added "Priya (Sample Lead)" and a couple of sample properties so you can see the bot work before connecting WhatsApp. Open Priya\'s chat, click "Simulate lead", and type what a buyer might say — e.g. "Hi, I want to buy a 2 BHK in Wakad". Watch the AI qualify her, suggest a match, and book a visit — exactly what it does on real WhatsApp leads.',
+    navigate: 'inbox',
+    target: '[data-tour="nav-inbox"]'
   },
   {
     title: 'Your AI Sales Bot',

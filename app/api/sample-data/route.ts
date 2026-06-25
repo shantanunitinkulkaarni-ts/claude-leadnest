@@ -1,0 +1,57 @@
+export const dynamic = "force-dynamic"
+
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase'
+import { requireAgentAccess } from '@/lib/apiAuth'
+
+// Seeds a Sample Lead + two Sample Properties for the onboarding simulation, so a
+// brand-new agent can experience the bot before connecting WhatsApp. Idempotent
+// (only seeds once). Sample rows are flagged is_sample=true and EXCLUDED from the
+// free-plan caps (see lib/planLimits usage in the leads/properties routes).
+
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => ({}))
+  const agentId = body.agent_id
+  if (!agentId) return NextResponse.json({ error: 'agent_id required' }, { status: 400 })
+
+  const access = await requireAgentAccess(agentId)
+  if ('error' in access) return access.error
+
+  // Idempotent — if a sample lead already exists, return it.
+  const { data: existing } = await supabaseAdmin
+    .from('leads').select('*').eq('agent_id', agentId).eq('is_sample', true).limit(1)
+  if (existing && existing.length) {
+    return NextResponse.json({ ok: true, seeded: false, lead: existing[0] })
+  }
+
+  const { data: agent } = await supabaseAdmin
+    .from('agents').select('email, city').eq('id', agentId).single()
+  const city = agent?.city || 'Pune'
+
+  // Two realistic sample properties. Wakad/Baner so the guided demo message
+  // ("a 2 BHK in Wakad") matches a real result.
+  await supabaseAdmin.from('properties').insert([
+    {
+      agent_id: agentId, is_sample: true, title: '2 BHK Apartment in Wakad (Sample)',
+      location: 'Wakad', city, type: 'sale', category: 'residential', bhk: 2,
+      price: 8500000, size_sqft: 950, status: 'active',
+      description: 'Sample property — bright 2 BHK near the Wakad bridge, ready to move in.',
+    },
+    {
+      agent_id: agentId, is_sample: true, title: '3 BHK Apartment in Baner (Sample)',
+      location: 'Baner', city, type: 'sale', category: 'residential', bhk: 3,
+      price: 14500000, size_sqft: 1450, status: 'active',
+      description: 'Sample property — spacious 3 BHK in Baner with a balcony view.',
+    },
+  ])
+
+  // Sample lead. Email = the agent's own, so the demo's confirmation + alert
+  // emails both land in the agent's inbox (they see that feature work too).
+  const { data: lead } = await supabaseAdmin.from('leads').insert({
+    agent_id: agentId, is_sample: true, name: 'Priya (Sample Lead)',
+    phone: '+910000000001', email: agent?.email || null, source: 'sample',
+    status: 'new', temperature: 'warm', opted_in: true,
+  }).select().single()
+
+  return NextResponse.json({ ok: true, seeded: true, lead })
+}

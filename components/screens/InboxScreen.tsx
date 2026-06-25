@@ -321,24 +321,17 @@ export default function InboxScreen({ agentId }: Props) {
     setMsgInput('')
 
     try {
-      const agentRes = await fetch(`/api/agent?id=${agentId}`)
-      const agentData = await agentRes.json()
-      const toPhone = agentData.data?.phone || '+919999999999'
-
-      const params = new URLSearchParams()
-      params.append('Body', inputContent)
-      params.append('From', `whatsapp:${selected.phone}`)
-      params.append('To', `whatsapp:${toPhone}`) // Hits our real agent
-      params.append('AgentId', agentId)
-
-      const res = await fetch('/api/webhook', {
+      // Runs the REAL bot in simulate mode (no WhatsApp send). Only works on the
+      // sample lead — see /api/simulate.
+      const res = await fetch('/api/simulate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString()
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: selected.id, message: inputContent }),
       })
       if (res.ok) {
         setTimeout(fetchMessages, 1500)
         setTimeout(fetchMessages, 3000)
+        setTimeout(fetchMessages, 5000)
       }
     } catch (e) {
       console.error('Failed to simulate lead message:', e)
