@@ -71,7 +71,7 @@ function Hero() {
 
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 32 }}>
           <a href="/onboarding" style={{ padding: '14px 32px', borderRadius: 12, background: G.grad, color: '#fff', fontSize: 14, fontWeight: 600, textDecoration: 'none', cursor: 'pointer', border: 'none', boxShadow: G.glow }}>
-            Start Free Trial
+            Start Free
           </a>
           <a href="#how" style={{ padding: '14px 32px', borderRadius: 12, background: '#fff', border: `1px solid ${G.border}`, color: G.dark, fontSize: 14, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}>
             See How It Works
@@ -307,7 +307,7 @@ function Pricing() {
               <div style={{ fontSize: 36, fontWeight: 700, color: G.dark, marginBottom: 2 }}>{plan.price}</div>
               <div style={{ fontSize: 12, color: G.muted, marginBottom: 24 }}>{plan.period}</div>
               <button onClick={() => router.push('/onboarding')} style={{ width: '100%', padding: '12px 24px', borderRadius: 12, background: plan.highlight ? G.green : '#fff', color: plan.highlight ? '#fff' : G.dark, border: plan.highlight ? 'none' : `1px solid ${G.border}`, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 24 }}>
-                Start Free Trial
+                Start Free
               </button>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {plan.features.map((f, j) => (
@@ -346,7 +346,7 @@ function CTA() {
 
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => router.push('/onboarding')} style={{ padding: '14px 32px', borderRadius: 12, background: G.grad, color: '#fff', fontSize: 14, fontWeight: 600, border: 'none', cursor: 'pointer', boxShadow: G.glow }}>
-            Start Free Trial (No Card)
+            Start Free — No Card
           </button>
           {process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP && (
             <a href={`https://wa.me/${process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP.replace(/\D/g, '')}?text=Hi%20Convorian!%20I%20want%20to%20schedule%20a%20demo`} target="_blank" style={{ padding: '14px 32px', borderRadius: 12, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', fontSize: 14, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}>
@@ -356,7 +356,7 @@ function CTA() {
         </div>
 
         <div style={{ marginTop: 32, display: 'flex', justifyContent: 'center', gap: 28, flexWrap: 'wrap', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-          <div>✓ Free for 30 days</div>
+          <div>✓ Free plan — start in minutes</div>
           <div>✓ No credit card required</div>
           <div>✓ Cancel anytime</div>
         </div>
