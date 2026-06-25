@@ -509,13 +509,14 @@ You:    review PR → merge to main → deploy to prod
 - **You gate prod:** Only you merge & deploy (bot safety guaranteed)
 
 **🟣 CODEX ASSIGNMENTS (Session 18 — work in parallel, non-blocking to bot):**
-- **Admin panel wiring + analytics:** Codex built a solid admin page; **wire it to real `/api/admin/ops` data** (agent list, counts, stats). See `CODEX_ADMIN_BRIEF.md` for spec. Status: admin page built, needs backend connection.
-- **Minor cosmetic/UX:** onboarding copy, Settings icon tweaks, dashboard Polish (within scope of brief).
-- **30-min inactivity timer on manual mode:** In Settings, when an agent manually pauses the bot, add a **timer that auto-resumes after 30 min of no user messages**. Codex can handle this (frontend countdown + bot re-enable via API).
-- **WhatsApp Connect button:** In Settings/Dashboard, add a **"Connect WhatsApp" button** that routes to `components/ConnectWhatsAppButton.tsx` (already built; currently not wired). Codex can place it + wire the redirect.
-- **Lead-outreach consent popup:** When a user adds leads, show a one-time popup: *"Your bot will send outreach messages. This uses your WhatsApp balance/credits. Confirm to proceed."* On confirm, start the nurture flow. Codex can build this modal.
-- **AI Model Selection:** Codex has GPT 5.5 + 5.4 + 5.4 mini available; **use 5.4 mini for cosmetics** (cost), **5.4+ for logic** (inactivity timer, consent UI). **No model selection is strictly for non-core logic; ask before choosing.**
-- **Review + merge flow:** Codex works on a local branch (`codex/*`); Claude (you) reviews the PR when back online, then merges. **Do NOT deploy from Codex — staging/review only.**
+- **Admin panel wiring + analytics:** DONE in Codex PR #139. `/admin` now uses real `/api/admin/ops` server data, with read-only founder-focused ops metrics, agent health, attention queues, upcoming visits, and drilldown drawer. Old browser-side `agents.select('*')` flow removed from admin page. Main admin surface stays read-only; Admin Tools remain separate.
+- **Lead-outreach consent popup:** DONE in PR #139. One-time warning modal added before add-lead / bulk-upload outreach actions in `components/screens/LeadsScreen.tsx`.
+- **30-min inactivity timer on manual mode:** IMPLEMENTED in PR #139. `app/api/webhook/route.ts` now auto-resumes bot handling after 30 minutes of lead silence when a new inbound arrives. Inbox UI now shows countdown and then `Resuming automatically...` instead of implying manual action.
+- **WhatsApp Connect button wiring:** DONE on dashboard surfaces. `components/ConnectWhatsAppButton.tsx` is now surfaced in Settings, Billing/Credits, Inbox header, and a large Overview card with status chips. If the UI says `WhatsApp connector is not configured yet.`, that is ENV/config only, not a UI bug.
+- **Connector config still needed by Claude/local env:** set `NEXT_PUBLIC_META_APP_ID` and `NEXT_PUBLIC_META_CONFIG_ID` for the browser-side Meta embedded signup flow, and verify server-side Meta onboarding env for `app/api/meta/onboard/route.ts`. Restart dev server after env changes.
+- **Minor cosmetic/UX:** partial polish done: removed old 24h inbox badge, improved tutorial card fit on smaller windows, fixed Book Visit overflow/wrapping, surfaced WhatsApp connection status in more standard places. More dashboard polish optional.
+- **Scope note:** Codex stayed out of core bot logic except the requested manual-mode auto-resume path in webhook handling. No deploy done.
+- **Review + merge flow:** Codex branch/PR is ready; Claude reviews PR #139, merges if good, and deploys manually. **Do NOT deploy from Codex — staging/review only.**
 
 **🔴 CRITICAL — AI Bot Site Visit Booking Flow (next session, short work):**
 1. **Ask for visit date/time** — currently bot confirms visit without asking when. Needs: "When would you like to visit? (e.g., tomorrow at 11 AM)"

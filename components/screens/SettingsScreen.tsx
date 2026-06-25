@@ -1,6 +1,7 @@
 ﻿'use client'
 import { useState, useEffect } from 'react'
 import TwoFactorSettings from '@/components/TwoFactorSettings'
+import ConnectWhatsAppButton from '@/components/ConnectWhatsAppButton'
 
 interface Props {
   agentId: string
@@ -220,7 +221,6 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
         {[
           { k: 'Bot active', v: 'Running on WhatsApp 24/7', on: botActive, action: handleToggleBot },
           { k: 'Manual mode auto-resume', v: 'If a lead stays quiet for 30 minutes, the bot takes over again automatically.', on: true, action: () => {} },
-          { k: '24h window keep-alive', v: 'Auto re-engage before the 24h WhatsApp window closes (PIN to disable)', on: keepAlive, action: toggleKeepAlive },
           { k: 'Low balance alerts', v: 'Notify at \u20b950 remaining', on: lowBalanceAlert, action: toggleLowBalance }
         ].map((row, i, arr) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < arr.length - 1 ? '1px solid rgba(26,25,22,0.06)' : 'none' }}>
@@ -238,7 +238,7 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
       {/* Outreach intensity */}
       <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '20px 22px', marginBottom: 14 }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B', marginBottom: 4 }}>Lead follow-up intensity</div>
-        <div style={{ fontSize: 11.5, color: '#9E9B92', marginBottom: 14, lineHeight: 1.5 }}>How persistently the bot re-engages quiet leads after the 24-hour window closes. Uses your messaging credits.</div>
+        <div style={{ fontSize: 11.5, color: '#9E9B92', marginBottom: 14, lineHeight: 1.5 }}>How persistently the bot follows up with quiet leads. Higher intensity can improve conversion but may use more credits.</div>
         {(() => {
           const current = d?.outreach_intensity || 'persistent'
           const opts = [
@@ -262,9 +262,23 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
             </div>
           )
         })()}
-        <div style={{ fontSize: 11, color: '#7A5200', background: '#FEF9E7', border: '1px solid #F0D98C', borderRadius: 8, padding: '8px 12px', marginTop: 12, lineHeight: 1.5 }}>
-          \ud83d\udca1 More persistent = more conversions but more credit spend. Changing this needs your PIN.
+      <div style={{ fontSize: 11, color: '#7A5200', background: '#FEF9E7', border: '1px solid #F0D98C', borderRadius: 8, padding: '8px 12px', marginTop: 12, lineHeight: 1.5 }}>
+        \ud83d\udca1 More persistent = more conversions but more credit spend. Changing this needs your PIN.
+      </div>
+    </div>
+
+      <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '20px 22px', marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B', marginBottom: 4 }}>WhatsApp connection</div>
+        <div style={{ fontSize: 11.5, color: '#9E9B92', marginBottom: 14, lineHeight: 1.5 }}>
+          Connect your Meta WhatsApp Business number here. This turns the bot live on your own number.
         </div>
+        {(d?.wa_verified || d?.phone_number_id || d?.waba_id) ? (
+          <div style={{ fontSize: 12, color: '#1B7A43', background: '#E7F6EC', border: '1px solid rgba(27,122,67,0.16)', borderRadius: 10, padding: '10px 12px', fontWeight: 500 }}>
+            Connected and ready on Meta.
+          </div>
+        ) : (
+          <ConnectWhatsAppButton agentId={agentId} onConnected={fetchAgent} />
+        )}
       </div>
 
       {/* Subscription */}

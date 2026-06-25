@@ -189,7 +189,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   // can never render off-screen. Action steps (which open the app's own modal)
   // pin the card to the bottom-centre as a stable instruction banner instead of
   // chasing the highlighted button behind the modal.
-  const cardW = hasTarget ? 320 : 420
+  const cardW = Math.min(hasTarget ? 320 : 420, Math.max(280, vw - 32))
   const clampLeft = (x: number) => Math.min(Math.max(16, x), Math.max(16, vw - cardW - 16))
   const clampTop = (y: number) => Math.min(Math.max(16, y), Math.max(16, vh - 240))
   let cardStyle: React.CSSProperties
@@ -237,7 +237,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
       {arrow}
       {/* keyed by step → gentle fade/slide per step, while overlay stays put */}
       <div key={step} style={{
-        position: 'fixed', maxWidth: cardW, width: '100%',
+        position: 'fixed', maxWidth: cardW, width: `min(${cardW}px, calc(100vw - 32px))`,
         background: '#fff', borderRadius: 16, padding: '24px 28px',
         boxShadow: '0 24px 48px rgba(0,0,0,0.25)', zIndex: zBase + 3,
         animation: 'tourCardIn 0.28s cubic-bezier(.4,0,.2,1)',
