@@ -23,6 +23,21 @@ export default function InboxScreen({ agentId }: Props) {
 
   const [activeTab, setActiveTab] = useState<'chat' | 'profile' | 'matched' | 'activity'>('chat')
   const [filter, setFilter] = useState('all')
+
+  // The tutorial fires this to auto-open the sample lead + start the simulation,
+  // so the user isn't stuck behind the spotlight overlay trying to set it up.
+  useEffect(() => {
+    const handler = () => {
+      const sample = leads.find((l: any) => l.is_sample)
+      if (sample) {
+        // Re-select + ensure simulating, but DON'T reset simStep — the tour fires
+        // this on every sim step and resetting would rewind the chip progression.
+        setSelected(sample); setActiveTab('chat'); setIsSimulating(true)
+      }
+    }
+    window.addEventListener('leadnest:start-simulation', handler)
+    return () => window.removeEventListener('leadnest:start-simulation', handler)
+  }, [leads])
   const [msgInput, setMsgInput] = useState('')
   const [loadingLeads, setLoadingLeads] = useState(true)
   const [sendLoading, setSendLoading] = useState(false)

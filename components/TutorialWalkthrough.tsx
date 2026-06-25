@@ -21,7 +21,7 @@ const STEPS: Step[] = [
   },
   {
     title: 'Try the bot — right now 🤖',
-    text: 'We added "Priya (Sample Lead)" + sample properties so you can see the bot work before connecting WhatsApp. In the inbox, click "Priya (Sample Lead)", then click "Simulate lead" at the top. Click Next when you\'re ready.',
+    text: 'We added "Priya (Sample Lead)" + sample properties so you can see the bot work before connecting WhatsApp. Click Next — we\'ll open her chat for you, and you just tap the suggested replies. Nothing goes to WhatsApp; it\'s a safe practice run.',
     navigate: 'inbox',
     target: '[data-tour="nav-inbox"]'
   },
@@ -152,6 +152,16 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
 
   // Reset completion whenever the step changes
   useEffect(() => { setCompleted(false) }, [step])
+
+  // When a simulation step is reached, auto-open the sample lead + start the
+  // simulation in the inbox (so the user isn't stuck trying to set it up behind
+  // the spotlight overlay).
+  useEffect(() => {
+    if (!visible) return
+    if (STEPS[step]?.target === '[data-tour="sim-panel"]') {
+      window.dispatchEvent(new Event('leadnest:start-simulation'))
+    }
+  }, [visible, step])
 
   // Listen for the user completing the current step's required action
   useEffect(() => {
