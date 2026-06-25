@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { pickFields, requireAgentAccess, requireLeadAccess } from '@/lib/apiAuth'
 import { isPendingAppointmentExpired } from '@/lib/appointmentConfirmation'
+import { isFreePlan, FREE_LEAD_CAP } from '@/lib/planLimits'
 
 // How recent an 'engine_fallback' activity_log row has to be to still count
 // as "the last reply was a fallback" for the inbox health badge. Past this
@@ -75,6 +76,16 @@ export async function POST(request: NextRequest) {
       if (!row.agent_id) return NextResponse.json({ error: 'agent_id required' }, { status: 400 })
       const access = await requireAgentAccess(row.agent_id)
       if ('error' in access) return access.error
+    }
+
+    // Free-plan cap: total leads limited (nudge upgrade). Legacy/paid uncapped.
+    const firstAgentId = rows[0].agent_id
+    const { data: planRow } = await supabaseAdmin.from('agents').select('plan').eq('id', firstAgentId).single()
+    if (isFreePlan(planRow)) {
+      const { count } = await supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('agent_id', firstAgentId)
+      if ((count || 0) + rows.length > FREE_LEAD_CAP) {
+        return NextResponse.json({ error: `The free plan is limited to ${FREE_LEAD_CAP} leads. Upgrade to add more.`, code: 'free_limit' }, { status: 403 })
+      }
     }
 
     const safeRows = rows.map((row: any) => pickFields(row, CREATE_FIELDS))

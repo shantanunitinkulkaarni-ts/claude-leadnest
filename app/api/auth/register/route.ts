@@ -58,12 +58,13 @@ export async function POST(request: NextRequest) {
       languages: languages || ['english', 'hindi'],
       office_open: office_open || '09:00',
       office_close: office_close || '19:00',
-      plan: 'trial',
-      plan_status: 'trial',
-      plan_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      // Free-forever tier: no time expiry (NULL plan_expires_at), capped to
+      // 100 AI messages + 10 leads + 5 properties (see lib/planLimits). WhatsApp
+      // message charges are billed by Meta directly (Model A) — no wallet.
+      plan: 'free',
+      plan_status: 'free',
       messages_used: 0,
-      messages_limit: 500,
-      wa_balance: 10
+      messages_limit: 100
     })
     .select()
     .single()

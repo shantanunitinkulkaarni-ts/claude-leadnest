@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { pickFields, requireAgentAccess, requirePropertyAccess } from '@/lib/apiAuth'
+import { isFreePlan, FREE_PROPERTY_CAP } from '@/lib/planLimits'
 
 const EXTRA = ['possession_date', 'possession_status', 'deposit', 'project_website', 'website_ai_consent', 'extra_info']
 const CREATE_FIELDS = ['agent_id', 'title', 'location', 'city', 'price', 'rent_per_month', 'type', 'category', 'bhk', 'size_sqft', 'description', 'features', 'property_media', 'status', ...EXTRA]
@@ -31,6 +32,15 @@ export async function POST(request: NextRequest) {
 
   const access = await requireAgentAccess(body.agent_id)
   if ('error' in access) return access.error
+
+  // Free-plan cap: total properties limited (nudge upgrade). Legacy/paid uncapped.
+  const { data: planRow } = await supabaseAdmin.from('agents').select('plan').eq('id', body.agent_id).single()
+  if (isFreePlan(planRow)) {
+    const { count } = await supabaseAdmin.from('properties').select('id', { count: 'exact', head: true }).eq('agent_id', body.agent_id)
+    if ((count || 0) >= FREE_PROPERTY_CAP) {
+      return NextResponse.json({ error: `The free plan is limited to ${FREE_PROPERTY_CAP} properties. Upgrade to add more.`, code: 'free_limit' }, { status: 403 })
+    }
+  }
 
   const safeBody = pickFields(body, CREATE_FIELDS)
 
