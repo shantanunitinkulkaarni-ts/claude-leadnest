@@ -24,11 +24,11 @@ export async function GET(request: NextRequest) {
   const results = { nudges: 0, templates: 0, reminders: 0, errors: 0, resumed: 0, nurture: { sent: 0, skipped: 0, errors: 0 } }
 
   try {
-    // ── 0. AUTO-RESUME MANUAL MODE (founder rule: 30 min of lead silence) ──
+    // ── 0. AUTO-RESUME MANUAL MODE (founder rule: 5 min of lead silence) ──
     // The webhook resumes a paused lead on its next inbound; this sweep also flips
     // it back in the background so the bot takes over even if the lead stays quiet.
     try {
-      const resumeCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+      const resumeCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString()
       const { data: resumedLeads } = await supabaseAdmin
         .from('leads')
         .update({ bot_paused: false })
