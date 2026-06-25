@@ -1,6 +1,6 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: 2026-06-24 — session 17 (Embedded Signup live; Nurture Engine V1 — data layer + reconciliation with existing A/B/C/D flow)*
+*Last updated: 2026-06-25 — session 18 (Security Batch A + Free-forever tier + P0 fix + Reset; Codex assigned admin + cosmetics)*
 > ⏱️ This timestamp is set by hand at each update. If it looks stale vs. recent
 > git history (`git log -1`), assume parts of this doc are out of date and verify
 > against the code before trusting them.
@@ -16,13 +16,21 @@
 
 **The AI-first WhatsApp bot is LIVE and fully working end-to-end.** Booking, reschedule, cancel, IST date/time correctness, office-hours + weekly-day-off enforcement, confirmation emails (customer + agent + superadmin), and a full troll/abuse kit are all in production and tested. The live bot is **`lib/ai-bot.ts` (`handleAiBotMessage`)**; the old keyword bot is fully removed.
 
-**⭐ STABLE CHECKPOINT: git tag `stable-2026-06-22` (pushed to GitHub).** This is the known-good baseline. **If anything breaks later, revert: `git checkout stable-2026-06-22` → redeploy.**
+**⭐ STABLE CHECKPOINT: git tag `stable-2026-06-22` (pushed to GitHub).** Session 18 (2026-06-25): PRs #134–#137 merged + deployed (Security Batch A + Free-forever tier + P0 fix). **If anything breaks after #137, revert: `git checkout stable-2026-06-22` → redeploy.** If Codex commits require rollback, the commit SHAs are: #134=`e9b1a6e`, #135=`8e2c3f1`, #136=`c0a9d8b`, #137=`f2e5a1c` (all on main).
 
 **Meta App Review + Tech Provider APPROVED (2026-06-22)** — launch unblocked. NOT launched yet, zero real users. **Meta-direct migration DONE; Embedded Signup (self-serve onboarding) BUILT.** Now building the **Nurture Engine V1** (the moat). Next: Meta message templates + finish nurture reconciliation.
 
 ---
 
 ## 1. DONE ✅
+
+- **June 25 — Security Batch A + Free-forever tier + P0 workspace takeover fix:**
+  - **PR #134 (Security Batch A) LIVE:** deleted dead `/api/payments/{create-order,verify}` (P0 replay); fixed `/api/messages` to verify `lead.phone` server-side + block opted-out (P1); added **AAL2 middleware gate + `/mfa` page** for post-Google-OAuth TOTP (P1); escaped HTML in support/signup emails (P2); delivery-status endpoint fails **closed** in prod (P2); property upload scoped to agent (P2). ✅ Merged + deployed.
+  - **PR #135 (Free-forever tier) LIVE:** replaced 30-day trial with permanent **100-msg / 10-lead / 5-property free plan** (no time expiry, no wallet). Legacy agents uncapped. `lib/planLimits.ts` gates create endpoints; signup seeds `plan='free'`. ✅ Merged + deployed.
+  - **PR #136 (Launch copy + Codex brief) LIVE:** refund policy rewritten (Model A + monthly non-refundable / quarterly refundable on malfunction); landing copy "30-day trial" → "free plan"; PIN reset → email support; `CODEX_ADMIN_BRIEF.md` (admin panel + analytics spec for Codex). ✅ Merged + deployed.
+  - **PR #137 (P0 workspace takeover fix) MERGED + DEPLOYED:** server-side workspace creation (`POST /api/onboarding/workspace`); verifies logged-in user; atomic agents+team_members insert with service role. Migration 12 (drops permissive RLS) ready but NOT YET APPLIED — needs post-test validation + Supabase DDL run. Code live; rule change pending.
+  - **Database reset done:** 9 agents → 1 (demo account preserved for Meta reviewers). Clean slate for testing free-tier onboarding + P0 validation.
+  - **⏳ Pending:** apply migration 12 once signup is verified working on prod.
 
 - **June 24 — Subscription gating + Refund policy:**
   - **Entitlement gate** (`lib/entitlement.ts` → wired into `/api/webhook`): the bot responds
@@ -486,6 +494,30 @@
 
 ## 2. PENDING ⏳
 
+**🟣 CODEX WORKFLOW (Session 18 — parallel, non-blocking):**
+```
+Codex:  local branch → git push → PR opens
+         ↓
+GitHub: CI runs (typecheck/lint/tests) on PR
+         ↓
+Codex:  STOPS (does not deploy)
+         ↓
+You:    review PR → merge to main → deploy to prod
+```
+- **Codex branches:** `codex/admin-wiring`, `codex/inactivity-timer`, etc. (isolated, safe)
+- **CI:** Runs automatically on each PR (same checks as your PRs)
+- **You gate prod:** Only you merge & deploy (bot safety guaranteed)
+
+**🟣 CODEX ASSIGNMENTS (Session 18 — work in parallel, non-blocking to bot):**
+- **Admin panel wiring + analytics:** DONE in Codex PR #139. `/admin` now uses real `/api/admin/ops` server data, with read-only founder-focused ops metrics, agent health, attention queues, upcoming visits, and drilldown drawer. Old browser-side `agents.select('*')` flow removed from admin page. Main admin surface stays read-only; Admin Tools remain separate.
+- **Lead-outreach consent popup:** DONE in PR #139. One-time warning modal added before add-lead / bulk-upload outreach actions in `components/screens/LeadsScreen.tsx`.
+- **30-min inactivity timer on manual mode:** IMPLEMENTED in PR #139. `app/api/webhook/route.ts` now auto-resumes bot handling after 30 minutes of lead silence when a new inbound arrives. Inbox UI now shows countdown and then `Resuming automatically...` instead of implying manual action.
+- **WhatsApp Connect button wiring:** DONE on dashboard surfaces. `components/ConnectWhatsAppButton.tsx` is now surfaced in Settings, Billing/Credits, Inbox header, and a large Overview card with status chips. If the UI says `WhatsApp connector is not configured yet.`, that is ENV/config only, not a UI bug.
+- **Connector config still needed by Claude/local env:** set `NEXT_PUBLIC_META_APP_ID` and `NEXT_PUBLIC_META_CONFIG_ID` for the browser-side Meta embedded signup flow, and verify server-side Meta onboarding env for `app/api/meta/onboard/route.ts`. Restart dev server after env changes.
+- **Minor cosmetic/UX:** partial polish done: removed old 24h inbox badge, improved tutorial card fit on smaller windows, fixed Book Visit overflow/wrapping, surfaced WhatsApp connection status in more standard places. More dashboard polish optional.
+- **Scope note:** Codex stayed out of core bot logic except the requested manual-mode auto-resume path in webhook handling. No deploy done.
+- **Review + merge flow:** Codex branch/PR is ready; Claude reviews PR #139, merges if good, and deploys manually. **Do NOT deploy from Codex — staging/review only.**
+
 **🔴 CRITICAL — AI Bot Site Visit Booking Flow (next session, short work):**
 1. **Ask for visit date/time** — currently bot confirms visit without asking when. Needs: "When would you like to visit? (e.g., tomorrow at 11 AM)"
 2. **Send agent alert on WhatsApp** — agent phone stored in DB; send immediate "New site visit request from [lead name]" + lead phone + property + requested time
@@ -638,3 +670,5 @@ Vision (founder): an engine that **learns from conversations and customizes per 
 - Entity: individual/sole-proprietor, no GST. Razorpay onboarded as individual.
 - Razorpay: real UPI QR only works in LIVE mode; test mode uses `success@razorpay`.
 - AWS App Runner was set up then abandoned (account stuck activating; Vercel chosen). Workflow is manual-only.
+- **Claude Design (visual overhaul):** Available at work but NOT in scope for launch. Parked for post-launch UX refinement (colors, typography, mobile optimizations). Founder can request when product is stable.
+- **Codex Resources (Session 18):** GPT 5.5 + 5.4 + 5.4 mini available; **use 5.4 mini for cosmetics** (cost), 5.4+ for logic. Work on local branches (`codex/*`); Claude (you) reviews PRs. Non-blocking to the bot.

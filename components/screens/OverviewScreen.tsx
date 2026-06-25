@@ -1,17 +1,25 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Screen } from '@/app/dashboard/page'
+import ConnectWhatsAppButton from '@/components/ConnectWhatsAppButton'
 
 interface Props { agentId: string; onNavigate: (s: Screen) => void }
 
 export default function OverviewScreen({ agentId, onNavigate }: Props) {
   const [stats, setStats] = useState<any>(null)
+  const [agent, setAgent] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`/api/analytics?agent_id=${agentId}`)
-      .then(r => r.json())
-      .then(d => { setStats(d); setLoading(false) })
+    Promise.all([
+      fetch(`/api/analytics?agent_id=${agentId}`).then(r => r.json()),
+      fetch(`/api/agent?id=${agentId}`).then(r => r.json()),
+    ])
+      .then(([analytics, agentRes]) => {
+        setStats(analytics)
+        setAgent(agentRes.data || null)
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
   }, [agentId])
 
@@ -33,6 +41,36 @@ export default function OverviewScreen({ agentId, onNavigate }: Props) {
 
   return (
     <div style={{ padding: '24px 28px' }}>
+      <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 16, padding: '20px 22px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>WhatsApp status</div>
+          <div style={{ fontSize: 18, fontWeight: 600, color: '#15161B', marginBottom: 4 }}>
+            {(agent?.wa_verified || agent?.phone_number_id || agent?.waba_id) ? 'WhatsApp connected' : 'Connect your WhatsApp'}
+          </div>
+          <div style={{ fontSize: 12, color: '#9E9B92', lineHeight: 1.5 }}>
+            {(agent?.wa_verified || agent?.phone_number_id || agent?.waba_id)
+              ? 'Your bot is linked to your Meta WhatsApp Business number.'
+              : 'Link your Meta WhatsApp Business number to make the bot live on your own line.'}
+          </div>
+        </div>
+        {(agent?.wa_verified || agent?.phone_number_id || agent?.waba_id) ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, padding: '8px 12px', borderRadius: 999, background: '#E7F6EC', color: '#1B7A43', border: '1px solid rgba(27,122,67,0.16)' }}>
+              Connected
+            </span>
+            <button onClick={() => onNavigate('settings')} style={{ padding: '10px 14px', borderRadius: 9, background: '#F4F3EE', color: '#3D3B34', border: '1px solid rgba(26,25,22,0.12)', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit' }}>
+              Manage in settings
+            </button>
+          </div>
+        ) : (
+          <div style={{ minWidth: 220 }}>
+            <ConnectWhatsAppButton agentId={agentId} onConnected={() => {
+              fetch(`/api/agent?id=${agentId}`).then(r => r.json()).then(d => setAgent(d.data || null)).catch(() => {})
+            }} />
+          </div>
+        )}
+      </div>
+
       {/* Metrics */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 20 }}>
         <MetricCard label="Total leads" value={s.totalLeads ?? 0} change={s.totalLeads > 0 ? "Up to date" : "No leads yet"} color="#4F46E5" />

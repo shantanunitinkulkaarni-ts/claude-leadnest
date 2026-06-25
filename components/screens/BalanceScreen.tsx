@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import ConnectWhatsAppButton from '@/components/ConnectWhatsAppButton'
 
 interface Props {
   agentId: string
@@ -236,6 +237,10 @@ export default function BalanceScreen({ agentId }: Props) {
 
       <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>WhatsApp messaging</div>
       <div data-tour="wa-topup" style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: 24, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B', marginBottom: 10 }}>Connect your WhatsApp</div>
+        <div style={{ marginBottom: 16 }}>
+          <ConnectWhatsAppButton agentId={agentId} onConnected={loadAgent} />
+        </div>
         <div style={{ fontSize: 13, color: '#3D3B34', lineHeight: 1.7 }}>
           Proactive WhatsApp messages — visit reminders, follow-ups and re-engagement templates — are billed <strong>directly by Meta</strong> to your own WhatsApp Business account. Convorian adds no markup and doesn’t hold your balance. Add a payment method and top up from your Meta account.
         </div>

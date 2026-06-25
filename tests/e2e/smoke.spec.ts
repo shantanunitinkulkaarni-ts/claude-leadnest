@@ -16,12 +16,12 @@ test.describe('Public pages render', () => {
     await expect(page.locator('body')).not.toContainText('Application error')
   })
 
-  test('login page shows email/google/phone tabs', async ({ page }) => {
+  test('login page shows email/google tabs', async ({ page }) => {
     await page.goto('/login')
     await expect(page.getByText('Welcome back')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Email', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Google', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Phone OTP' })).toBeVisible()
+    // Phone-OTP tab removed (no SMS provider configured).
     // Email form fields present by default.
     await expect(page.getByPlaceholder('you@agency.com')).toBeVisible()
   })

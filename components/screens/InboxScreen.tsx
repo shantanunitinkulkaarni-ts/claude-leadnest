@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { getSupabase } from '@/lib/supabase'
+import ConnectWhatsAppButton from '@/components/ConnectWhatsAppButton'
 
 interface Props { agentId: string }
 
@@ -28,6 +29,7 @@ export default function InboxScreen({ agentId }: Props) {
   const [properties, setProperties] = useState<any[]>([])
   const [activityLog, setActivityLog] = useState<any[]>([])
   const [appointments, setAppointments] = useState<any[]>([])
+  const [agent, setAgent] = useState<any>(null)
 
   // Book Visit modal
   const [showBookModal, setShowBookModal] = useState(false)
@@ -158,6 +160,13 @@ export default function InboxScreen({ agentId }: Props) {
       .catch(() => {})
   }
 
+  const fetchAgent = () => {
+    fetch('/api/agent?id=' + agentId)
+      .then(r => r.json())
+      .then(d => { if (d.data) setAgent(d.data) })
+      .catch(() => {})
+  }
+
   // One-glance highlight for a conversation — the single most important fact.
   const getHighlight = (lead: any): { text: string; bg: string; c: string } | null => {
     const appt = appointments.find(a => a.lead_id === lead.id && a.status === 'upcoming')
@@ -183,9 +192,10 @@ export default function InboxScreen({ agentId }: Props) {
   // Fetching Leads + Properties + WebSockets
   useEffect(() => {
     fetchLeads()
+    fetchAgent()
     fetchProperties()
     fetchAppointments()
-    const interval = setInterval(() => { fetchLeads(); fetchAppointments() }, 30000)
+    const interval = setInterval(() => { fetchLeads(); fetchAppointments(); fetchAgent() }, 30000)
 
     const supabase = getSupabase()
     const channel = supabase.channel('inbox-leads-changes')
@@ -347,31 +357,16 @@ export default function InboxScreen({ agentId }: Props) {
 
   const tc = selected ? (tempColors[selected.temperature] || tempColors.new) : tempColors.new
 
-  // Calculate 24h window
-  let winState = { text: '24h window active', bg: '#EEF0FE', c: '#4338CA', b: 'rgba(79,70,229,0.2)' }
-  if (selected) {
-    const lastInbound = [...messages].reverse().find(m => m.direction === 'inbound')
-    const lastTimeStr = lastInbound ? lastInbound.created_at : selected.updated_at
-    
-    if (lastTimeStr) {
-      const lastTime = new Date(lastTimeStr).getTime()
-      const expiryTime = lastTime + (24 * 60 * 60 * 1000)
-      const diffMs = expiryTime - now
-      
-      if (diffMs <= 0) {
-        winState = { text: 'Window closed', bg: '#FDF0F0', c: '#C0392B', b: 'rgba(192,57,43,0.2)' }
-      } else {
-        const hours = Math.floor(diffMs / (1000 * 60 * 60))
-        const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
-        const secs = Math.floor((diffMs % (1000 * 60)) / 1000)
-        const timeStr = hours > 0 ? `${hours}h ${mins}m ${secs}s left` : `${mins}m ${secs}s left`
-        
-        if (hours < 2) {
-          winState = { text: `⏱ ${timeStr}`, bg: '#FEF9E7', c: '#7A5200', b: 'rgba(183,119,13,0.2)' }
-        } else {
-          winState = { text: `⏱ ${timeStr}`, bg: '#EEF0FE', c: '#4338CA', b: 'rgba(79,70,229,0.2)' }
-        }
-      }
+  let resumeCountdown: { text: string; state: 'countdown' | 'resuming' } | null = null
+  if (selected?.bot_paused) {
+    const baseTime = new Date(selected.last_message_at || selected.updated_at || selected.created_at).getTime()
+    const diffMs = (baseTime + 30 * 60 * 1000) - now
+    if (diffMs <= 0) {
+      resumeCountdown = { text: 'Resuming automatically...', state: 'resuming' }
+    } else {
+      const mins = Math.floor(diffMs / (1000 * 60))
+      const secs = Math.floor((diffMs % (1000 * 60)) / 1000)
+      resumeCountdown = { text: `Bot resumes in ${mins}:${String(secs).padStart(2, '0')}`, state: 'countdown' }
     }
   }
 
@@ -459,9 +454,9 @@ export default function InboxScreen({ agentId }: Props) {
           ) : (
             <>
               {/* Header */}
-              <div style={{ background: '#fff', borderBottom: '1px solid rgba(26,25,22,0.08)', padding: '14px 22px', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+              <div style={{ background: '#fff', borderBottom: '1px solid rgba(26,25,22,0.08)', padding: '14px 22px', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0, flexWrap: 'wrap' }}>
                 <div style={{ width: 40, height: 40, borderRadius: '50%', background: tc.bg, color: tc.c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 500, flexShrink: 0 }}>{getInitials(selected.name || selected.phone)}</div>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', display: 'flex', alignItems: 'center', gap: 8 }}>
                     {selected.name || 'Unknown User'}
                     {(() => {
@@ -471,9 +466,17 @@ export default function InboxScreen({ agentId }: Props) {
                   </div>
                   <div style={{ fontSize: 12, color: '#9E9B92', marginTop: 1 }}>{selected.phone}</div>
                 </div>
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 500, background: tc.bg, color: tc.c }}>⭐ {selected.ai_score || 0}/10</span>
-                  <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 20, fontWeight: 500, background: winState.bg, color: winState.c, border: `1px solid ${winState.b}` }}>{winState.text}</span>
+                  {(agent?.wa_verified || agent?.phone_number_id || agent?.waba_id) ? (
+                    <span style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, fontWeight: 600, background: '#E7F6EC', color: '#1B7A43', border: '1px solid rgba(27,122,67,0.16)' }}>
+                      WhatsApp connected
+                    </span>
+                  ) : (
+                    <div style={{ minWidth: 170 }}>
+                      <ConnectWhatsAppButton agentId={agentId} onConnected={fetchAgent} />
+                    </div>
+                  )}
                   <button className="inbox-btn" onClick={() => { setIsSimulating(!isSimulating); }} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: '1px solid', borderColor: isSimulating ? '#1A5FA5' : 'rgba(26,95,165,0.2)', background: isSimulating ? '#EEF4FC' : '#F4F8FD', color: isSimulating ? '#1A5FA5' : '#4A88C6', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>{isSimulating ? 'Stop simulating' : 'Simulate lead'}</button>
                   <button className="inbox-btn" onClick={() => handleToggleManualMode(false)} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: '1px solid', borderColor: isManual ? '#4F46E5' : 'rgba(192,57,43,0.2)', background: isManual ? '#EEF0FE' : '#FDF0F0', color: isManual ? '#4338CA' : '#C0392B', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>{isManual ? 'Resume bot' : 'Take over'}</button>
                   <button className="inbox-btn-dark" onClick={openBookModal} style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, cursor: 'pointer', border: 'none', background: '#15161B', color: '#fff', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s' }}>Book visit</button>
@@ -484,6 +487,11 @@ export default function InboxScreen({ agentId }: Props) {
               {isManual && (
                 <div style={{ background: '#FEF9E7', borderBottom: '1px solid rgba(183,119,13,0.2)', padding: '7px 22px', fontSize: 12, color: '#7A5200', display: 'flex', alignItems: 'center', gap: 8 }}>
                   👤 You are in manual mode — bot is paused on this conversation. Messages sent here will go to their WhatsApp.
+                  {resumeCountdown && (
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 999, background: resumeCountdown.state === 'resuming' ? '#EEF0FE' : '#fff7dc', color: resumeCountdown.state === 'resuming' ? '#4338CA' : '#7A5200', border: `1px solid ${resumeCountdown.state === 'resuming' ? 'rgba(79,70,229,0.2)' : 'rgba(183,119,13,0.2)'}` }}>
+                      {resumeCountdown.text}
+                    </span>
+                  )}
                   <button className="inbox-btn" onClick={() => handleToggleManualMode(true)} style={{ marginLeft: 'auto', fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer', border: '1px solid rgba(183,119,13,0.25)', background: '#fff', color: '#7A5200', fontFamily: 'inherit', transition: 'all 0.15s' }}>Resume bot</button>
                 </div>
               )}
@@ -621,7 +629,7 @@ export default function InboxScreen({ agentId }: Props) {
       {/* Book Visit Modal */}
       {showBookModal && selected && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(4px)' }}>
-          <form onSubmit={handleBookVisit} style={{ background: '#fff', borderRadius: 16, width: 420, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+          <form onSubmit={handleBookVisit} style={{ background: '#fff', borderRadius: 16, width: 'min(420px, calc(100vw - 32px))', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B' }}>Book Site Visit</div>
               <button type="button" onClick={() => setShowBookModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, color: '#9E9B92' }}>✕</button>
@@ -638,7 +646,7 @@ export default function InboxScreen({ agentId }: Props) {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Date</label>
                   <input required type="date" value={bookDate} onChange={e => setBookDate(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
