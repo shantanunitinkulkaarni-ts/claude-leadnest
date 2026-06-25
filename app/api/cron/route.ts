@@ -21,9 +21,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const results = { nudges: 0, templates: 0, reminders: 0, errors: 0, nurture: { sent: 0, skipped: 0, errors: 0 } }
+  const results = { nudges: 0, templates: 0, reminders: 0, errors: 0, resumed: 0, nurture: { sent: 0, skipped: 0, errors: 0 } }
 
   try {
+    // ── 0. AUTO-RESUME MANUAL MODE (founder rule: 30 min of lead silence) ──
+    // The webhook resumes a paused lead on its next inbound; this sweep also flips
+    // it back in the background so the bot takes over even if the lead stays quiet.
+    try {
+      const resumeCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+      const { data: resumedLeads } = await supabaseAdmin
+        .from('leads')
+        .update({ bot_paused: false })
+        .eq('bot_paused', true)
+        .lt('last_message_at', resumeCutoff)
+        .select('id')
+      results.resumed = resumedLeads?.length || 0
+    } catch { /* never let the auto-resume sweep break the rest of the cron */ }
+
     // ── 1. IN-WINDOW FOLLOW-UP NUDGES (3h / 10h / 23h) ──
     // Re-engage leads who went quiet, while their free 24h window is still open.
     // Bands: 1st nudge after 3h, 2nd after 10h, 3rd ("window save") after 23h.

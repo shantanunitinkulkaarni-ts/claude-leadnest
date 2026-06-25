@@ -272,7 +272,7 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
         <div style={{ fontSize: 11.5, color: '#9E9B92', marginBottom: 14, lineHeight: 1.5 }}>
           Connect your Meta WhatsApp Business number here. This turns the bot live on your own number.
         </div>
-        {(d?.wa_verified || d?.phone_number_id || d?.waba_id) ? (
+        {(d?.wa_verified || d?.wa_phone_number_id) ? (
           <div style={{ fontSize: 12, color: '#1B7A43', background: '#E7F6EC', border: '1px solid rgba(27,122,67,0.16)', borderRadius: 10, padding: '10px 12px', fontWeight: 500 }}>
             Connected and ready on Meta.
           </div>
