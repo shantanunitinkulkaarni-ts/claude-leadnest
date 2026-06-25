@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getAuthContext } from '@/lib/apiAuth'
+import { requireAgentAccess } from '@/lib/apiAuth'
 import { toWhatsAppJpeg } from '@/lib/imageConvert'
 
 // FOOLPROOF PHOTO POLICY (founder decision): accept ONLY .jpeg/.jpg uploads —
@@ -16,11 +16,17 @@ const JPEG_EXT_RE = /\.jpe?g$/i
 const MAX_SIZE_BYTES = 15 * 1024 * 1024 // 15MB source cap (output is shrunk below)
 
 export async function POST(request: NextRequest) {
-  const auth = await getAuthContext()
-  if ('error' in auth) return auth.error
+  const formData = await request.formData()
+
+  // Scope the upload to a workspace the caller actually owns — otherwise any
+  // logged-in user could burn our storage/bandwidth with no agent at all, and
+  // assets couldn't be attributed/cleaned up per agency.
+  const agentId = String(formData.get('agent_id') || '')
+  if (!agentId) return NextResponse.json({ error: 'agent_id required' }, { status: 400 })
+  const access = await requireAgentAccess(agentId)
+  if ('error' in access) return access.error
 
   try {
-    const formData = await request.formData()
     const file = formData.get('file') as File
 
     if (!file) {
@@ -56,7 +62,8 @@ export async function POST(request: NextRequest) {
 
     // Always store as .jpg with image/jpeg content type (WhatsApp-deliverable).
     const baseName = (file.name || 'photo').replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9.-]/g, '')
-    const fileName = `${Date.now()}-${baseName || 'photo'}.jpg`
+    // Store under the owning agent's folder so assets are attributable + cleanable.
+    const fileName = `${agentId}/${Date.now()}-${baseName || 'photo'}.jpg`
 
     const { error } = await supabaseAdmin.storage
       .from('property_assets')

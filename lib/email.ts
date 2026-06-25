@@ -12,6 +12,18 @@
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails'
 
+// Escape user-controlled text before interpolating it into email HTML, so a
+// malicious subject/name/message can't inject markup, links or tracking pixels
+// into our team inbox (or a user-facing ack email). Use on ANY public input.
+export function escapeHtml(s: string): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 // ── Brand theme (matches app: indigo/violet) ──────────────────────────────
 const THEME = {
   primary: '#4F46E5',

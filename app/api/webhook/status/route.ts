@@ -57,7 +57,15 @@ async function handle(body: any) {
 // get 401'd. Without this, anyone could POST bogus delivery statuses for any msg.
 function statusAuthed(request: NextRequest): boolean {
   const secret = process.env.MSG91_STATUS_SECRET
-  if (!secret) return true // not configured yet — see note above
+  if (!secret) {
+    // Fail CLOSED in production: an unset secret must NOT mean "accept anything"
+    // (that lets anyone POST fake delivered/failed reports). Open only in dev.
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('[delivery-status] MSG91_STATUS_SECRET unset — rejecting callback in production')
+      return false
+    }
+    return true // local dev convenience only
+  }
   const token = request.nextUrl.searchParams.get('token')
   return token === secret
 }

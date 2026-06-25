@@ -38,13 +38,34 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isProtectedPath = request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/admin')
-  
+  const path = request.nextUrl.pathname
+  const isProtectedPath = path.startsWith('/dashboard') || path.startsWith('/admin')
+
   if (isProtectedPath && !user) {
     // Redirect unauthenticated users to login page
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
+  }
+
+  // 2FA gate (opt-in TOTP): an enrolled user whose session is still aal1 must
+  // complete the TOTP challenge before reaching protected pages. This covers
+  // Google OAuth, which finishes in the server callback and would otherwise skip
+  // the login-form challenge. Non-enrolled users have nextLevel 'aal1' → no gate,
+  // so this can never lock anyone out. Any error here fails OPEN by design
+  // (defense-in-depth, not the primary auth wall).
+  if (isProtectedPath && user) {
+    try {
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+      if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+        const url = request.nextUrl.clone()
+        url.pathname = '/mfa'
+        url.searchParams.set('next', path)
+        return NextResponse.redirect(url)
+      }
+    } catch {
+      // never block access on a middleware MFA-check failure
+    }
   }
 
   return supabaseResponse

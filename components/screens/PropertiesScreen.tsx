@@ -164,6 +164,7 @@ export default function PropertiesScreen({ agentId }: Props) {
     for (const f of files) {
       const fd = new FormData()
       fd.append('file', f)
+      fd.append('agent_id', agentId)
       try {
         const r = await fetch('/api/properties/upload', { method: 'POST', body: fd })
         const d = await r.json()
