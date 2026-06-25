@@ -21,7 +21,7 @@ const STEPS: Step[] = [
   },
   {
     title: 'Try the bot — right now 🤖',
-    text: 'We added "Priya (Sample Lead)" and a couple of sample properties so you can see the bot work before connecting WhatsApp. Open Priya\'s chat, click "Simulate lead", and type what a buyer might say — e.g. "Hi, I want to buy a 2 BHK in Wakad". Watch the AI qualify her, suggest a match, and book a visit — exactly what it does on real WhatsApp leads.',
+    text: 'We added "Priya (Sample Lead)" + sample properties so you can see the bot work before connecting WhatsApp. Open Priya\'s chat, click "Simulate lead", and just tap the suggested replies — we\'ll hand-hold you through every step, and you\'ll watch the AI qualify her, match a property, and book a visit (it even emails you the confirmation).',
     navigate: 'inbox',
     target: '[data-tour="nav-inbox"]'
   },
