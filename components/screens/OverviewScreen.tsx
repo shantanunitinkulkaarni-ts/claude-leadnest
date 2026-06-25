@@ -45,15 +45,15 @@ export default function OverviewScreen({ agentId, onNavigate }: Props) {
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>WhatsApp status</div>
           <div style={{ fontSize: 18, fontWeight: 600, color: '#15161B', marginBottom: 4 }}>
-            {(agent?.wa_verified || agent?.phone_number_id || agent?.waba_id) ? 'WhatsApp connected' : 'Connect your WhatsApp'}
+            {(agent?.wa_verified || agent?.wa_phone_number_id) ? 'WhatsApp connected' : 'Connect your WhatsApp'}
           </div>
           <div style={{ fontSize: 12, color: '#9E9B92', lineHeight: 1.5 }}>
-            {(agent?.wa_verified || agent?.phone_number_id || agent?.waba_id)
+            {(agent?.wa_verified || agent?.wa_phone_number_id)
               ? 'Your bot is linked to your Meta WhatsApp Business number.'
               : 'Link your Meta WhatsApp Business number to make the bot live on your own line.'}
           </div>
         </div>
-        {(agent?.wa_verified || agent?.phone_number_id || agent?.waba_id) ? (
+        {(agent?.wa_verified || agent?.wa_phone_number_id) ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, fontWeight: 600, padding: '8px 12px', borderRadius: 999, background: '#E7F6EC', color: '#1B7A43', border: '1px solid rgba(27,122,67,0.16)' }}>
               Connected

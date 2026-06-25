@@ -468,7 +468,7 @@ export default function InboxScreen({ agentId }: Props) {
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 500, background: tc.bg, color: tc.c }}>⭐ {selected.ai_score || 0}/10</span>
-                  {(agent?.wa_verified || agent?.phone_number_id || agent?.waba_id) ? (
+                  {(agent?.wa_verified || agent?.wa_phone_number_id) ? (
                     <span style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, fontWeight: 600, background: '#E7F6EC', color: '#1B7A43', border: '1px solid rgba(27,122,67,0.16)' }}>
                       WhatsApp connected
                     </span>

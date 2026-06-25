@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { pickFields, requireAgentAccess } from '@/lib/apiAuth'
 
-const USER_ALLOWED_FIELDS = ['id', 'name', 'email', 'agency_name', 'phone', 'city', 'state', 'areas', 'property_types', 'bot_tone', 'office_open', 'office_close', 'languages', 'bot_active', 'wa_balance', 'out_of_office_message', 'wa_phone_number_id', 'wa_display_name', 'messages_used', 'messages_limit', 'plan', 'plan_status', 'plan_expires_at', 'subscription_charge_at', 'razorpay_subscription_id', 'created_at', 'outreach_intensity', 'office_address', 'weekly_off', 'holidays']
+const USER_ALLOWED_FIELDS = ['id', 'name', 'email', 'agency_name', 'phone', 'city', 'state', 'areas', 'property_types', 'bot_tone', 'office_open', 'office_close', 'languages', 'bot_active', 'wa_balance', 'out_of_office_message', 'wa_phone_number_id', 'wa_display_name', 'messages_used', 'messages_limit', 'plan', 'plan_status', 'plan_expires_at', 'subscription_charge_at', 'razorpay_subscription_id', 'created_at', 'outreach_intensity', 'office_address', 'weekly_off', 'holidays', 'wa_verified']
 // Superadmin-only fields (concierge onboarding): MSG91 business number routing.
 const SUPERADMIN_ALLOWED_FIELDS = [...USER_ALLOWED_FIELDS, 'wa_business_id', 'msg91_integrated_number']
 
