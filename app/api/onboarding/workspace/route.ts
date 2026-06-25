@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     bot_active: true,
     // Free-forever defaults are SERVER-controlled (client can't inflate them).
     messages_used: 0,
-    messages_limit: 100,
+    messages_limit: 500,
     plan: 'free',
     plan_status: 'free',
     plan_started_at: nowIso,

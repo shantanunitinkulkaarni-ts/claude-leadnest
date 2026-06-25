@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       plan: 'free',
       plan_status: 'free',
       messages_used: 0,
-      messages_limit: 100
+      messages_limit: 500
     })
     .select()
     .single()
