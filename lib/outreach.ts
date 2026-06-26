@@ -93,7 +93,7 @@ export const TEMPLATES = {
 // Body text of each approved template (must match what was approved in MSG91),
 // used to render the REAL message for the agent's Inbox — so they see exactly
 // what the lead received, not a placeholder.
-const TEMPLATE_BODIES: Record<string, Record<string, string>> = {
+export const TEMPLATE_BODIES: Record<string, Record<string, string>> = {
   lead_new_match: {
     en: "Hi {{customer_name}}, it's {{agency_name}}. A property matching your search just came up in {{area}} - a {{property_type}} within your budget. Would you like me to share the details?",
     hi: 'नमस्ते {{customer_name}}, {{agency_name}} की ओर से। {{area}} में आपकी पसंद से मिलती-जुलती एक नई प्रॉपर्टी उपलब्ध हुई है - आपके बजट में {{property_type}}। क्या मैं आपको इसकी जानकारी भेजूँ?',

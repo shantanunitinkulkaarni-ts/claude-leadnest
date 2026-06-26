@@ -10,9 +10,63 @@
 // BSP), and register the number for Cloud API. The caller stores the creds on the
 // agent row. Proven by hand on 2026-06-23 — this codifies that exact flow.
 
+import { TEMPLATE_BODIES, templateVars, sampleTemplateValues } from './outreach'
+
 const APP_ID = process.env.META_APP_ID || process.env.NEXT_PUBLIC_META_APP_ID || ''
 const APP_SECRET = process.env.WHATSAPP_APP_SECRET || ''
 const GRAPH = 'https://graph.facebook.com/v21.0'
+
+// Our approved nurture/outreach templates live per-WABA in Meta. When a client
+// connects their OWN WABA (self-serve), it has none of them — so outbound would
+// fail. We recreate the suite on their WABA at onboarding (Meta approves them
+// async over minutes–hours). Categories mirror what's approved on our own WABA.
+const TEMPLATE_CATEGORY: Record<string, 'MARKETING' | 'UTILITY'> = {
+  lead_new_match: 'MARKETING',
+  lead_visit_invite: 'MARKETING',
+  lead_final_touch: 'MARKETING',
+  lead_open_question: 'MARKETING',
+  lead_offer: 'MARKETING',
+  visit_reminder: 'UTILITY',
+}
+
+// Create our whole template suite (all languages) on a client's WABA. Idempotent
+// (Meta rejects duplicates → counted as skipped). Best-effort — never throws.
+export async function createTemplatesOnWaba(
+  wabaId: string,
+  token: string,
+): Promise<{ created: number; skipped: number; failed: number }> {
+  const result = { created: 0, skipped: 0, failed: 0 }
+  for (const name of Object.keys(TEMPLATE_BODIES)) {
+    for (const lang of Object.keys(TEMPLATE_BODIES[name])) {
+      const text = TEMPLATE_BODIES[name][lang]
+      if (!text) continue
+      const vars = templateVars(name, lang)
+      const samples = sampleTemplateValues(name, lang)
+      const components: any[] = [{
+        type: 'BODY',
+        text,
+        ...(vars.length ? {
+          example: {
+            body_text_named_params: vars.map(v => ({
+              param_name: v,
+              example: samples.find(s => s.name === v)?.value || 'sample',
+            })),
+          },
+        } : {}),
+      }]
+      try {
+        const { json } = await graph(`${wabaId}/message_templates`, {
+          method: 'POST', token,
+          body: { name, language: lang, category: TEMPLATE_CATEGORY[name] || 'MARKETING', components },
+        })
+        if (json?.id) result.created++
+        else if (/already exists|existing|duplicate/i.test(json?.error?.message || '')) result.skipped++
+        else { result.failed++; console.warn('[templates] create failed', name, lang, json?.error?.message) }
+      } catch (e: any) { result.failed++; console.warn('[templates] threw', name, lang, e?.message) }
+    }
+  }
+  return result
+}
 
 async function graph(
   path: string,
@@ -73,7 +127,15 @@ export async function activateNumber(opts: {
     token,
     body: { messaging_product: 'whatsapp', pin },
   })
-  if (reg.json?.success) return { ok: true, pin }
+  if (reg.json?.success) {
+    // Recreate our template suite on THEIR WABA so outbound/nurture works. Meta
+    // approves async; this never blocks onboarding (and is idempotent on retry).
+    try {
+      const t = await createTemplatesOnWaba(wabaId, token)
+      console.log('[onboard] templates on', wabaId, '→', JSON.stringify(t))
+    } catch (e: any) { console.warn('[onboard] template creation skipped:', e?.message) }
+    return { ok: true, pin }
+  }
 
   // A leftover two-step PIN (common on numbers migrated off another BSP) blocks
   // registration — the agent has to turn it off, then retry.
