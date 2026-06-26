@@ -462,6 +462,9 @@ export default function OnboardingPage() {
               </div>
               <div className="complete-title">You're all set, {firstName}!</div>
               <div className="complete-sub">Your account is ready. Next, add your properties so the bot is ready. Then you can connect your WhatsApp from Settings — our team will assist with the setup.</div>
+              <div style={{ marginTop: 14, fontSize: 12.5, color: '#7A5200', background: '#FEF6E0', border: '1px solid #F0D98C', borderRadius: 8, padding: '10px 12px', lineHeight: 1.55, textAlign: 'left' }}>
+                ⚠️ <strong>Alpha:</strong> Convorian is in early testing. The assistant chats with your real leads, so occasional hiccups are possible — please don&apos;t connect your most premium clients just yet.
+              </div>
               <button className="btn-launch" onClick={() => router.push('/dashboard')}>
                 Open my dashboard
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>

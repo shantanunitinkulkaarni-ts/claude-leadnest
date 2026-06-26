@@ -17,6 +17,7 @@ import SettingsScreen from '@/components/screens/SettingsScreen'
 import KnowledgeGapsScreen from '@/components/screens/KnowledgeGapsScreen'
 import SupportChat from '@/components/SupportChat'
 import TutorialWalkthrough from '@/components/TutorialWalkthrough'
+import AlphaBanner from '@/components/AlphaBanner'
 
 export type Screen = 'overview' | 'inbox' | 'leads' | 'properties' | 'appointments' | 'analytics' | 'knowledge_gaps' | 'balance' | 'settings'
 
@@ -152,6 +153,7 @@ export default function DashboardPage() {
           onNavigate={setScreen}
           onMenuClick={() => setSidebarOpen(true)}
         />
+        <AlphaBanner />
         <div style={{ flex: 1, overflow: 'auto' }}>
           <ErrorBoundary name={screen} key={screen}>
             {renderScreen()}
