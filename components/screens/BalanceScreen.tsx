@@ -19,6 +19,8 @@ export default function BalanceScreen({ agentId }: Props) {
   const [subMsg, setSubMsg] = useState<string | null>(null)
 
   const [waConnected, setWaConnected] = useState(false)
+  const [messagesUsed, setMessagesUsed] = useState(0)
+  const [messagesLimit, setMessagesLimit] = useState(500)
 
   // Billing history (subscription receipts)
   const [invoices, setInvoices] = useState<{ id: string; date: string; amount: number; payment_id: string }[]>([])
@@ -33,6 +35,8 @@ export default function BalanceScreen({ agentId }: Props) {
           setNextChargeAt(d.data.subscription_charge_at || null)
           setHasSubscription(!!d.data.razorpay_subscription_id)
           setWaConnected(!!(d.data.wa_verified || d.data.wa_phone_number_id))
+          setMessagesUsed(d.data.messages_used || 0)
+          setMessagesLimit(d.data.messages_limit || 500)
         }
       })
   }
@@ -136,10 +140,37 @@ export default function BalanceScreen({ agentId }: Props) {
   const isHalted = planStatus === 'halted'
   const isPending = planStatus === 'pending' && hasSubscription
 
+  const onFreePlan = !hasSubscription
+  const msgPct = Math.min(100, Math.round((messagesUsed / Math.max(1, messagesLimit)) * 100))
+
   return (
     <div style={{ padding: '24px 28px', maxWidth: 580 }}>
+      {/* ── Current plan (free) ─────────────────────────────── */}
+      {onFreePlan && (
+        <div style={{ background: 'linear-gradient(135deg,#F6F5FF,#fff)', border: '1px solid #E7E4FF', borderRadius: 14, padding: '20px 22px', marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: '#15161B' }}>You're on the <span style={{ color: '#4F46E5' }}>Free</span> plan</div>
+            <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20, background: '#EEF0FE', color: '#4338CA' }}>FREE FOREVER</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14 }}>
+            {[['Leads', 'up to 10'], ['Properties', 'up to 5'], ['AI messages', `${messagesUsed} / ${messagesLimit}`]].map(([k, v]) => (
+              <div key={k} style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.06)', borderRadius: 10, padding: '10px 12px' }}>
+                <div style={{ fontSize: 10.5, color: '#9E9B92', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{k}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#15161B', marginTop: 3 }}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ height: 5, background: '#ECEAF7', borderRadius: 4, overflow: 'hidden', marginBottom: 6 }}>
+            <div style={{ width: `${msgPct}%`, height: '100%', background: msgPct >= 90 ? '#C0392B' : '#4F46E5', borderRadius: 4 }} />
+          </div>
+          <div style={{ fontSize: 11.5, color: '#6B6860', lineHeight: 1.5 }}>
+            Includes 24/7 AI replies, lead qualification & visit booking. Upgrade to <strong>₹999/month</strong> for unlimited leads & properties, 5,000 messages, and priority AI.
+          </div>
+        </div>
+      )}
+
       {/* ── Plan selection (GPT-style cards) ───────────────── */}
-      <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>Choose your plan</div>
+      <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>{onFreePlan ? 'Upgrade your plan' : 'Choose your plan'}</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 28 }}>
         {/* Monthly — the only purchasable plan today */}
         <div style={{ position: 'relative', background: '#fff', border: '2px solid #4F46E5', borderRadius: 14, padding: '20px 18px' }}>
