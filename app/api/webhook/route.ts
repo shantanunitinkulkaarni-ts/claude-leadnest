@@ -95,7 +95,11 @@ export async function POST(request: NextRequest) {
         metaPhoneNumberId = value.metadata?.phone_number_id || ''
         const msg = value.messages[0]
         fromPhone = msg.from || ''
-        messageText = msg.text?.body || ''
+        messageText =
+          msg.text?.body ||
+          msg.interactive?.button_reply?.title ||
+          msg.interactive?.list_reply?.title ||
+          ''
         waMessageId = msg.id || ''
         if (!messageText && msg.type && msg.type !== 'text') isNonTextMedia = true
         if (!messageText && !isNonTextMedia) return NextResponse.json({ status: 'no_text' })

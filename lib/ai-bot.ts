@@ -10,6 +10,7 @@ import { waSendText, waSendMedia, type WaChannel } from './whatsapp'
 import { sendEmail } from './email'
 import { checkAbuseGuards } from './botGuards'
 import { isConfirmationReply } from './appointmentConfirmation'
+import { detectStage } from './stageMachine'
 
 // Send an email via Resend's REST API (lib/email.ts — no SDK dependency).
 // IMPORTANT: do NOT use the `resend` npm package here — it is not installed,
@@ -322,7 +323,7 @@ function parseTimeString(timeStr: string): string | null {
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
-function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, properties?: any[]): string {
+function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, properties?: any[], recentHistory: ChatEntry[] = []): string {
   const lang = lead.language || 'en'
   const langLabel =
     lang === 'hi' ? 'Hindi' :
@@ -349,6 +350,10 @@ function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, prop
       status: existingAppointment.status
     } : null,
   }, null, 2)
+
+  const historyContext = recentHistory.length
+    ? recentHistory.map((entry, idx) => `${idx + 1}. ${entry.role === 'user' ? 'Customer' : 'Bot'}: ${entry.text}`).join('\n')
+    : 'No prior chat history available.'
 
   const propertiesBlock = properties && properties.length > 0
     ? `\nAVAILABLE PROPERTIES — copy facts exactly, do not invent:\n${
@@ -433,9 +438,14 @@ BOOKING LOGIC (critical — must follow):
   "confirmed", "cancelled" or "rescheduled" UNLESS you set the matching action. The backend writes
   the final confirmation message, so keep your reply short and let the action do the work.
 - Always refer to the existing appointment time exactly as shown in existing_appointment (already in India time).
+- Never restart from step 1 if CURRENT LEAD DATA already contains answers or CURRENT CHAT HISTORY shows an ongoing conversation.
+- Continue from the highest known point in the flow. If name, intent, area, budget, or appointment time are already known, do not ask for them again unless the customer is clearly changing that detail.
 
 CURRENT LEAD DATA:
 ${leadContext}
+
+CURRENT CHAT HISTORY (most recent context, oldest to newest):
+${historyContext}
 ${propertiesBlock}
 
 SILENT PROFILING (this is our private sales intelligence — NEVER mention it, never
@@ -547,6 +557,7 @@ export async function handleAiBotMessage(opts: {
   // 3. Add incoming message to chat history
   const history: ChatEntry[] = Array.isArray(lead.chat_history) ? lead.chat_history : []
   history.push({ role: 'user', text: message, ts: new Date().toISOString() })
+  const messageCount = history.filter(entry => entry.role === 'user').length
 
   // 3b. TROLL KIT — run abuse guards BEFORE any LLM call so spam/junk costs
   //     nothing. If a guard trips, send its fixed reply and stop here.
@@ -583,6 +594,8 @@ export async function handleAiBotMessage(opts: {
     .eq('lead_id', lead.id)
     .eq('status', 'upcoming')
     .maybeSingle()
+
+  const currentStage = detectStage(lead, messageCount)
 
   // Deterministic confirmation for existing appointments. This covers short
   // replies like "Confirm", "Yes", or "Acknowledged" even if the LLM misses it.
@@ -626,7 +639,7 @@ export async function handleAiBotMessage(opts: {
   let decision: AIDecision | null = null
   try {
     const raw = await callLLM([
-      { role: 'system', content: buildSystemPrompt(agent, lead, existingAppointment) },
+      { role: 'system', content: buildSystemPrompt(agent, lead, existingAppointment, undefined, history.slice(-8)) },
       { role: 'user', content: `Conversation:\n${conversationText}\n\nRespond with JSON only.` },
     ], { maxTokens: 600, temperature: 0.35 })
 
@@ -747,7 +760,7 @@ export async function handleAiBotMessage(opts: {
   // 7. Build the updates we'll save for this lead
   const leadUpdates: Record<string, any> = {
     last_message_at: new Date().toISOString(),
-    bot_stage: decision.stage,
+    bot_stage: decision.stage || currentStage,
     window_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
   }
 
