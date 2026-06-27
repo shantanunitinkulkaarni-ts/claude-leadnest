@@ -39,9 +39,10 @@ export async function GET(request: NextRequest) {
     } catch { /* never let the auto-resume sweep break the rest of the cron */ }
 
     // ── 0b. SAMPLE-DATA CLEANUP — remove the onboarding sample lead + properties
-    // 30 min after they were seeded (so the agent's inbox/list isn't cluttered). ──
+    // 5 min after they were seeded, so the tutorial data disappears right after
+    // the onboarding walkthrough ends. ──
     try {
-      const sampleCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+      const sampleCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString()
       const { data: oldSamples } = await supabaseAdmin
         .from('leads').select('id').eq('is_sample', true).lt('created_at', sampleCutoff)
       const ids = (oldSamples || []).map((l: any) => l.id)

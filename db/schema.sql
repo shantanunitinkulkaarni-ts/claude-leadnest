@@ -77,6 +77,7 @@ create table if not exists appointments (
   scheduled_at timestamptz not null,
   status text default 'upcoming'::text,
   reminder_sent boolean default false,
+  reminder_sent_at timestamptz,
   post_visit_prompted boolean default false,
   post_visit_result text,
   notes text,
