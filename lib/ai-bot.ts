@@ -9,6 +9,7 @@ import { buildPropertyBlock } from './propertyPresenter'
 import { waSendText, waSendMedia, type WaChannel } from './whatsapp'
 import { sendEmail } from './email'
 import { checkAbuseGuards } from './botGuards'
+import { isConfirmationReply } from './appointmentConfirmation'
 
 // Send an email via Resend's REST API (lib/email.ts — no SDK dependency).
 // IMPORTANT: do NOT use the `resend` npm package here — it is not installed,
@@ -537,6 +538,12 @@ export async function handleAiBotMessage(opts: {
   // Cast to any for flexible access — these columns were added in migration 07
   const lead = leadRaw as any
 
+  // Manual mode must silence the bot regardless of which route invoked it.
+  if (lead.bot_paused) {
+    console.log(`[ai-bot] bot paused for ${phone}; skipping reply`)
+    return
+  }
+
   // 3. Add incoming message to chat history
   const history: ChatEntry[] = Array.isArray(lead.chat_history) ? lead.chat_history : []
   history.push({ role: 'user', text: message, ts: new Date().toISOString() })
@@ -576,6 +583,44 @@ export async function handleAiBotMessage(opts: {
     .eq('lead_id', lead.id)
     .eq('status', 'upcoming')
     .maybeSingle()
+
+  // Deterministic confirmation for existing appointments. This covers short
+  // replies like "Confirm", "Yes", or "Acknowledged" even if the LLM misses it.
+  if (existingAppointment && isConfirmationReply(message)) {
+    const confirmedAt = new Date().toISOString()
+    const confirmReply = `Perfect - your site visit is confirmed for ${formatIST(existingAppointment.scheduled_at)}. See you then!`
+    const confirmOut = simulate ? { id: null } : await waSendText(channel, phone, confirmReply)
+
+    await supabaseAdmin.from('leads').update({
+      last_message_at: confirmedAt,
+      last_inbound_at: confirmedAt,
+      last_outbound_at: confirmedAt,
+      status: 'visit_booked',
+      bot_stage: 'visit_confirmed',
+      nurture_state: 'paused',
+      window_nudge_count: 0,
+      last_nudge_at: null,
+      nurture_plan: null,
+      plan_d_touches: 0,
+      chat_history: [
+        ...history,
+        { role: 'bot', text: confirmReply, ts: confirmedAt },
+      ].slice(-MAX_HISTORY),
+    }).eq('id', lead.id)
+
+    await supabaseAdmin.from('messages').insert({
+      lead_id: lead.id,
+      agent_id: agentId,
+      direction: 'outbound',
+      content: confirmReply,
+      sent_by: 'bot',
+      wa_message_id: confirmOut?.id || null,
+      status: (simulate || confirmOut?.id) ? 'sent' : 'failed',
+    })
+
+    console.log(`[ai-bot] existing visit confirmed by ${phone}`)
+    return
+  }
 
   // 5. First AI call — understand and decide
   let decision: AIDecision | null = null
