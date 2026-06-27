@@ -7,6 +7,19 @@ type RagOptions = {
   limit?: number
 }
 
+export type PropertyRagSnapshot = {
+  generated_at: string
+  agency_name?: string
+  agent_name?: string
+  counts: {
+    active: number
+    rentals: number
+    sales: number
+  }
+  selected_property_ids: string[]
+  markdown: string
+}
+
 function moneyLabel(row: PropertyRow): string {
   const value = row.type === 'rental' ? row.rent_per_month : row.price
   if (!value) return 'Price on request'
@@ -68,6 +81,30 @@ export function buildPropertyRagMarkdown(properties: PropertyRow[] | null | unde
   }
 
   return lines.join('\n')
+}
+
+export function buildPropertyRagSnapshot(properties: PropertyRow[] | null | undefined, options: RagOptions = {}, focusProperties?: PropertyRow[] | null | undefined): PropertyRagSnapshot {
+  const live = excludeSampleProperties(properties || [])
+  const selected = focusProperties && focusProperties.length
+    ? excludeSampleProperties(focusProperties || []).slice(0, options.limit || 5)
+    : selectPropertyRagProperties(properties, {
+        intent: null,
+        preferred_areas: [],
+        budget_max: null,
+      }, options.limit || 5)
+
+  return {
+    generated_at: new Date().toISOString(),
+    agent_name: options.agentName,
+    agency_name: options.agencyName,
+    counts: {
+      active: live.length,
+      rentals: live.filter(p => p.type === 'rental').length,
+      sales: live.filter(p => p.type === 'sale').length,
+    },
+    selected_property_ids: selected.map(p => p.id),
+    markdown: buildPropertyRagMarkdown(properties, options, selected),
+  }
 }
 
 export function buildPropertyRagContext(properties: PropertyRow[] | null | undefined, criteria: SearchCriteria, options: RagOptions = {}): string {

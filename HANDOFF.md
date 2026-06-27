@@ -34,6 +34,8 @@
 
 **The AI-first WhatsApp bot is LIVE and fully working end-to-end.** Booking, reschedule, cancel, IST date/time correctness, office-hours + weekly-day-off enforcement, confirmation emails (customer + agent + superadmin), and a full troll/abuse kit are all in production and tested. The live bot is **`lib/ai-bot.ts` (`handleAiBotMessage`)**; the old keyword bot is fully removed.
 
+**Fallback milestone saved:** branch `fallback/bot-working-2026-06-27` now points at the current known-good `main` commit `3c25bab00a9995f1971c2ae43013e7048c50d3c4`. If a later experiment misbehaves, resume from that branch first.
+
 **⭐ STABLE CHECKPOINT: git tag `stable-2026-06-22` (pushed to GitHub).** Session 18 (2026-06-25): PRs #134–#137 merged + deployed (Security Batch A + Free-forever tier + P0 fix). **If anything breaks after #137, revert: `git checkout stable-2026-06-22` → redeploy.** If Codex commits require rollback, the commit SHAs are: #134=`e9b1a6e`, #135=`8e2c3f1`, #136=`c0a9d8b`, #137=`f2e5a1c` (all on main).
 
 **Meta App Review + Tech Provider APPROVED (2026-06-22)** — launch unblocked. NOT launched yet, zero real users. **Meta-direct migration DONE; Embedded Signup (self-serve onboarding) BUILT.** Now building the **Nurture Engine V1** (the moat). Next: Meta message templates + finish nurture reconciliation.

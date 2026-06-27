@@ -27,11 +27,22 @@ export async function GET(request: NextRequest) {
     .eq('agent_id', agentId)
     .eq('status', 'active')
 
-  const rag = buildPropertyRagMarkdown((properties || []) as any[], {
-    agentName: agent.name,
-    agencyName: agent.agency_name,
-    limit: 12,
-  })
+  const { data: snapshotRow } = await supabaseAdmin
+    .from('activity_log')
+    .select('metadata, created_at')
+    .eq('agent_id', agentId)
+    .eq('type', 'property_rag_snapshot')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const rag = typeof snapshotRow?.metadata?.markdown === 'string'
+    ? snapshotRow.metadata.markdown
+    : buildPropertyRagMarkdown((properties || []) as any[], {
+        agentName: agent.name,
+        agencyName: agent.agency_name,
+        limit: 12,
+      })
 
   if (format === 'md') {
     return new NextResponse(rag, { headers: { 'Content-Type': 'text/markdown; charset=utf-8' } })
@@ -40,7 +51,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     agent_id: agent.id,
     agency: agent.agency_name || agent.name || agent.id,
-    generated_at: new Date().toISOString(),
+    generated_at: snapshotRow?.created_at || new Date().toISOString(),
     markdown: rag,
   })
 }

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { buildPropertyRagContext, selectPropertyRagProperties } from '../../lib/propertyRag'
+import { buildPropertyRagContext, buildPropertyRagSnapshot, selectPropertyRagProperties } from '../../lib/propertyRag'
 
 test.describe('property RAG helpers', () => {
   test('selects relevant active properties and excludes sample rows', () => {
@@ -25,5 +25,19 @@ test.describe('property RAG helpers', () => {
     expect(rag).toContain('Inventory: 1 active properties (0 rentals, 1 sales)')
     expect(rag).toContain('Real Flat')
     expect(rag).toContain('Sample listing: no')
+  })
+
+  test('builds a reusable snapshot payload for refresh logs', () => {
+    const rows = [
+      { id: 'real-1', title: 'Real Flat', type: 'sale', location: 'Wakad', city: 'Pune', price: 7500000, features: ['parking'], status: 'active', is_sample: false },
+      { id: 'sample-1', title: 'Sample Flat', type: 'sale', location: 'Baner', city: 'Pune', price: 8500000, features: [], status: 'active', is_sample: true },
+    ]
+
+    const snapshot = buildPropertyRagSnapshot(rows as any, { agentName: 'Agent', agencyName: 'Agency', limit: 3 })
+
+    expect(snapshot.counts).toEqual({ active: 1, rentals: 0, sales: 1 })
+    expect(snapshot.selected_property_ids).toEqual(['real-1'])
+    expect(snapshot.markdown).toContain('Real Flat')
+    expect(snapshot.markdown).not.toContain('Sample Flat')
   })
 })
