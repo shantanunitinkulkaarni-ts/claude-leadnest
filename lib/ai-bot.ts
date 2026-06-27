@@ -347,7 +347,7 @@ function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, prop
   const leadContext = buildLeadMemoryContext(lead, existingAppointment ? {
     scheduled_at: formatIST(existingAppointment.scheduled_at),
     status: existingAppointment.status,
-  } : null)
+  } : null, recentHistory.slice(-8))
 
   const historyContext = recentHistory.length
     ? recentHistory.map((entry, idx) => `${idx + 1}. ${entry.role === 'user' ? 'Customer' : 'Bot'}: ${entry.text}`).join('\n')
@@ -440,8 +440,12 @@ BOOKING LOGIC (critical — must follow):
 - Never restart from step 1 if CURRENT LEAD DATA already contains answers or CURRENT CHAT HISTORY shows an ongoing conversation.
 - Continue from the highest known point in the flow. If name, intent, area, budget, or appointment time are already known, do not ask for them again unless the customer is clearly changing that detail.
 
-CURRENT LEAD DATA:
+CURRENT LEAD STATE (source of truth — never override these values with guesswork):
 ${leadContext}
+
+RULES FOR THIS STATE:
+- If a field is already known in CURRENT LEAD STATE, do not ask for it again unless the customer explicitly changes it.
+- If CURRENT LEAD STATE says an appointment or visit time already exists, continue from that point instead of restarting the funnel.
 
 CURRENT CHAT HISTORY (most recent context, oldest to newest):
 ${historyContext}
