@@ -13,6 +13,7 @@ import { isConfirmationReply } from './appointmentConfirmation'
 import { resolveAppointmentTime } from './appointment'
 import { detectStage } from './stageMachine'
 import { excludeSampleProperties } from './propertyVisibility'
+import { buildPropertyRagContext } from './propertyRag'
 
 // Send an email via Resend's REST API (lib/email.ts — no SDK dependency).
 // IMPORTANT: do NOT use the `resend` npm package here — it is not installed,
@@ -329,7 +330,7 @@ function parseTimeString(timeStr: string): string | null {
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
-function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, properties?: any[], recentHistory: ChatEntry[] = []): string {
+function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, properties?: any[], recentHistory: ChatEntry[] = [], propertyRag?: string): string {
   const lang = lead.language || 'en'
   const langLabel =
     lang === 'hi' ? 'Hindi' :
@@ -380,6 +381,7 @@ function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, prop
         })}`).join('\n')
       }`
     : ''
+  const ragBlock = propertyRag ? `\nPROPERTY RAG SNAPSHOT:\n${propertyRag}\n` : ''
 
   // Today's date in IST — the AI MUST know this to resolve dates like "5th July"
   // or "next Monday" correctly (it can't compute weekdays without an anchor).
@@ -453,6 +455,7 @@ ${leadContext}
 CURRENT CHAT HISTORY (most recent context, oldest to newest):
 ${historyContext}
 ${propertiesBlock}
+${ragBlock}
 
 SILENT PROFILING (this is our private sales intelligence — NEVER mention it, never
 let the customer notice): from the conversation so far, infer subtle, useful traits
@@ -601,6 +604,25 @@ export async function handleAiBotMessage(opts: {
     .eq('status', 'upcoming')
     .maybeSingle()
 
+  const { data: propertiesRaw } = await supabaseAdmin
+    .from('properties')
+    .select('*')
+    .eq('agent_id', agentId)
+    .eq('status', 'active')
+    .eq('is_sample', false)
+
+  const activeProperties = excludeSampleProperties((propertiesRaw || []) as any[])
+  const ragCriteria = {
+    intent: (lead.intent || null) as 'buy' | 'rent' | null,
+    preferred_areas: Array.isArray(lead.preferred_areas) ? lead.preferred_areas : [],
+    budget_max: lead.budget_max || null,
+  }
+  const propertyRag = buildPropertyRagContext(activeProperties, ragCriteria, {
+    agentName: agent.name,
+    agencyName: agent.agency_name,
+    limit: 5,
+  })
+
   const currentStage = detectStage(lead, messageCount)
 
   // Deterministic confirmation for existing appointments. This covers short
@@ -648,7 +670,7 @@ export async function handleAiBotMessage(opts: {
   let decision: AIDecision | null = null
   try {
     const raw = await callLLM([
-      { role: 'system', content: buildSystemPrompt(agent, lead, existingAppointment, undefined, history.slice(-8)) },
+      { role: 'system', content: buildSystemPrompt(agent, lead, existingAppointment, activeProperties, history.slice(-8), propertyRag) },
       { role: 'user', content: `Conversation:\n${conversationText}\n\nRespond with JSON only.` },
     ], { maxTokens: 600, temperature: 0.35 })
 
@@ -672,15 +694,7 @@ export async function handleAiBotMessage(opts: {
     const areas = decision.updates?.preferred_areas || lead.preferred_areas || []
     const budgetMax = decision.updates?.budget_max || lead.budget_max || null
 
-    const { data: propertiesRaw } = await supabaseAdmin
-      .from('properties')
-      .select('*')
-      .eq('agent_id', agentId)
-      .eq('status', 'active')
-      .eq('is_sample', false)
-
-    const properties = excludeSampleProperties((propertiesRaw || []) as any[])
-    const result = searchPropertiesByFallbackChain(properties, {
+    const result = searchPropertiesByFallbackChain(activeProperties, {
       intent: intent as 'rent' | 'buy',
       preferred_areas: areas,
       budget_max: budgetMax,
