@@ -29,6 +29,19 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [impersonating, setImpersonating] = useState<string | null>(null) // agency name when admin is viewing as a client
+  const [tourDone, setTourDone] = useState(false) // end-of-tour "you're live" toast
+
+  // End of tutorial: drop the user on the inbox + a "you're live" nudge.
+  useEffect(() => {
+    const toInbox = () => setScreen('inbox')
+    const toast = () => { setTourDone(true); setTimeout(() => setTourDone(false), 9000) }
+    window.addEventListener('leadnest:go-inbox', toInbox)
+    window.addEventListener('leadnest:tour-done-toast', toast)
+    return () => {
+      window.removeEventListener('leadnest:go-inbox', toInbox)
+      window.removeEventListener('leadnest:tour-done-toast', toast)
+    }
+  }, [])
 
   const refreshAgent = useCallback(async (id: string) => {
     try {
@@ -162,6 +175,15 @@ export default function DashboardPage() {
       </div>
       <SupportChat agentId={agentId ?? undefined} />
       <TutorialWalkthrough onNavigate={setScreen} />
+      {tourDone && (
+        <div style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 9500, maxWidth: 320, background: '#15161B', color: '#fff', borderRadius: 14, padding: '16px 18px', boxShadow: '0 16px 40px rgba(0,0,0,0.3)', animation: 'tourCardIn 0.3s ease' }}>
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>🎉 You're all set — your bot is active!</div>
+          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.75)', lineHeight: 1.55 }}>
+            Add your leads & properties, then you can close the app and come back anytime to see how the conversations unfold.
+          </div>
+          <button onClick={() => setTourDone(false)} style={{ marginTop: 10, background: 'rgba(255,255,255,0.12)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>Got it</button>
+        </div>
+      )}
     </div>
   )
 }

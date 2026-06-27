@@ -147,16 +147,14 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   // Replays from the profile menu are a refresher — never re-lock the
   // hands-on steps (the user already has leads/properties by then).
   const [isReplay, setIsReplay] = useState(false)
-  const [muted, setMuted] = useState(false)
-
-  // Load the saved mute preference once.
-  useEffect(() => {
-    if (typeof window !== 'undefined') setMuted(localStorage.getItem('leadnest_tour_muted') === 'true')
-  }, [])
 
   const finish = useCallback(() => {
     localStorage.setItem('leadnest_tutorial_seen', 'true')
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
+    // Land them on the inbox to see their leads + a "you're live" nudge.
+    try {
+      window.dispatchEvent(new Event('leadnest:go-inbox'))
+      window.dispatchEvent(new Event('leadnest:tour-done-toast'))
+    } catch { /* ignore */ }
     setVisible(false)
     setStep(0)
     setRect(null)
@@ -181,40 +179,14 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   // Reset completion whenever the step changes
   useEffect(() => { setCompleted(false) }, [step])
 
-  // ── Voice narration (Web Speech API — no dependency) ──────────────────────
-  // Speaks the current step. Cancels on step change / mute / close / unmount.
-  // Silent no-op where speechSynthesis is unavailable; text stays the source.
+  // Auto-advance the simulation: when the user taps a reply (sim-sent completes a
+  // sim step), move to the next step automatically after a beat — no Next click.
   useEffect(() => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
-    const synth = window.speechSynthesis
-    synth.cancel()
-    if (!visible || muted) return
-    const s = STEPS[step]
-    const said = (s?.voice || s?.text || '')
-      .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')                       // emoji (surrogate pairs)
-      .replace(/[←-⇿⌀-➿⬀-⯿️]/g, '')       // arrows / misc symbols
-      .trim()
-    if (!said) return
-    const u = new SpeechSynthesisUtterance(said)
-    u.rate = 1.0; u.pitch = 1.0
-    const voices = synth.getVoices()
-    const pick = voices.find(v => /en[-_]IN/i.test(v.lang)) || voices.find(v => /en[-_]GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang))
-    if (pick) u.voice = pick
-    // Slight delay lets the cancel() flush so the new line isn't dropped.
-    const t = setTimeout(() => { try { synth.speak(u) } catch { /* ignore */ } }, 120)
-    return () => { clearTimeout(t); synth.cancel() }
-  }, [visible, step, muted])
-
-  const toggleMute = () => {
-    setMuted(m => {
-      const next = !m
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('leadnest_tour_muted', String(next))
-        if (next && 'speechSynthesis' in window) window.speechSynthesis.cancel()
-      }
-      return next
-    })
-  }
+    if (!visible || !completed) return
+    if (STEPS[step]?.target !== '[data-tour="sim-panel"]') return
+    const t = setTimeout(() => { setStep(s => (s < STEPS.length - 1 ? s + 1 : s)) }, 1300)
+    return () => clearTimeout(t)
+  }, [visible, completed, step])
 
   // When a simulation step is reached, auto-open the sample lead + start the
   // simulation in the inbox (so the user isn't stuck behind the spotlight).
@@ -310,10 +282,11 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   let cardStyle: React.CSSProperties
   let placement: 'right' | 'below' | 'above' | 'bottom' | 'center' = 'center'
 
-  if (isAction) {
-    // Simulation steps: pin the card to the TOP so it never covers the suggested-
-    // reply chips at the bottom of the chat. Modal-opening steps (add lead/property)
-    // stay at the bottom, out of the way of the app's centered modal.
+  if (current.doneEvent) {
+    // Hands-on steps (sim + add lead/property): use a fixed, always-on-screen banner
+    // instead of floating to the target (which clipped off-screen on replay).
+    // Sim steps pin to the TOP so the card never covers the reply chips; modal steps
+    // (add lead/property) pin to the BOTTOM, clear of the app's centered modal.
     if (current.target === '[data-tour="sim-panel"]') {
       cardStyle = { top: 70, left: clampLeft(vw / 2 - cardW / 2), textAlign: 'left' }
     } else {
@@ -351,8 +324,10 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   }
 
   const panel: React.CSSProperties = {
+    // pointerEvents:none is critical — otherwise the dim panels swallow clicks and
+    // the app's own modals (Add Lead / Add Property) become unusable behind the tour.
     position: 'fixed', background: 'rgba(10,12,20,0.62)', backdropFilter: 'blur(3px)',
-    WebkitBackdropFilter: 'blur(3px)', zIndex: zBase, pointerEvents: 'auto',
+    WebkitBackdropFilter: 'blur(3px)', zIndex: zBase, pointerEvents: 'none',
     transition: 'all 0.35s cubic-bezier(.4,0,.2,1)',
   }
 
@@ -364,6 +339,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
         @keyframes tourArrowLeft { 0%,100% { transform: translateX(0) } 50% { transform: translateX(-7px) } }
         @keyframes tourArrowUp { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-7px) } }
         @keyframes tourArrowDown { 0%,100% { transform: translateY(0) } 50% { transform: translateY(7px) } }
+        @keyframes tourNextPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(21,22,27,0.0) } 50% { box-shadow: 0 0 0 6px rgba(79,70,229,0.18) } }
       `}</style>
 
       {/* Dark + blurred backdrop. Four panels around the hole keep the target
@@ -391,17 +367,16 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
         ...cardStyle,
       }}>
         <TourCard step={step} current={current} isLast={isLast} centered={placement === 'center'}
-          nextLocked={nextLocked} completed={completed} muted={muted} onToggleMute={toggleMute}
+          nextLocked={nextLocked} completed={completed}
           onSkip={finish} onNext={advance} onBack={goBack} />
       </div>
     </>
   )
 }
 
-function TourCard({ step, current, isLast, centered, nextLocked, completed, muted, onToggleMute, onSkip, onNext, onBack }: {
+function TourCard({ step, current, isLast, centered, nextLocked, completed, onSkip, onNext, onBack }: {
   step: number; current: Step; isLast: boolean; centered?: boolean
-  nextLocked: boolean; completed: boolean; muted: boolean
-  onToggleMute: () => void
+  nextLocked: boolean; completed: boolean
   onSkip: () => void; onNext: () => void; onBack?: () => void
 }) {
   const pct = Math.round(((step + 1) / STEPS.length) * 100)
@@ -413,10 +388,6 @@ function TourCard({ step, current, isLast, centered, nextLocked, completed, mute
           <div style={{ width: `${pct}%`, height: '100%', background: '#4F46E5', borderRadius: 4, transition: 'width 0.3s ease' }} />
         </div>
         <div style={{ fontSize: 11, fontWeight: 600, color: '#9E9B92', whiteSpace: 'nowrap' }}>{step + 1} / {STEPS.length}</div>
-        <button onClick={onToggleMute} title={muted ? 'Turn voice on' : 'Mute voice'} aria-label={muted ? 'Turn voice on' : 'Mute voice'}
-          style={{ marginLeft: 10, background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: 0 }}>
-          {muted ? '🔇' : '🔊'}
-        </button>
       </div>
 
       <h2 style={{ fontSize: centered ? 23 : 18, fontWeight: 600, color: '#15161B', marginBottom: 10 }}>{current.title}</h2>
@@ -459,8 +430,10 @@ function TourCard({ step, current, isLast, centered, nextLocked, completed, mute
               color: nextLocked ? '#9E9B92' : '#fff',
               border: 'none', padding: '10px 22px', borderRadius: 8, fontSize: 14, fontWeight: 500,
               cursor: nextLocked ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+              // Pulse to draw the eye to the next action when it's unlocked.
+              animation: nextLocked ? 'none' : 'tourNextPulse 1.4s ease-in-out infinite',
             }}>
-            {isLast ? 'Get Started' : 'Next'}
+            {isLast ? 'Get Started' : 'Next'} {!nextLocked && !isLast ? '→' : ''}
           </button>
         </div>
       </div>
