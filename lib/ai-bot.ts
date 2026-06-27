@@ -10,7 +10,10 @@ import { waSendText, waSendMedia, type WaChannel } from './whatsapp'
 import { sendEmail } from './email'
 import { checkAbuseGuards } from './botGuards'
 import { isConfirmationReply } from './appointmentConfirmation'
+import { resolveAppointmentTime } from './appointment'
 import { detectStage } from './stageMachine'
+import { excludeSampleProperties } from './propertyVisibility'
+import { buildPropertyRagContext } from './propertyRag'
 
 // Send an email via Resend's REST API (lib/email.ts — no SDK dependency).
 // IMPORTANT: do NOT use the `resend` npm package here — it is not installed,
@@ -217,6 +220,10 @@ function bookingTimeIssue(visitTime: string, agent: any): string | null {
   return null
 }
 
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email || '').trim())
+}
+
 function parseTimeString(timeStr: string): string | null {
   if (!timeStr) return null
   const t = timeStr.toLowerCase().trim()
@@ -323,7 +330,7 @@ function parseTimeString(timeStr: string): string | null {
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
-function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, properties?: any[], recentHistory: ChatEntry[] = []): string {
+function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, properties?: any[], recentHistory: ChatEntry[] = [], propertyRag?: string): string {
   const lang = lead.language || 'en'
   const langLabel =
     lang === 'hi' ? 'Hindi' :
@@ -374,6 +381,7 @@ function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, prop
         })}`).join('\n')
       }`
     : ''
+  const ragBlock = propertyRag ? `\nPROPERTY RAG SNAPSHOT:\n${propertyRag}\n` : ''
 
   // Today's date in IST — the AI MUST know this to resolve dates like "5th July"
   // or "next Monday" correctly (it can't compute weekdays without an anchor).
@@ -447,6 +455,7 @@ ${leadContext}
 CURRENT CHAT HISTORY (most recent context, oldest to newest):
 ${historyContext}
 ${propertiesBlock}
+${ragBlock}
 
 SILENT PROFILING (this is our private sales intelligence — NEVER mention it, never
 let the customer notice): from the conversation so far, infer subtle, useful traits
@@ -595,13 +604,33 @@ export async function handleAiBotMessage(opts: {
     .eq('status', 'upcoming')
     .maybeSingle()
 
+  const { data: propertiesRaw } = await supabaseAdmin
+    .from('properties')
+    .select('*')
+    .eq('agent_id', agentId)
+    .eq('status', 'active')
+    .eq('is_sample', false)
+
+  const activeProperties = excludeSampleProperties((propertiesRaw || []) as any[])
+  const ragCriteria = {
+    intent: (lead.intent || null) as 'buy' | 'rent' | null,
+    preferred_areas: Array.isArray(lead.preferred_areas) ? lead.preferred_areas : [],
+    budget_max: lead.budget_max || null,
+  }
+  const propertyRag = buildPropertyRagContext(activeProperties, ragCriteria, {
+    agentName: agent.name,
+    agencyName: agent.agency_name,
+    limit: 5,
+  })
+
   const currentStage = detectStage(lead, messageCount)
 
   // Deterministic confirmation for existing appointments. This covers short
   // replies like "Confirm", "Yes", or "Acknowledged" even if the LLM misses it.
-  if (existingAppointment && isConfirmationReply(message)) {
+  if ((existingAppointment || lead.pending_appointment_time) && isConfirmationReply(message)) {
     const confirmedAt = new Date().toISOString()
-    const confirmReply = `Perfect - your site visit is confirmed for ${formatIST(existingAppointment.scheduled_at)}. See you then!`
+    const confirmedTime = existingAppointment?.scheduled_at || lead.pending_appointment_time
+    const confirmReply = `Perfect - your site visit is confirmed for ${formatIST(confirmedTime)}. See you then!`
     const confirmOut = simulate ? { id: null } : await waSendText(channel, phone, confirmReply)
 
     await supabaseAdmin.from('leads').update({
@@ -615,6 +644,8 @@ export async function handleAiBotMessage(opts: {
       last_nudge_at: null,
       nurture_plan: null,
       plan_d_touches: 0,
+      pending_appointment_time: null,
+      pending_appointment_set_at: null,
       chat_history: [
         ...history,
         { role: 'bot', text: confirmReply, ts: confirmedAt },
@@ -639,7 +670,7 @@ export async function handleAiBotMessage(opts: {
   let decision: AIDecision | null = null
   try {
     const raw = await callLLM([
-      { role: 'system', content: buildSystemPrompt(agent, lead, existingAppointment, undefined, history.slice(-8)) },
+      { role: 'system', content: buildSystemPrompt(agent, lead, existingAppointment, activeProperties, history.slice(-8), propertyRag) },
       { role: 'user', content: `Conversation:\n${conversationText}\n\nRespond with JSON only.` },
     ], { maxTokens: 600, temperature: 0.35 })
 
@@ -663,14 +694,7 @@ export async function handleAiBotMessage(opts: {
     const areas = decision.updates?.preferred_areas || lead.preferred_areas || []
     const budgetMax = decision.updates?.budget_max || lead.budget_max || null
 
-    const { data: propertiesRaw } = await supabaseAdmin
-      .from('properties')
-      .select('*')
-      .eq('agent_id', agentId)
-      .eq('status', 'active')
-
-    const properties = (propertiesRaw || []) as any[]
-    const result = searchPropertiesByFallbackChain(properties, {
+    const result = searchPropertiesByFallbackChain(activeProperties, {
       intent: intent as 'rent' | 'buy',
       preferred_areas: areas,
       budget_max: budgetMax,
@@ -713,11 +737,11 @@ export async function handleAiBotMessage(opts: {
     if (propertyId) {
       const { data: prop } = await supabaseAdmin
         .from('properties')
-        .select('photos, property_media, video_url, brochure_url, title')
+        .select('photos, property_media, video_url, brochure_url, title, is_sample')
         .eq('id', propertyId)
         .single()
 
-      if (prop) {
+      if (prop && !prop.is_sample) {
         // Dedupe: photos[] and property_media[] usually mirror each other, so
         // concatenating them sent every image TWICE. Set() keeps one of each.
         const urls = Array.from(new Set([
@@ -771,11 +795,19 @@ export async function handleAiBotMessage(opts: {
   if (decision.updates?.budget_max) leadUpdates.budget_max = decision.updates.budget_max
   if (decision.updates?.bhk) leadUpdates.bhk = decision.updates.bhk
   if (decision.updates?.sqft_preference) leadUpdates.sqft_preference = decision.updates.sqft_preference
-  if (decision.updates?.visit_time) {
-    const parsed = parseTimeString(decision.updates.visit_time)
-    if (parsed) leadUpdates.pending_appointment_time = parsed
+  const proposedEmail = decision.updates?.email?.trim()
+  const emailIsValid = !proposedEmail || isValidEmail(proposedEmail)
+  if (proposedEmail && emailIsValid) leadUpdates.email = proposedEmail
+
+  const bookingResolution = resolveAppointmentTime({
+    llmTime: decision.updates?.visit_time,
+    replyText: message,
+    nowMs: Date.now(),
+  })
+  if (bookingResolution.ok) {
+    leadUpdates.pending_appointment_time = bookingResolution.iso
+    leadUpdates.pending_appointment_set_at = new Date().toISOString()
   }
-  if (decision.updates?.email) leadUpdates.email = decision.updates.email
 
   // ── Nurture signals + silent profile (the data moat) ───────────────────────
   const nowMs = Date.now()
@@ -817,7 +849,7 @@ export async function handleAiBotMessage(opts: {
   if (!decision.action) {
     if (existingAppointment && newTime) {
       decision.action = 'reschedule_visit'        // gave a new time while a visit exists
-    } else if (leadUpdates.email && newTime) {
+    } else if (leadUpdates.email && newTime && emailIsValid) {
       decision.action = 'book_visit'              // first-time booking
     }
   }
@@ -829,6 +861,10 @@ export async function handleAiBotMessage(opts: {
   // Nothing to reschedule → treat as a fresh booking.
   if (decision.action === 'reschedule_visit' && !existingAppointment) {
     decision.action = 'book_visit'
+  }
+  if (proposedEmail && !emailIsValid) {
+    decision.action = null
+    finalReply = 'Please share a valid email address like name@example.com so I can confirm your visit.'
   }
 
   // Shared helper: create an appointment + send confirmation emails.
@@ -896,7 +932,6 @@ export async function handleAiBotMessage(opts: {
     } else if (bookingTimeIssue(newTime, agent)) {
       // Outside office hours / day off — don't cancel the old visit; ask again.
       finalReply = bookingTimeIssue(newTime, agent)!
-      leadUpdates.pending_appointment_time = null
     } else {
       // Cancel the old visit, then book the new time on the same property.
       await supabaseAdmin.from('appointments').update({ status: 'cancelled' }).eq('id', existingAppointment!.id)
@@ -921,7 +956,6 @@ export async function handleAiBotMessage(opts: {
     } else if (bookingTimeIssue(visitTime, agent)) {
       // Outside office hours / day off — ask for a valid slot, don't book it.
       finalReply = bookingTimeIssue(visitTime, agent)!
-      leadUpdates.pending_appointment_time = null
     } else {
       finalReply = await createAppointment(visitTime, propertyId)
     }

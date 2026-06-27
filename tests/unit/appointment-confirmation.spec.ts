@@ -4,12 +4,12 @@ import { isConfirmationReply, isPendingAppointmentExpired } from '../../lib/appo
 test.describe('isConfirmationReply — affirmative tokens', () => {
   const positives = [
     'yes', 'Yes!', 'yess', 'yeah', 'yep', 'yup',
-    'confirm', 'confirmed', 'ok', 'okay', 'sure',
+    'confirm', 'Confirm', 'confirmed', 'ok', 'okay', 'sure',
     'sounds good', 'works', 'works for me', 'done', 'pakka',
     'haan', 'han', 'theek hai', 'thik hai', 'sahi hai', 'barobar', 'chalega', 'ho',
     'हाँ', 'हां', 'ठीक है', 'ठीक', 'बरोबर', 'चालेल',
     // Added: common Indian affirmatives that were previously missed
-    'ji', 'haan ji', 'ji haan', 'bilkul', 'theek', 'thik', 'chalo', 'chala', 'hoy',
+    'ji', 'haan ji', 'ji haan', 'bilkul', 'theek', 'thik', 'chalo', 'chala', 'hoy', 'Acknowledged',
     'हो', 'होय', 'जी', 'बरं', 'चला', 'चल',
   ]
   for (const msg of positives) {
