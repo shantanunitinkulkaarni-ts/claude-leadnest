@@ -232,7 +232,7 @@ export async function GET(request: NextRequest) {
       .from('appointments')
       .select('*, leads(*), agents(*), properties(*)')
       .eq('status', 'upcoming')
-      .eq('reminder_sent', false)
+      .is('reminder_sent_at', null)
       .gte('scheduled_at', tomorrowStart.toISOString())
       .lte('scheduled_at', tomorrowEnd.toISOString())
 
@@ -258,7 +258,7 @@ export async function GET(request: NextRequest) {
             ]
             const rid = await sendViaMsg91Template(ag.msg91_integrated_number, appt.leads.phone, 'visit_reminder', values, 'en')
             if (rid) {
-              await supabaseAdmin.from('appointments').update({ reminder_sent: true }).eq('id', appt.id)
+              await supabaseAdmin.from('appointments').update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() }).eq('id', appt.id)
               await supabaseAdmin.from('messages').insert({
                 lead_id: appt.lead_id, agent_id: ag.id, direction: 'outbound',
                 content: renderTemplate('visit_reminder', 'en', values), sent_by: 'bot', wa_message_id: typeof rid === 'string' ? rid : null,
@@ -269,12 +269,12 @@ export async function GET(request: NextRequest) {
             // Pre-go-live fallback: free-text (only delivers inside the 24h window).
             const msg = `Hi ${appt.leads.name || 'there'}! Reminder: your site visit${appt.properties?.title ? ` for ${appt.properties.title}` : ''} is on ${dateStr} at ${timeStr}. See you there! 🏠`
             await sendToLead(ag, appt.leads, msg)
-            await supabaseAdmin.from('appointments').update({ reminder_sent: true }).eq('id', appt.id)
+            await supabaseAdmin.from('appointments').update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() }).eq('id', appt.id)
             results.reminders++
           }
         } else if (ag.wa_phone_number_id) {
           await sendAppointmentReminder(ag, appt.leads, appt, appt.properties)
-          await supabaseAdmin.from('appointments').update({ reminder_sent: true }).eq('id', appt.id)
+          await supabaseAdmin.from('appointments').update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() }).eq('id', appt.id)
           results.reminders++
         }
       } catch (e) {
