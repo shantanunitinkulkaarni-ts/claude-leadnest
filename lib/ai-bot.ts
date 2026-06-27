@@ -14,6 +14,7 @@ import { resolveAppointmentTime } from './appointment'
 import { detectStage } from './stageMachine'
 import { excludeSampleProperties } from './propertyVisibility'
 import { buildPropertyRagContext } from './propertyRag'
+import { buildLeadMemoryContext } from './leadMemory'
 
 // Send an email via Resend's REST API (lib/email.ts — no SDK dependency).
 // IMPORTANT: do NOT use the `resend` npm package here — it is not installed,
@@ -343,20 +344,10 @@ function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, prop
   const closeTime = humanizeTimeLabel(agent.office_close || '19:00')
   const weekOff = agent.weekly_off || null
 
-  const leadContext = JSON.stringify({
-    name: lead.name || null,
-    intent: lead.intent || null,
-    preferred_areas: lead.preferred_areas || [],
-    budget_max: lead.budget_max || null,
-    bhk: lead.bhk || null,
-    visit_time: lead.pending_appointment_time || null,
-    email: lead.email || null,
-    bot_stage: lead.bot_stage || 'greeting',
-    existing_appointment: existingAppointment ? {
-      scheduled_at: formatIST(existingAppointment.scheduled_at),
-      status: existingAppointment.status
-    } : null,
-  }, null, 2)
+  const leadContext = buildLeadMemoryContext(lead, existingAppointment ? {
+    scheduled_at: formatIST(existingAppointment.scheduled_at),
+    status: existingAppointment.status,
+  } : null)
 
   const historyContext = recentHistory.length
     ? recentHistory.map((entry, idx) => `${idx + 1}. ${entry.role === 'user' ? 'Customer' : 'Bot'}: ${entry.text}`).join('\n')
