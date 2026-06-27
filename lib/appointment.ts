@@ -89,6 +89,10 @@ export function resolveAppointmentTime(args: {
   const { llmTime, replyText, nowMs } = args
   const candidates: Array<{ parts: Parts; source: 'llm-iso' | 'chrono-llm' | 'chrono-reply' }> = []
 
+  if (replyText && typeof replyText === 'string') {
+    const nl = fromNaturalLanguage(replyText, nowMs)
+    if (nl) candidates.push({ parts: nl, source: 'chrono-reply' })
+  }
   if (llmTime && typeof llmTime === 'string') {
     const iso = fromIsoLike(llmTime)
     if (iso) candidates.push({ parts: iso, source: 'llm-iso' })
@@ -96,10 +100,6 @@ export function resolveAppointmentTime(args: {
       const nl = fromNaturalLanguage(llmTime, nowMs)
       if (nl) candidates.push({ parts: nl, source: 'chrono-llm' })
     }
-  }
-  if (replyText && typeof replyText === 'string') {
-    const nl = fromNaturalLanguage(replyText, nowMs)
-    if (nl) candidates.push({ parts: nl, source: 'chrono-reply' })
   }
 
   for (const cand of candidates) {

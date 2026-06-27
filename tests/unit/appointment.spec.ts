@@ -69,6 +69,18 @@ test.describe('resolveAppointmentTime', () => {
     expect(ist(r.iso)).toMatchObject({ h: 16, mi: 30 })
   })
 
+  test('reply text wins when the model guesses the wrong date', () => {
+    const r = resolveAppointmentTime({
+      llmTime: '2026-06-29T17:00:00+05:30',
+      replyText: 'This Sunday at 5 PM',
+      nowMs: Date.parse('2026-06-27T12:00:00Z'),
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const w = ist(r.iso)
+    expect(w).toMatchObject({ d: 28, h: 17, mi: 0 })
+  })
+
   test('past time is rejected (never books history)', () => {
     const r = resolveAppointmentTime({ llmTime: '2020-01-01T11:30:00', replyText: '', nowMs: NOW })
     expect(r.ok).toBe(false)
