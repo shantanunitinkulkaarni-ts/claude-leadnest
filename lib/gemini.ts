@@ -840,6 +840,7 @@ export async function generateNudge(
   const propContext = matchedProp
     ? `Last recommended: ${matchedProp.title} (${matchedProp.location}, ₹${((matchedProp.price||0)/100000).toFixed(0)}L${matchedProp.possession_status ? `, ${matchedProp.possession_status === 'ready_to_move' ? 'ready to move' : 'under construction'}` : ''})`
     : `Properties available: ${properties.slice(0, 3).map((p: any) => `${p.title} (${p.location}, ₹${p.type === 'rental' ? `${(p.rent_per_month||p.price||0).toLocaleString('en-IN')}/mo` : `${((p.price||0)/100000).toFixed(0)}L`})`).join(' | ') || 'none'}`
+  const memoryContext = buildNudgeMemoryContext(lead)
 
   const nudgeInstruction = `You are a follow-up specialist for a real estate WhatsApp bot. Write ONE re-engagement message.
 
@@ -848,6 +849,7 @@ CONTEXT:
 - Lead: ${lead.name || 'unknown'} | Intent: ${lead.intent || '?'} | Areas: ${(lead.preferred_areas || []).join(', ') || '?'} | Budget: ${lead.budget_min ? `₹${(lead.budget_min/100000).toFixed(0)}L+` : '?'} | Score: ${lead.ai_score || 0}/10
 - Stage: ${stage}${lead.post_visit_result ? ` | Visit outcome: ${lead.post_visit_result}` : ''}
 - ${propContext}
+${memoryContext ? `\nMEMORY (use silently, do not repeat verbatim):\n${memoryContext}\n` : ''}
 
 TASK: ${stageOverride || intensityGuide}${personalityBrief(lead.personality) ? `
 
@@ -929,4 +931,12 @@ export function parseEngineResponse(responseText: string, stage: ConversationSta
   if (!reply) throw new Error('Engine returned reply with no text content after sanitising')
 
   return { reply, metadata }
+}
+
+export function buildNudgeMemoryContext(lead: any): string {
+  return [
+    lead?.post_visit_result ? `Visit outcome: ${lead.post_visit_result}` : null,
+    lead?.conversation_summary ? `Conversation summary: ${lead.conversation_summary}` : null,
+    lead?.notes ? `Agent notes: ${lead.notes}` : null,
+  ].filter(Boolean).join('\n')
 }
