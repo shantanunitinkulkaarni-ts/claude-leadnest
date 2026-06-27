@@ -1,6 +1,24 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: 2026-06-25 — session 18 (Security Batch A + Free-forever tier + P0 fix + Reset; Codex assigned admin + cosmetics)*
+*Last updated: 2026-06-26 — session 19 (LAUNCH-READY: self-serve WABA+templates, simulation+enterprise tutorial, alpha disclaimers, free-plan billing, bot-quality fixes)*
+
+## ⭐ SESSION 19 — LAUNCH READINESS (2026-06-26)
+
+**The 3 paramount things are GREEN:** (1) bot messaging — inbound qualify→book→emails proven live; (2) security — P0 closed (migration 12 applied: dropped permissive INSERT policies on agents+team_members), RLS on every data table, no secret leakage; (3) value — site visits booked end-to-end.
+
+**Shipped this session (all merged + deployed, PRs #134–#153):**
+- **Self-serve WABA (#152):** at Embedded-Signup onboarding we now auto-create our whole template suite (lead_new_match/visit_invite/final_touch/open_question/offer/visit_reminder × en/hi/mr) on the CLIENT's own WABA via `lib/metaOnboard.ts` → `createTemplatesOnWaba`. Best-effort, never blocks onboarding. **⏳ NEEDS founder test with a friend's real number/business** (a DIFFERENT Meta acct than the one owning our app — else Embedded Signup greys it out).
+- **Free-forever tier:** 500 AI msgs / 10 leads / 5 properties, no expiry (`lib/planLimits.ts`). Caps exclude `is_sample`. Billing screen shows the free-plan card + usage (#151).
+- **Simulation + enterprise tutorial:** sample lead "Priya" + 2 sample props seeded on dashboard load (`/api/sample-data`), guided sim via `/api/simulate` (real bot, `simulate` flag skips WA send), `data-tour` spotlight tour. **Tutorial Wave 1 fixes (#153):** removed voice, fixed overlay blocking modals (panels pointerEvents:none), off-screen card, auto-advance on chip tap, sample auto-cleanup >30min (cron 0b), finish→inbox+toast. **Tutorial Wave 2 = post-launch polish (NOT a blocker):** focus-on-chip, blinks everywhere, post-booking blink+cancel arrow, Log-Feedback step (paid-only → free clicks launch upgrade), per-feature add-lead/property help, Need-help button on All-set.
+- **Bot quality (#144):** no duplicate photos (dedupe), prompt forbids inventing amenities + email/brochure promises.
+- **Manual mode** now silent; auto-resumes after **5 min** (webhook + cron). Connection-status display fixed (correct wa_ columns).
+- **Alpha disclaimers (#150):** trilingual banner (EN/हिं/मरा) on dashboard + onboarding notice.
+- **Founder's test agent** = proton account, wired to the **755 Convorian number** (phone_number_id `1143463112186349`, WABA `1016312184125965`) using the demo account's working token.
+
+**PRE-LAUNCH (founder): (1) test self-serve WABA with a friend's real number; (2) Razorpay policy URLs in dashboard if not done.** Codex resources, ₹799 coupon, account-deletion = post-launch nice-to-have.
+
+---
+*Prev: session 18 (Security Batch A + Free-forever tier + P0 fix + Reset)*
 > ⏱️ This timestamp is set by hand at each update. If it looks stale vs. recent
 > git history (`git log -1`), assume parts of this doc are out of date and verify
 > against the code before trusting them.
