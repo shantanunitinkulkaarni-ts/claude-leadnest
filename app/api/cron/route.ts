@@ -38,6 +38,21 @@ export async function GET(request: NextRequest) {
       results.resumed = resumedLeads?.length || 0
     } catch { /* never let the auto-resume sweep break the rest of the cron */ }
 
+    // ── 0b. SAMPLE-DATA CLEANUP — remove the onboarding sample lead + properties
+    // 30 min after they were seeded (so the agent's inbox/list isn't cluttered). ──
+    try {
+      const sampleCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+      const { data: oldSamples } = await supabaseAdmin
+        .from('leads').select('id').eq('is_sample', true).lt('created_at', sampleCutoff)
+      const ids = (oldSamples || []).map((l: any) => l.id)
+      if (ids.length) {
+        await supabaseAdmin.from('messages').delete().in('lead_id', ids)
+        await supabaseAdmin.from('appointments').delete().in('lead_id', ids)
+        await supabaseAdmin.from('leads').delete().in('id', ids)
+      }
+      await supabaseAdmin.from('properties').delete().eq('is_sample', true).lt('created_at', sampleCutoff)
+    } catch { /* never let sample cleanup break the cron */ }
+
     // ── 1. IN-WINDOW FOLLOW-UP NUDGES (3h / 10h / 23h) ──
     // Re-engage leads who went quiet, while their free 24h window is still open.
     // Bands: 1st nudge after 3h, 2nd after 10h, 3rd ("window save") after 23h.
