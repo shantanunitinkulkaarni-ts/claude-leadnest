@@ -143,7 +143,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   const [visible, setVisible] = useState(false)
   const [step, setStep] = useState(0)
   const [rect, setRect] = useState<Rect | null>(null)
-  const [replyRect, setReplyRect] = useState<Rect | null>(null)
+  const [guideRect, setGuideRect] = useState<Rect | null>(null)
   const [completed, setCompleted] = useState(false)
   // Replays from the profile menu are a refresher — never re-lock the
   // hands-on steps (the user already has leads/properties by then).
@@ -243,7 +243,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
     const s = STEPS[step]
     if (!s?.target) {
       setRect(null)
-      setReplyRect(null)
+      setGuideRect(null)
       return
     }
 
@@ -262,15 +262,15 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
       }
       setRect({ top: r.top, left: r.left, width: r.width, height: r.height })
       if (s.target === '[data-tour="sim-panel"]') {
-        const reply = document.querySelector('[data-tour="sim-reply"]') as HTMLElement | null
-        if (reply) {
-          const rr = reply.getBoundingClientRect()
-          if (rr.width > 0 || rr.height > 0) {
-            setReplyRect({ top: rr.top, left: rr.left, width: rr.width, height: rr.height })
+        const guide = document.querySelector('[data-tour="sim-step-line"]') as HTMLElement | null
+        if (guide) {
+          const gr = guide.getBoundingClientRect()
+          if (gr.width > 0 || gr.height > 0) {
+            setGuideRect({ top: gr.top, left: gr.left, width: gr.width, height: gr.height })
           }
         }
       } else {
-        setReplyRect(null)
+        setGuideRect(null)
       }
     }
 
@@ -325,7 +325,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
     // so the entire chat/modal window stays visible + unblocked.
     if (current.target === '[data-tour="sim-panel"]' && hasTarget && rect) {
       // Sim steps: position the card to the right of the chat (or left if tight)
-      cardLeft = clampLeft(rect.left)
+      cardLeft = clampLeft(rect.left - cardW)
       cardTop = clampTop(rect.top)
       cardStyle = { top: cardTop, left: cardLeft, textAlign: 'left' }
       placement = 'right'
@@ -422,14 +422,9 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
 
       {/* "Tap here" visual guide during sim steps — below the spotlight */}
       {isSimTarget && hole && (
-        <div data-testid="tour-tap-guide" style={{ position: 'fixed', top: replyRect ? Math.max(16, replyRect.top - 42) : Math.min(vh - 52, sp.top + sp.h + 16), left: replyRect ? clampLeft(replyRect.left + replyRect.width / 2 - 88) : clampLeft(sp.left + sp.w / 2 - 88), zIndex: zBase + 50, background: '#4F46E5', color: '#fff', padding: '8px 14px', borderRadius: 24, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', animation: 'tourTapBlink 1.2s ease-in-out infinite', boxShadow: '0 6px 16px rgba(79,70,229,0.4)' }}>
+        <div data-testid="tour-tap-guide" style={{ position: 'fixed', top: guideRect ? Math.max(16, guideRect.top - 38) : Math.min(vh - 52, sp.top + sp.h + 16), left: guideRect ? clampLeft(guideRect.left + 8) : clampLeft(sp.left + sp.w / 2 - 88), zIndex: zBase + 50, background: '#4F46E5', color: '#fff', padding: '8px 14px', borderRadius: 24, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', animation: 'tourTapBlink 1.2s ease-in-out infinite', boxShadow: '0 6px 16px rgba(79,70,229,0.4)' }}>
           👇 Tap a reply
         </div>
-      )}
-
-      {/* White arrow pointing from card to chat */}
-      {isSimTarget && rect && (
-        <div data-testid="tour-card-arrow" style={{ position: 'fixed', top: Math.min(vh - 32, cardTop + 58), left: clampLeft(cardLeft + cardW + 10), zIndex: zBase + 50, width: 0, height: 0, borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderLeft: `12px solid #fff`, filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.2))', animation: 'tourArrowLeft 1s ease-in-out infinite' }} />
       )}
 
       <div key={step} style={{

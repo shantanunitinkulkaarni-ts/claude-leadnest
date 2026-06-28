@@ -569,7 +569,7 @@ export default function InboxScreen({ agentId }: Props) {
                       const cur = SCRIPT[stepIdx]
                       const isDone = stepIdx >= SCRIPT.length - 1
                       return (
-                        <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(26,95,165,0.18)', background: '#F4F8FD' }}>
+                        <div data-tour="sim-step-line" style={{ padding: '10px 16px', borderTop: '1px solid rgba(26,95,165,0.18)', background: '#F4F8FD' }}>
                           <div style={{ fontSize: 11.5, marginBottom: cur.suggestions.length ? 8 : 0, display: 'flex', gap: 6, lineHeight: 1.5 }}>
                             <strong style={{ color: '#1A5FA5', whiteSpace: 'nowrap' }}>{isDone ? '✅' : `Step ${stepIdx + 1}/7`}</strong>
                             <span style={{ color: '#3D5A80' }}>{cur.caption}</span>
