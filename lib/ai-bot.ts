@@ -563,8 +563,9 @@ export async function handleAiBotMessage(opts: {
   // Cast to any for flexible access — these columns were added in migration 07
   const lead = leadRaw as any
 
-  // Manual mode must silence the bot regardless of which route invoked it.
-  if (lead.bot_paused) {
+  // Manual mode must silence the bot — unless we're in simulate (onboarding test),
+  // where we always reply so the agent can see the bot working.
+  if (lead.bot_paused && !simulate) {
     console.log(`[ai-bot] bot paused for ${phone}; skipping reply`)
     return
   }
