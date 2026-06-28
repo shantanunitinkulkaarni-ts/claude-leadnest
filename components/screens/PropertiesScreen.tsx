@@ -12,6 +12,10 @@ function normalizeArea(s: string): string {
   return (s || '').trim().replace(/\s+/g, ' ')
 }
 
+function isTruthyCell(value: any): boolean {
+  return /^(yes|true|1|y)$/i.test(String(value || '').trim())
+}
+
 export default function PropertiesScreen({ agentId }: Props) {
   const [properties, setProperties] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -45,6 +49,14 @@ export default function PropertiesScreen({ agentId }: Props) {
   const [projectWebsite, setProjectWebsite] = useState('')
   const [websiteAiConsent, setWebsiteAiConsent] = useState(false)
   const [extraInfo, setExtraInfo] = useState('')
+  const [floorPlanAvailable, setFloorPlanAvailable] = useState(false)
+  const [bookingStarted, setBookingStarted] = useState(false)
+  const [financeOptions, setFinanceOptions] = useState('')
+  const [areaRanking, setAreaRanking] = useState('premium')
+  const [purchaseIndicator, setPurchaseIndicator] = useState('4')
+  const [parkingAvailable, setParkingAvailable] = useState(false)
+  const [parkingDetails, setParkingDetails] = useState('')
+  const [brokerRecommendation, setBrokerRecommendation] = useState('')
   
   // Media State
   const [files, setFiles] = useState<File[]>([])
@@ -106,6 +118,8 @@ export default function PropertiesScreen({ agentId }: Props) {
     setEditingId(null)
     setTitle(''); setLocation(''); setPrice(''); setSizeSqft(''); setDescription(''); setFiles([]); setExistingMedia([]); setAmenityFeatures([])
     setPossessionStatus('ready_to_move'); setPossessionDate(''); setDeposit(''); setProjectWebsite(''); setWebsiteAiConsent(false); setExtraInfo('')
+    setFloorPlanAvailable(false); setBookingStarted(false); setFinanceOptions(''); setAreaRanking('premium'); setPurchaseIndicator('4')
+    setParkingAvailable(false); setParkingDetails(''); setBrokerRecommendation('')
     setPriceWarning(null); setHasConfirmedWarning(false)
     setShowModal(true)
   }
@@ -130,6 +144,14 @@ export default function PropertiesScreen({ agentId }: Props) {
     setProjectWebsite(p.project_website || '')
     setWebsiteAiConsent(!!p.website_ai_consent)
     setExtraInfo(p.extra_info || '')
+    setFloorPlanAvailable(!!p.floor_plan_available)
+    setBookingStarted(!!p.booking_started)
+    setFinanceOptions(p.finance_options || '')
+    setAreaRanking(p.area_ranking || 'premium')
+    setPurchaseIndicator(p.purchase_indicator?.toString() || '4')
+    setParkingAvailable(!!p.parking_available)
+    setParkingDetails(p.parking_details || '')
+    setBrokerRecommendation(p.broker_recommendation || '')
 
     // Media now lives in property_media (Phase 0F); extractPropertyMedia falls
     // back to legacy features media: entries for any unmigrated row. Bare URLs.
@@ -214,6 +236,14 @@ export default function PropertiesScreen({ agentId }: Props) {
       project_website: projectWebsite.trim() || null,
       website_ai_consent: !!(projectWebsite.trim() && websiteAiConsent),
       extra_info: extraInfo.trim() || null,
+      floor_plan_available: floorPlanAvailable,
+      booking_started: bookingStarted,
+      finance_options: financeOptions.trim() || null,
+      area_ranking: areaRanking.trim() || null,
+      purchase_indicator: parseInt(purchaseIndicator) || null,
+      parking_available: parkingAvailable,
+      parking_details: parkingDetails.trim() || null,
+      broker_recommendation: brokerRecommendation.trim() || null,
     }
     
     try {
@@ -275,7 +305,7 @@ export default function PropertiesScreen({ agentId }: Props) {
 
   // --- BULK UPLOAD LOGIC ---
   const downloadTemplate = () => {
-    const csvContent = "data:text/csv;charset=utf-8,Project Name,BHK,Category,Type,Price,Location,City,Area Sqft,Description\nLodha Belmondo,3BHK,Apartment,Sale,8500000,Baner,Pune,1450,Luxury property with all amenities";
+    const csvContent = "data:text/csv;charset=utf-8,Project Name,BHK,Category,Type,Price,Location,City,Area Sqft,Description,Possession Status,Possession Date,Floor Plan Available,Booking Started,Finance Options,Area Ranking,Purchase Indicator,Parking Available,Parking Details,Broker Recommendation\nLodha Belmondo,3BHK,Apartment,Sale,8500000,Baner,Pune,1450,Luxury property with all amenities,ready_to_move,,Yes,No,Home loan available,premium,5,Yes,Covered parking available,Strong buy. Premium area. Good for end use.";
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -319,6 +349,16 @@ export default function PropertiesScreen({ agentId }: Props) {
             city: row['City'] || 'Pune',
             size_sqft: parseInt(row['Area Sqft']) || 0,
             description: row['Description'] || '',
+            possession_status: (row['Possession Status'] || 'ready_to_move').toLowerCase(),
+            possession_date: row['Possession Date'] || null,
+            floor_plan_available: isTruthyCell(row['Floor Plan Available']),
+            booking_started: isTruthyCell(row['Booking Started']),
+            finance_options: row['Finance Options'] || null,
+            area_ranking: row['Area Ranking'] || null,
+            purchase_indicator: parseInt(row['Purchase Indicator']) || null,
+            parking_available: isTruthyCell(row['Parking Available']),
+            parking_details: row['Parking Details'] || null,
+            broker_recommendation: row['Broker Recommendation'] || null,
             features: [],
             status: 'active'
           }
@@ -614,7 +654,68 @@ export default function PropertiesScreen({ agentId }: Props) {
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Deposit (₹)</label>
                     <input value={deposit} onChange={e => setDeposit(e.target.value)} placeholder="e.g. 100000" style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
                   </div>
-                )}
+                )} 
+              </div>
+
+              <div style={{ border: '1px solid rgba(26,25,22,0.08)', borderRadius: 12, padding: 16, background: '#FAFAFB', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B' }}>Broker details</div>
+                <div style={{ fontSize: 12, color: '#6B6860', lineHeight: 1.5 }}>
+                  These fields help the card read like a real agent briefing with the usual property jargon.
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#15161B' }}>
+                    <input type="checkbox" checked={floorPlanAvailable} onChange={e => setFloorPlanAvailable(e.target.checked)} />
+                    Floor plan available
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#15161B' }}>
+                    <input type="checkbox" checked={bookingStarted} onChange={e => setBookingStarted(e.target.checked)} />
+                    Booking has begun
+                  </label>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Area ranking</label>
+                    <select value={areaRanking} onChange={e => setAreaRanking(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none', background: '#fff' }}>
+                      <option value="premium">Premium area</option>
+                      <option value="good">Good area</option>
+                      <option value="emerging">Emerging area</option>
+                      <option value="budget">Budget-friendly area</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Purchase indicator</label>
+                    <select value={purchaseIndicator} onChange={e => setPurchaseIndicator(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none', background: '#fff' }}>
+                      <option value="5">5 - Strong buy</option>
+                      <option value="4">4 - Good buy</option>
+                      <option value="3">3 - Decent buy</option>
+                      <option value="2">2 - Needs comparison</option>
+                      <option value="1">1 - Weak fit</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#15161B' }}>
+                    <input type="checkbox" checked={parkingAvailable} onChange={e => setParkingAvailable(e.target.checked)} />
+                    Parking available
+                  </label>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Parking details</label>
+                    <input value={parkingDetails} onChange={e => setParkingDetails(e.target.value)} placeholder="e.g. Covered parking, open parking, tandem slot" style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Finance options</label>
+                  <input value={financeOptions} onChange={e => setFinanceOptions(e.target.value)} placeholder="e.g. Home loan available, bank tie-up available" style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }} />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#6B6860', marginBottom: 6 }}>Broker recommendation</label>
+                  <textarea value={brokerRecommendation} onChange={e => setBrokerRecommendation(e.target.value)} placeholder="e.g. Vastu compliant flat. Premium area. A decent buy. This will suit your requirement." rows={2} style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }} />
+                </div>
               </div>
 
               <div>

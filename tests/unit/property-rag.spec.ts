@@ -16,7 +16,26 @@ test.describe('property RAG helpers', () => {
 
   test('builds a compact markdown snapshot for the model', () => {
     const rows = [
-      { id: 'real-1', title: 'Real Flat', type: 'sale', location: 'Wakad', city: 'Pune', price: 7500000, features: ['parking'], status: 'active', is_sample: false },
+      {
+        id: 'real-1',
+        title: 'Real Flat',
+        type: 'sale',
+        location: 'Wakad',
+        city: 'Pune',
+        price: 7500000,
+        features: ['parking'],
+        possession_status: 'under_construction',
+        floor_plan_available: true,
+        booking_started: true,
+        finance_options: 'Home loan available',
+        area_ranking: 'premium',
+        purchase_indicator: 4,
+        parking_available: true,
+        parking_details: 'Covered parking',
+        broker_recommendation: 'Good buy. Worth shortlisting.',
+        status: 'active',
+        is_sample: false,
+      },
     ]
 
     const rag = buildPropertyRagContext(rows as any, { intent: 'buy', preferred_areas: ['Wakad'], budget_max: 8000000 }, { agencyName: 'Test Agency', limit: 3 })
@@ -24,6 +43,9 @@ test.describe('property RAG helpers', () => {
     expect(rag).toContain('Property RAG Snapshot')
     expect(rag).toContain('Inventory: 1 active properties (0 rentals, 1 sales)')
     expect(rag).toContain('Real Flat')
+    expect(rag).toContain('Floor plan available: Yes')
+    expect(rag).toContain('Purchase indicator: 4/5')
+    expect(rag).toContain('Broker recommendation: Good buy. Worth shortlisting.')
     expect(rag).toContain('Sample listing: no')
   })
 

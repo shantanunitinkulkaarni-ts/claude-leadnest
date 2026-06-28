@@ -21,11 +21,6 @@ export type PresentResult = {
   overflow: boolean     // more matches existed than we showed → offer a call
 }
 
-const POSSESSION_LABEL: Record<string, string> = {
-  ready_to_move: 'Ready to move', under_construction: 'Under construction',
-  new_launch: 'New launch', resale: 'Resale',
-}
-
 function inr(n: number): string { return '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN') }
 
 // Exact price string straight from the row. Sale → lakh/crore; rental → /month.
@@ -44,21 +39,128 @@ export function priceText(p: any): string {
   return inr(price)
 }
 
+function firstPresent(...values: any[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    if (typeof value === 'number' && !Number.isNaN(value)) return String(value)
+  }
+  return null
+}
+
+function yesNo(value: any): string {
+  return value ? 'Yes' : 'No'
+}
+
+function titleCase(value: string): string {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function possessionStatusLabel(value: string | undefined | null): string | null {
+  if (!value) return null
+  const map: Record<string, string> = {
+    ready_to_move: 'Ready to move',
+    under_construction: 'Under construction',
+    new_launch: 'New construction',
+    resale: 'Resale',
+  }
+  return map[value] || titleCase(value.replace(/_/g, ' '))
+}
+
+function bookingStatusLabel(p: any): string | null {
+  if (p.possession_status !== 'new_launch' && p.possession_status !== 'under_construction') {
+    return null
+  }
+  if (p.booking_started === true) return 'Booking has begun'
+  if (p.booking_started === false) return 'Booking has not begun yet'
+  if (p.possession_status === 'new_launch' || p.possession_status === 'under_construction') return 'Booking status not mentioned'
+  return null
+}
+
+function areaRankingLabel(value: any): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null
+  const map: Record<string, string> = {
+    premium: 'Premium area',
+    good: 'Good area',
+    emerging: 'Emerging area',
+    budget: 'Budget-friendly area',
+  }
+  const key = value.trim().toLowerCase()
+  return map[key] || titleCase(value.replace(/_/g, ' '))
+}
+
+function recommendationText(p: any): string | null {
+  const note = firstPresent(p.broker_recommendation, p.recommendation_notes)
+  if (note) return note
+
+  const score = Number(p.purchase_indicator)
+  if (!Number.isFinite(score)) return null
+
+  if (score >= 5) return 'Strong buy. Premium area. This suits end use well.'
+  if (score >= 4) return 'Good buy. Worth shortlisting.'
+  if (score >= 3) return 'Decent buy. Compare with a couple more options.'
+  if (score >= 2) return 'Proceed carefully. Best if the location is your top priority.'
+  return 'Weak fit. Consider only if the budget is very tight.'
+}
+
 // One property → a clean WhatsApp block. Only fields present in the row appear;
 // nothing is invented or defaulted to a made-up value.
 export function buildPropertyBlock(p: any): string {
   const lines: string[] = []
-  const desc = [p.bhk, p.category].filter(Boolean).join(' ')
-  lines.push(`🏠 *${p.title || 'Property'}*${desc ? ` — ${desc}` : ''}${p.location ? ` in ${p.location}` : ''}`)
-  lines.push(`💰 ${priceText(p)}`)
-  if (p.size_sqft) lines.push(`📐 ${p.size_sqft} sqft`)
-  if (p.possession_status) {
-    const poss = (POSSESSION_LABEL[p.possession_status] || p.possession_status)
-      + (p.possession_date ? ` (by ${p.possession_date})` : '')
-    lines.push(`🏗️ ${poss}`)
+  const titleBits = [p.bhk, p.category].filter(Boolean).join(' ')
+  lines.push(`Property - ${p.title || 'Property'}${titleBits ? ` (${titleBits})` : ''}`)
+  if (p.location) lines.push(`Location - ${p.location}`)
+  if (p.city) lines.push(`City - ${p.city}`)
+  lines.push(`Price - ${priceText(p)}`)
+  if (p.size_sqft) lines.push(`Area - ${p.size_sqft} sqft`)
+  if (p.facing) lines.push(`Facing - ${titleCase(String(p.facing).replace(/_/g, ' '))}`)
+
+  const possessionLabel = possessionStatusLabel(p.possession_status)
+  if (possessionLabel) {
+    const extra = p.possession_date ? ` by ${p.possession_date}` : ''
+    lines.push(`Possession - ${possessionLabel}${extra}`)
   }
+
+  const constructionType = p.possession_status === 'resale'
+    ? 'Resale'
+    : (p.possession_status === 'ready_to_move' ? 'Ready to move' : 'New construction')
+  if (constructionType) lines.push(`Status - ${constructionType}`)
+
+  const bookingStatus = bookingStatusLabel(p)
+  if (bookingStatus) lines.push(`Booking status - ${bookingStatus}`)
+
+  if (p.floor_plan_available != null) {
+    lines.push(`Floor plan - ${yesNo(p.floor_plan_available)}${p.floor_plan_available ? ' - available for review' : ''}`)
+  }
+
+  if (p.finance_options) lines.push(`Finance options - ${p.finance_options}`)
+
+  if (p.extra_info) lines.push(`Highlights - ${p.extra_info}`)
+
+  if (p.parking_details) {
+    lines.push(`Parking - ${p.parking_details}`)
+  } else if (p.parking_available != null) {
+    lines.push(`Parking - ${yesNo(p.parking_available)}`)
+  }
+
+  const ranking = areaRankingLabel(p.area_ranking)
+  if (ranking) lines.push(`Area ranking - ${ranking}`)
+
+  if (p.purchase_indicator != null && p.purchase_indicator !== '') {
+    lines.push(`Purchase indicator - ${p.purchase_indicator}/5`)
+  }
+
   const amenities = (p.features || []).filter((f: any) => typeof f === 'string' && !f.startsWith('media:'))
-  if (amenities.length) lines.push(`✨ ${amenities.slice(0, 6).join(', ')}`)
+  if (amenities.length) {
+    lines.push(`Amenities - This property has amenities such as ${amenities.slice(0, 6).join(', ')}`)
+  }
+
+  const recommendation = recommendationText(p)
+  if (recommendation) lines.push(`Recommendation - ${recommendation}`)
+
   return lines.join('\n')
 }
 

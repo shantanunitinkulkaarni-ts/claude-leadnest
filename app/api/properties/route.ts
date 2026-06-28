@@ -5,8 +5,24 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { pickFields, requireAgentAccess, requirePropertyAccess } from '@/lib/apiAuth'
 import { isFreePlan, FREE_PROPERTY_CAP } from '@/lib/planLimits'
 import { refreshPropertyRagSnapshot } from '@/lib/propertyRagRefresh'
+import { purgeExpiredSampleData } from '@/lib/sampleCleanup'
 
-const EXTRA = ['possession_date', 'possession_status', 'deposit', 'project_website', 'website_ai_consent', 'extra_info']
+const EXTRA = [
+  'possession_date',
+  'possession_status',
+  'deposit',
+  'project_website',
+  'website_ai_consent',
+  'extra_info',
+  'floor_plan_available',
+  'booking_started',
+  'finance_options',
+  'area_ranking',
+  'purchase_indicator',
+  'parking_available',
+  'parking_details',
+  'broker_recommendation',
+]
 const CREATE_FIELDS = ['agent_id', 'title', 'location', 'city', 'price', 'rent_per_month', 'type', 'category', 'bhk', 'size_sqft', 'description', 'features', 'property_media', 'status', ...EXTRA]
 const UPDATE_FIELDS = ['title', 'location', 'city', 'price', 'rent_per_month', 'type', 'category', 'bhk', 'size_sqft', 'description', 'features', 'property_media', 'status', ...EXTRA]
 
@@ -16,6 +32,8 @@ export async function GET(request: NextRequest) {
 
   const access = await requireAgentAccess(agentId)
   if ('error' in access) return access.error
+
+  await purgeExpiredSampleData(agentId).catch(() => null)
 
   const { data, error } = await supabaseAdmin
     .from('properties')
