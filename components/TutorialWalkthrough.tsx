@@ -387,8 +387,8 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
       )}
 
       {/* White arrow pointing from card to chat */}
-      {current.target === '[data-tour="sim-panel"]' && cardStyle && (
-        <div style={{ position: 'fixed', top: (cardStyle.top as number) + 60, left: 340, zIndex: zBase + 2, width: 0, height: 0, borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderLeft: `12px solid #fff`, filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.2))', animation: 'tourArrowLeft 1s ease-in-out infinite' }} />
+      {current.target === '[data-tour="sim-panel"]' && rect && (
+        <div style={{ position: 'fixed', top: rect.top + 60, left: 340, zIndex: zBase + 2, width: 0, height: 0, borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderLeft: `12px solid #fff`, filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.2))', animation: 'tourArrowLeft 1s ease-in-out infinite' }} />
       )}
 
       <div key={step} style={{
