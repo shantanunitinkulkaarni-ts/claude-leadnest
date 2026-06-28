@@ -7,6 +7,7 @@ import { generateNudge } from '@/lib/gemini'
 import { runNurtureEmails } from '@/lib/nurture'
 import { decideOutreach, pickTemplate, renderTemplate } from '@/lib/outreach'
 import { decideNurtureStep, type NurturePlan } from '@/lib/nurtureFlow'
+import { purgeExpiredSampleData } from '@/lib/sampleCleanup'
 
 export const maxDuration = 60
 
@@ -42,16 +43,7 @@ export async function GET(request: NextRequest) {
     // 5 min after they were seeded, so the tutorial data disappears right after
     // the onboarding walkthrough ends. ──
     try {
-      const sampleCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString()
-      const { data: oldSamples } = await supabaseAdmin
-        .from('leads').select('id').eq('is_sample', true).lt('created_at', sampleCutoff)
-      const ids = (oldSamples || []).map((l: any) => l.id)
-      if (ids.length) {
-        await supabaseAdmin.from('messages').delete().in('lead_id', ids)
-        await supabaseAdmin.from('appointments').delete().in('lead_id', ids)
-        await supabaseAdmin.from('leads').delete().in('id', ids)
-      }
-      await supabaseAdmin.from('properties').delete().eq('is_sample', true).lt('created_at', sampleCutoff)
+      await purgeExpiredSampleData()
     } catch { /* never let sample cleanup break the cron */ }
 
     // ── 1. IN-WINDOW FOLLOW-UP NUDGES (3h / 10h / 23h) ──

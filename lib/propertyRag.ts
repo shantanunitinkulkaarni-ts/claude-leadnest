@@ -34,6 +34,10 @@ function featureList(row: PropertyRow): string {
   return features.length ? features.join(', ') : 'Not listed'
 }
 
+function yesNo(value: any): string {
+  return value ? 'Yes' : 'No'
+}
+
 export function selectPropertyRagProperties(properties: PropertyRow[] | null | undefined, criteria: SearchCriteria, limit = 5): PropertyRow[] {
   const live = excludeSampleProperties(properties || []).filter(p => p.status === 'active')
   if (!live.length) return []
@@ -77,6 +81,16 @@ export function buildPropertyRagMarkdown(properties: PropertyRow[] | null | unde
     if (row.size_sqft) lines.push(`- Size: ${row.size_sqft} sq ft`)
     lines.push(`- Price: ${moneyLabel(row)}`)
     lines.push(`- Features: ${featureList(row)}`)
+    if (row.possession_status) lines.push(`- Possession: ${row.possession_status}`)
+    if ((row as any).floor_plan_available != null) lines.push(`- Floor plan available: ${yesNo((row as any).floor_plan_available)}`)
+    if ((row as any).booking_started != null) lines.push(`- Booking started: ${yesNo((row as any).booking_started)}`)
+    if ((row as any).finance_options) lines.push(`- Finance options: ${(row as any).finance_options}`)
+    if ((row as any).extra_info) lines.push(`- Highlights: ${(row as any).extra_info}`)
+    if ((row as any).area_ranking) lines.push(`- Area ranking: ${(row as any).area_ranking}`)
+    if ((row as any).purchase_indicator != null) lines.push(`- Purchase indicator: ${(row as any).purchase_indicator}/5`)
+    if ((row as any).parking_available != null) lines.push(`- Parking available: ${yesNo((row as any).parking_available)}`)
+    if ((row as any).parking_details) lines.push(`- Parking details: ${(row as any).parking_details}`)
+    if ((row as any).broker_recommendation) lines.push(`- Broker recommendation: ${(row as any).broker_recommendation}`)
     lines.push(`- Sample listing: no`)
   }
 

@@ -368,6 +368,17 @@ function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, prop
           facing: p.facing,
           features: (p.features || []).slice(0, 6),
           description: p.description,
+          extra_info: p.extra_info,
+          possession_status: p.possession_status,
+          possession_date: p.possession_date,
+          floor_plan_available: p.floor_plan_available,
+          booking_started: p.booking_started,
+          finance_options: p.finance_options,
+          area_ranking: p.area_ranking,
+          purchase_indicator: p.purchase_indicator,
+          parking_available: p.parking_available,
+          parking_details: p.parking_details,
+          broker_recommendation: p.broker_recommendation,
           has_photos: (p.photos || []).length > 0,
         })}`).join('\n')
       }`

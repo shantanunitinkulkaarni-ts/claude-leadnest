@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { pickFields, requireAgentAccess, requireLeadAccess } from '@/lib/apiAuth'
 import { isPendingAppointmentExpired } from '@/lib/appointmentConfirmation'
 import { isFreePlan, FREE_LEAD_CAP } from '@/lib/planLimits'
+import { purgeExpiredSampleData } from '@/lib/sampleCleanup'
 
 // How recent an 'engine_fallback' activity_log row has to be to still count
 // as "the last reply was a fallback" for the inbox health badge. Past this
@@ -24,6 +25,8 @@ export async function GET(request: NextRequest) {
 
   const access = await requireAgentAccess(agentId)
   if ('error' in access) return access.error
+
+  await purgeExpiredSampleData(agentId).catch(() => null)
 
   let query = supabaseAdmin
     .from('leads')
