@@ -325,7 +325,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
     // so the entire chat/modal window stays visible + unblocked.
     if (current.target === '[data-tour="sim-panel"]' && hasTarget && rect) {
       // Sim steps: position the card to the right of the chat (or left if tight)
-      cardLeft = clampLeft(rect.left - cardW - 28)
+      cardLeft = clampLeft(rect.left - cardW - 56)
       cardTop = clampTop(rect.top)
       cardStyle = { top: cardTop, left: cardLeft, textAlign: 'left' }
       placement = 'right'
