@@ -299,9 +299,10 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
         placement = 'right'
       } else {
         const spaceLeft = rect.left
-        if (spaceLeft >= cardW + 16) {
-          // Snap the card's right edge to the chat's left edge (no gap)
-          cardStyle = { top: clampTop(rect.top), left: clampLeft(rect.left - cardW), textAlign: 'left' }
+        if (spaceLeft >= cardW) {
+          // Snap the card's right edge flush to the chat's left edge (no gap, no clamp)
+          const snapLeft = Math.max(0, rect.left - cardW)
+          cardStyle = { top: clampTop(rect.top), left: snapLeft, textAlign: 'left' }
           placement = 'right'
         } else {
           cardStyle = { top: clampTop(rect.top - 252), left: clampLeft(rect.left), textAlign: 'left' }
@@ -384,9 +385,9 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
 
       {arrow}
 
-      {/* "Tap here" visual guide during sim steps */}
+      {/* "Tap here" visual guide during sim steps — positioned below spotlight */}
       {current.target === '[data-tour="sim-panel"]' && hole && (
-        <div style={{ position: 'fixed', bottom: sp.top + sp.h + 12, left: sp.left + sp.w / 2 - 60, zIndex: zBase + 2, background: '#4F46E5', color: '#fff', padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', animation: 'tourTapBlink 1.2s ease-in-out infinite', boxShadow: '0 4px 12px rgba(79,70,229,0.3)' }}>
+        <div style={{ position: 'fixed', top: sp.top + sp.h + 12, left: sp.left + sp.w / 2 - 60, zIndex: zBase + 2, background: '#4F46E5', color: '#fff', padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', animation: 'tourTapBlink 1.2s ease-in-out infinite', boxShadow: '0 4px 12px rgba(79,70,229,0.3)' }}>
           ↓ Tap a reply
         </div>
       )}
