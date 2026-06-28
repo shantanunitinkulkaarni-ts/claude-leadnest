@@ -298,14 +298,17 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
         cardStyle = { top: clampTop(rect.top), left: clampLeft(rect.left + rect.width + 16), textAlign: 'left' }
         placement = 'right'
       } else {
-        const spaceLeft = rect.left
-        if (spaceLeft >= cardW) {
-          // Snap the card's right edge flush to the chat's left edge (no gap, no clamp)
-          const snapLeft = Math.max(0, rect.left - cardW)
+        // For sim steps: position card to the LEFT of the chat, snapped flush (no gap).
+        // The spotlight has PAD around the actual chat, so reduce by PAD to get visual edge.
+        const chatVisualLeft = Math.max(rect.left + PAD, 16)
+        const spaceLeft = chatVisualLeft
+        if (spaceLeft >= cardW + 16) {
+          // Snap the card's right edge to the chat's visual left edge (no gap)
+          const snapLeft = Math.max(0, chatVisualLeft - cardW)
           cardStyle = { top: clampTop(rect.top), left: snapLeft, textAlign: 'left' }
           placement = 'right'
         } else {
-          cardStyle = { top: clampTop(rect.top - 252), left: clampLeft(rect.left), textAlign: 'left' }
+          cardStyle = { top: clampTop(rect.top - 252), left: clampLeft(chatVisualLeft), textAlign: 'left' }
           placement = 'above'
         }
       }
