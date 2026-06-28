@@ -134,7 +134,7 @@ export default function SupportChat({ agentId }: { agentId?: string } = {}) {
     <>
       {isOpen && (
         <div style={{
-          position: 'fixed', bottom: 80, right: 24, width: 340, height: 460,
+          position: 'fixed', bottom: 108, right: 24, width: 340, height: 460,
           background: '#fff', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
           display: 'flex', flexDirection: 'column', zIndex: 9999, overflow: 'hidden',
           border: '1px solid rgba(0,0,0,0.06)'
@@ -235,7 +235,7 @@ export default function SupportChat({ agentId }: { agentId?: string } = {}) {
         onClick={() => setIsOpen(!isOpen)}
         aria-label="Open support chat"
         style={{
-          position: 'fixed', bottom: 24, right: 24, width: 52, height: 52,
+          position: 'fixed', bottom: 52, right: 24, width: 52, height: 52,
           borderRadius: '50%', background: 'linear-gradient(135deg,#4F46E5,#7C3AED)', color: '#fff',
           border: 'none', cursor: 'pointer', zIndex: 9999,
           display: 'flex', alignItems: 'center', justifyContent: 'center',

@@ -369,20 +369,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
     placement = 'center'
   }
 
-  // Animated arrow pointing at the target (only for non-action targeted steps).
   const ARROW = '#4F46E5'
-  let arrow: React.ReactNode = null
-  if (hole && (placement === 'right' || placement === 'below' || placement === 'above')) {
-    const cx = sp.left + sp.w / 2
-    if (placement === 'right') {
-      arrow = <div data-testid="tour-arrow" style={{ position: 'fixed', top: cardTop + 58, left: cardLeft + cardW + 10, zIndex: zBase + 50, width: 0, height: 0, borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderLeft: `13px solid ${ARROW}`, filter: `drop-shadow(0 0 4px ${ARROW})`, animation: 'tourArrowLeft 0.9s ease-in-out infinite', transition: 'top .35s, left .35s' }} />
-    } else if (placement === 'below') {
-      arrow = <div data-testid="tour-arrow" style={{ position: 'fixed', top: sp.top + sp.h + 4, left: cx - 9, zIndex: zBase + 50, width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderBottom: `13px solid ${ARROW}`, filter: `drop-shadow(0 0 4px ${ARROW})`, animation: 'tourArrowUp 0.9s ease-in-out infinite', transition: 'top .35s, left .35s' }} />
-    } else {
-      arrow = <div data-testid="tour-arrow" style={{ position: 'fixed', top: sp.top - 17, left: cx - 9, zIndex: zBase + 50, width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderTop: `13px solid ${ARROW}`, filter: `drop-shadow(0 0 4px ${ARROW})`, animation: 'tourArrowDown 0.9s ease-in-out infinite', transition: 'top .35s, left .35s' }} />
-    }
-  }
-
   const panel: React.CSSProperties = {
     // pointerEvents:none is critical — otherwise the dim panels swallow clicks and
     // the app's own modals (Add Lead / Add Property) become unusable behind the tour.
@@ -417,8 +404,6 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
       ) : (
         <div style={{ ...panel, top: 0, left: 0, width: '100vw', height: '100vh' }} />
       )}
-
-      {arrow}
 
       {/* "Tap here" visual guide during sim steps — below the spotlight */}
       {isSimTarget && hole && (

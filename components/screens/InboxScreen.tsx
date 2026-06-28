@@ -21,6 +21,7 @@ export default function InboxScreen({ agentId }: Props) {
   const [isSimulating, setIsSimulating] = useState(false)
   const [simStep, setSimStep] = useState(0)
   const [tutorialRunning, setTutorialRunning] = useState(false)
+  const [assistantReplying, setAssistantReplying] = useState(false)
 
   const [activeTab, setActiveTab] = useState<'chat' | 'profile' | 'matched' | 'activity'>('chat')
   const [filter, setFilter] = useState('all')
@@ -69,6 +70,9 @@ export default function InboxScreen({ agentId }: Props) {
   const [bookError, setBookError] = useState<string | null>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const simStepLineRef = useRef<HTMLDivElement>(null)
+  const simRefocusTimer = useRef<number | null>(null)
+  const assistantReplyStartedAt = useRef<number | null>(null)
 
   const openBookModal = () => {
     if (!selected) return
@@ -299,7 +303,44 @@ export default function InboxScreen({ agentId }: Props) {
     }
   }, [activeTab, selected?.id])
 
+  // During the tutorial simulation, keep the latest bot reply in view so the
+  // user sees the response before the next reply chips get attention again.
+  useEffect(() => {
+    if (!tutorialRunning || !isSimulating || !selected?.is_sample) return
+    const botReplies = Array.from(document.querySelectorAll('[data-tour="bot-reply"]')) as HTMLElement[]
+    const lastBotReply = botReplies[botReplies.length - 1]
+    if (lastBotReply) {
+      try { lastBotReply.scrollIntoView({ behavior: 'smooth', block: 'center' }) } catch { /* ignore */ }
+    }
+  }, [messages, tutorialRunning, isSimulating, selected?.id])
+
+  useEffect(() => {
+    if (!assistantReplying || !assistantReplyStartedAt.current) return
+    const foundFreshBotReply = messages.some(msg =>
+      msg.sent_by === 'bot' && new Date(msg.created_at).getTime() >= (assistantReplyStartedAt.current || 0)
+    )
+    if (foundFreshBotReply) {
+      assistantReplyStartedAt.current = null
+      setAssistantReplying(false)
+    }
+  }, [messages, assistantReplying])
+
+  // After the bot reply is shown, bring attention back to the next reply chips.
+  useEffect(() => {
+    if (!tutorialRunning || !isSimulating || !selected?.is_sample) return
+    if (simRefocusTimer.current) window.clearTimeout(simRefocusTimer.current)
+    simRefocusTimer.current = window.setTimeout(() => {
+      try { simStepLineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) } catch { /* ignore */ }
+      const nextReply = document.querySelector('[data-tour="sim-reply"]') as HTMLElement | null
+      if (nextReply) nextReply.focus()
+    }, 3000)
+    return () => {
+      if (simRefocusTimer.current) window.clearTimeout(simRefocusTimer.current)
+    }
+  }, [simStep, tutorialRunning, isSimulating, selected?.id])
+
   const handleSendMessage = async () => {
+    if (tutorialRunning) return
     if (!msgInput.trim() || !selected) return
     
     // Optimistic UI update
@@ -349,6 +390,8 @@ export default function InboxScreen({ agentId }: Props) {
     setMessages(prev => [...prev, optimisticMsg])
     setMsgInput('')
     setSimStep(s => s + 1) // advance the guided walkthrough
+    assistantReplyStartedAt.current = Date.now()
+    setAssistantReplying(true)
     // Advance the spotlight tutorial when it's gating on a simulation send.
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('leadnest:tour-action', { detail: 'sim-sent' }))
@@ -369,6 +412,13 @@ export default function InboxScreen({ agentId }: Props) {
       }
     } catch (e) {
       console.error('Failed to simulate lead message:', e)
+    } finally {
+      window.setTimeout(() => {
+        if (assistantReplyStartedAt.current && Date.now() - assistantReplyStartedAt.current > 1000) {
+          assistantReplyStartedAt.current = null
+          setAssistantReplying(false)
+        }
+      }, 3500)
     }
   }
 
@@ -544,10 +594,20 @@ export default function InboxScreen({ agentId }: Props) {
                   <div data-tour="sim-panel" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                     <div style={{ flex: 1, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
                       {messages.length === 0 && <div style={{ textAlign: 'center', color: '#9E9B92', fontSize: 13, marginTop: 20 }}>No messages yet.</div>}
+                      {assistantReplying && (
+                        <div style={{ alignSelf: 'flex-start', fontSize: 12, color: '#1A5FA5', background: '#EEF4FC', border: '1px solid rgba(26,95,165,0.18)', padding: '8px 12px', borderRadius: 999, display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#1A5FA5', display: 'inline-block', animation: 'tourTapBlink 1.2s ease-in-out infinite' }} />
+                          Convorian is replying...
+                        </div>
+                      )}
                       {messages.map(msg => (
                         <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.direction === 'outbound' ? 'flex-end' : 'flex-start' }}>
                           {msg.direction === 'outbound' && <div style={{ fontSize: 10, color: '#9E9B92', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>{msg.sent_by === 'bot' ? '🤖 Convorian bot' : '👤 You'}</div>}
-                          <div style={{ padding: '9px 13px', fontSize: 13, lineHeight: 1.5, maxWidth: '72%', background: msg.direction === 'outbound' ? (msg.sent_by === 'bot' ? '#15161B' : '#4F46E5') : '#fff', color: msg.direction === 'outbound' ? '#fff' : '#15161B', borderRadius: msg.direction === 'outbound' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', border: msg.direction === 'inbound' ? '1px solid rgba(26,25,22,0.08)' : 'none' }}>{msg.content}</div>
+                          <div
+                            data-tour={msg.direction === 'outbound' && msg.sent_by === 'bot' ? 'bot-reply' : undefined}
+                            tabIndex={msg.direction === 'outbound' && msg.sent_by === 'bot' ? -1 : undefined}
+                            style={{ padding: '9px 13px', fontSize: 13, lineHeight: 1.5, maxWidth: '72%', background: msg.direction === 'outbound' ? (msg.sent_by === 'bot' ? '#15161B' : '#4F46E5') : '#fff', color: msg.direction === 'outbound' ? '#fff' : '#15161B', borderRadius: msg.direction === 'outbound' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', border: msg.direction === 'inbound' ? '1px solid rgba(26,25,22,0.08)' : 'none' }}
+                          >{msg.content}</div>
                           <div style={{ fontSize: 10, color: '#C8C5BC', marginTop: 3 }}>{formatTime(msg.created_at)}</div>
                         </div>
                       ))}
@@ -569,7 +629,7 @@ export default function InboxScreen({ agentId }: Props) {
                       const cur = SCRIPT[stepIdx]
                       const isDone = stepIdx >= SCRIPT.length - 1
                       return (
-                        <div data-tour="sim-step-line" style={{ padding: '10px 16px', borderTop: '1px solid rgba(26,95,165,0.18)', background: '#F4F8FD' }}>
+                        <div ref={simStepLineRef} data-tour="sim-step-line" style={{ padding: '10px 16px', borderTop: '1px solid rgba(26,95,165,0.18)', background: '#F4F8FD' }}>
                           <div style={{ fontSize: 11.5, marginBottom: cur.suggestions.length ? 8 : 0, display: 'flex', gap: 6, lineHeight: 1.5 }}>
                             <strong style={{ color: '#1A5FA5', whiteSpace: 'nowrap' }}>{isDone ? '✅' : `Step ${stepIdx + 1}/7`}</strong>
                             <span style={{ color: '#3D5A80' }}>{cur.caption}</span>
@@ -581,6 +641,9 @@ export default function InboxScreen({ agentId }: Props) {
                                   key={i}
                                   data-tour="sim-reply"
                                   onClick={() => handleSimulateLeadMessage(s)}
+                                  onFocus={() => {
+                                    try { simStepLineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) } catch { /* ignore */ }
+                                  }}
                                   style={{ fontSize: 12, padding: '6px 12px', borderRadius: 16, border: '1px solid rgba(26,95,165,0.3)', background: '#fff', color: '#1A5FA5', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}
                                 >💬 {s}</button>
                               ))}
@@ -599,18 +662,18 @@ export default function InboxScreen({ agentId }: Props) {
                             else if (isManual) handleSendMessage()
                           }
                         }}
-                        disabled={tutorialRunning || (!isManual && !isSimulating)} 
-                        placeholder={isSimulating ? 'Type a message from the lead...' : (isManual ? 'Type your message and press Enter...' : 'Take over or simulate to type...')} 
-                        style={{ flex: 1, height: 38, border: '1px solid rgba(26,25,22,0.18)', borderRadius: 20, padding: '0 14px', fontSize: 13, background: (isManual || isSimulating) ? '#fff' : '#F4F3EE', color: '#15161B', outline: 'none', fontFamily: 'inherit', opacity: (isManual || isSimulating) ? 1 : 0.6, cursor: (isManual || isSimulating) ? 'text' : 'not-allowed' }} 
+                        disabled={tutorialRunning || (!isManual && !isSimulating)}
+                        placeholder={isSimulating ? 'Type a message from the lead...' : (isManual ? 'Type your message and press Enter...' : 'Take over or simulate to type...')}
+                        style={{ flex: 1, height: 38, border: '1px solid rgba(26,25,22,0.18)', borderRadius: 20, padding: '0 14px', fontSize: 13, background: (isManual || isSimulating) ? '#fff' : '#F4F3EE', color: '#15161B', outline: 'none', fontFamily: 'inherit', opacity: (isManual || isSimulating) ? 1 : 0.6, cursor: (isManual || isSimulating) ? 'text' : 'not-allowed' }}
                       />
-                      <button 
+                      <button
                         onClick={() => {
                           if (isSimulating) handleSimulateLeadMessage()
                           else if (isManual) handleSendMessage()
-                        }} 
-                        className={(isManual || isSimulating) ? "inbox-btn-dark" : ""} 
-                        disabled={!isManual && !isSimulating} 
-                        style={{ width: 36, height: 36, borderRadius: '50%', background: (isManual || isSimulating) ? '#15161B' : '#ECEAE0', color: (isManual || isSimulating) ? '#fff' : '#15161B', border: 'none', cursor: (isManual || isSimulating) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0, transition: 'all 0.15s' }}>➤</button>
+                        }}
+                        className={(isManual || isSimulating) ? "inbox-btn-dark" : ""}
+                        disabled={tutorialRunning || (!isManual && !isSimulating)}
+                        style={{ width: 36, height: 36, borderRadius: '50%', background: (tutorialRunning || isManual || isSimulating) ? '#15161B' : '#ECEAE0', color: (tutorialRunning || isManual || isSimulating) ? '#fff' : '#15161B', border: 'none', cursor: (tutorialRunning || isManual || isSimulating) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0, transition: 'all 0.15s' }}>➤</button>
                     </div>
                   </div>
                 )}
