@@ -143,6 +143,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   const [visible, setVisible] = useState(false)
   const [step, setStep] = useState(0)
   const [rect, setRect] = useState<Rect | null>(null)
+  const [replyRect, setReplyRect] = useState<Rect | null>(null)
   const [completed, setCompleted] = useState(false)
   // Replays from the profile menu are a refresher — never re-lock the
   // hands-on steps (the user already has leads/properties by then).
@@ -240,7 +241,11 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   useEffect(() => {
     if (!visible) return
     const s = STEPS[step]
-    if (!s?.target) { setRect(null); return }
+    if (!s?.target) {
+      setRect(null)
+      setReplyRect(null)
+      return
+    }
 
     const measure = () => {
       const el = document.querySelector(s.target!) as HTMLElement | null
@@ -256,6 +261,17 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
         try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }) } catch { /* ignore */ }
       }
       setRect({ top: r.top, left: r.left, width: r.width, height: r.height })
+      if (s.target === '[data-tour="sim-panel"]') {
+        const reply = document.querySelector('[data-tour="sim-reply"]') as HTMLElement | null
+        if (reply) {
+          const rr = reply.getBoundingClientRect()
+          if (rr.width > 0 || rr.height > 0) {
+            setReplyRect({ top: rr.top, left: rr.left, width: rr.width, height: rr.height })
+          }
+        }
+      } else {
+        setReplyRect(null)
+      }
     }
 
     measure()
@@ -309,20 +325,10 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
     // so the entire chat/modal window stays visible + unblocked.
     if (current.target === '[data-tour="sim-panel"]' && hasTarget && rect) {
       // Sim steps: position the card to the right of the chat (or left if tight)
-      const spaceRight = vw - (rect.left + rect.width)
-      if (spaceRight >= cardW + 32) {
-        cardLeft = clampLeft(rect.left + rect.width + 16)
-        cardTop = clampTop(rect.top)
-        cardStyle = { top: cardTop, left: cardLeft, textAlign: 'left' }
-        placement = 'right'
-      } else {
-        // Sim steps: pin card flush to the left sidebar (fixed position, no calculation)
-        // This keeps the chat fully visible + unblocked.
-        cardLeft = 16
-        cardTop = clampTop(rect.top)
-        cardStyle = { top: cardTop, left: cardLeft, textAlign: 'left' }
-        placement = 'right'
-      }
+      cardLeft = clampLeft(rect.left)
+      cardTop = clampTop(rect.top)
+      cardStyle = { top: cardTop, left: cardLeft, textAlign: 'left' }
+      placement = 'right'
     } else if (current.target === '[data-tour="sim-panel"]') {
       // Sim steps (no target measured yet): fallback to bottom
       cardLeft = clampLeft(vw / 2 - cardW / 2)
@@ -416,7 +422,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
 
       {/* "Tap here" visual guide during sim steps — below the spotlight */}
       {isSimTarget && hole && (
-        <div data-testid="tour-tap-guide" style={{ position: 'fixed', top: Math.min(vh - 52, sp.top + sp.h + 16), left: clampLeft(sp.left + sp.w / 2 - 88), zIndex: zBase + 50, background: '#4F46E5', color: '#fff', padding: '8px 14px', borderRadius: 24, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', animation: 'tourTapBlink 1.2s ease-in-out infinite', boxShadow: '0 6px 16px rgba(79,70,229,0.4)' }}>
+        <div data-testid="tour-tap-guide" style={{ position: 'fixed', top: replyRect ? Math.max(16, replyRect.top - 42) : Math.min(vh - 52, sp.top + sp.h + 16), left: replyRect ? clampLeft(replyRect.left + replyRect.width / 2 - 88) : clampLeft(sp.left + sp.w / 2 - 88), zIndex: zBase + 50, background: '#4F46E5', color: '#fff', padding: '8px 14px', borderRadius: 24, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', animation: 'tourTapBlink 1.2s ease-in-out infinite', boxShadow: '0 6px 16px rgba(79,70,229,0.4)' }}>
           👇 Tap a reply
         </div>
       )}

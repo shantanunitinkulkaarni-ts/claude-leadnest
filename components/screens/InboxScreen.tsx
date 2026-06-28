@@ -577,7 +577,12 @@ export default function InboxScreen({ agentId }: Props) {
                           {cur.suggestions.length > 0 && (
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                               {cur.suggestions.map((s, i) => (
-                                <button key={i} onClick={() => handleSimulateLeadMessage(s)} style={{ fontSize: 12, padding: '6px 12px', borderRadius: 16, border: '1px solid rgba(26,95,165,0.3)', background: '#fff', color: '#1A5FA5', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>💬 {s}</button>
+                                <button
+                                  key={i}
+                                  data-tour="sim-reply"
+                                  onClick={() => handleSimulateLeadMessage(s)}
+                                  style={{ fontSize: 12, padding: '6px 12px', borderRadius: 16, border: '1px solid rgba(26,95,165,0.3)', background: '#fff', color: '#1A5FA5', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}
+                                >💬 {s}</button>
                               ))}
                             </div>
                           )}
