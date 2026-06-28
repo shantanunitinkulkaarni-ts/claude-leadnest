@@ -283,16 +283,33 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   let placement: 'right' | 'below' | 'above' | 'bottom' | 'center' = 'center'
 
   if (current.doneEvent) {
-    // Hands-on steps (sim + add lead/property): use a fixed, always-on-screen banner
-    // instead of floating to the target (which clipped off-screen on replay).
-    // Sim steps pin to the TOP so the card never covers the reply chips; modal steps
-    // (add lead/property) pin to the BOTTOM, clear of the app's centered modal.
-    if (current.target === '[data-tour="sim-panel"]') {
-      cardStyle = { top: 70, left: clampLeft(vw / 2 - cardW / 2), textAlign: 'left' }
-    } else {
+    // Hands-on steps (sim + add lead/property): position to the side of the target
+    // so the entire chat/modal window stays visible + unblocked.
+    if (current.target === '[data-tour="sim-panel"]' && hasTarget && rect) {
+      // Sim steps: position the card to the right of the chat (or left if tight)
+      const spaceRight = vw - (rect.left + rect.width)
+      if (spaceRight >= cardW + 32) {
+        cardStyle = { top: clampTop(rect.top), left: clampLeft(rect.left + rect.width + 16), textAlign: 'left' }
+        placement = 'right'
+      } else {
+        const spaceLeft = rect.left
+        if (spaceLeft >= cardW + 32) {
+          cardStyle = { top: clampTop(rect.top), left: clampLeft(rect.left - cardW - 16), textAlign: 'left' }
+          placement = 'left'
+        } else {
+          cardStyle = { top: clampTop(rect.top - 252), left: clampLeft(rect.left), textAlign: 'left' }
+          placement = 'above'
+        }
+      }
+    } else if (current.target === '[data-tour="sim-panel"]') {
+      // Sim steps (no target measured yet): fallback to bottom
       cardStyle = { bottom: 24, left: clampLeft(vw / 2 - cardW / 2), textAlign: 'left' }
+      placement = 'bottom'
+    } else {
+      // Modal steps (add lead/property): pin to the bottom, out of the way
+      cardStyle = { bottom: 24, left: clampLeft(vw / 2 - cardW / 2), textAlign: 'left' }
+      placement = 'bottom'
     }
-    placement = 'bottom'
   } else if (hasTarget && rect) {
     const spaceRight = vw - (sp.left + sp.w)
     if (spaceRight >= cardW + 32) {
