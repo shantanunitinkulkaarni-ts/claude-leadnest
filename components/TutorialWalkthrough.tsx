@@ -295,7 +295,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
         const spaceLeft = rect.left
         if (spaceLeft >= cardW + 32) {
           cardStyle = { top: clampTop(rect.top), left: clampLeft(rect.left - cardW - 16), textAlign: 'left' }
-          placement = 'left'
+          placement = 'right'
         } else {
           cardStyle = { top: clampTop(rect.top - 252), left: clampLeft(rect.left), textAlign: 'left' }
           placement = 'above'
