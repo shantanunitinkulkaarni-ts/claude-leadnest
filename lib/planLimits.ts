@@ -10,5 +10,8 @@ export const FREE_PROPERTY_CAP = 5
 export const FREE_MESSAGE_LIMIT = 500
 
 export function isFreePlan(agent: any): boolean {
-  return (agent?.plan || '') === 'free'
+  const plan = String(agent?.plan || '').toLowerCase()
+  const planStatus = String(agent?.plan_status || '').toLowerCase()
+  if (planStatus === 'active' || planStatus === 'cancelled') return false
+  return plan === 'free'
 }

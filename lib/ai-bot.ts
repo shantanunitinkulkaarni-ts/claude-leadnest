@@ -653,6 +653,7 @@ export async function handleAiBotMessage(opts: {
       plan_d_touches: 0,
       pending_appointment_time: null,
       pending_appointment_set_at: null,
+      confirmation_followup_sent_at: null,
       chat_history: [
         ...history,
         { role: 'bot', text: confirmReply, ts: confirmedAt },
@@ -814,6 +815,7 @@ export async function handleAiBotMessage(opts: {
   if (bookingResolution.ok) {
     leadUpdates.pending_appointment_time = bookingResolution.iso
     leadUpdates.pending_appointment_set_at = new Date().toISOString()
+    leadUpdates.confirmation_followup_sent_at = null
   }
 
   // ── Nurture signals + silent profile (the data moat) ───────────────────────
@@ -901,6 +903,18 @@ export async function handleAiBotMessage(opts: {
     }
 
     console.log(`[ai-bot] appointment saved for ${phone} at ${visitTime}`)
+    await supabaseAdmin.from('leads').update({
+      status: 'visit_booked',
+      bot_stage: 'visit_confirmed',
+      pending_appointment_time: null,
+      pending_appointment_set_at: null,
+      confirmation_followup_sent_at: null,
+      nurture_state: 'paused',
+      window_nudge_count: 0,
+      last_nudge_at: null,
+      nurture_plan: null,
+      plan_d_touches: 0,
+    }).eq('id', lead.id)
     const { data: prop } = await supabaseAdmin.from('properties').select('title').eq('id', propertyId).single()
     const propertyTitle = prop?.title || 'Selected Property'
     if (customerEmail) await sendCustomerConfirmation(customerEmail, leadName, propertyTitle, visitTime)

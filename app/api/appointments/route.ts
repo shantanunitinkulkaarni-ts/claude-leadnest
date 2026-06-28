@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
   // Update lead status
   await supabaseAdmin
     .from('leads')
-    .update({ status: 'visit_booked' })
+    .update({ status: 'visit_booked', confirmation_followup_sent_at: null })
     .eq('id', body.lead_id)
 
   return NextResponse.json({ data })

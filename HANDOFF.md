@@ -592,6 +592,24 @@ deliver as JPEG; `convert-media` backfill endpoint exists and was enhanced (scan
 - [ ] **IMMEDIATE: merge PR #72** (https://github.com/shantanunitinkulkaarni-ts/claude-leadnest/pull/72) — bot stage + language + nudge + delay fix. CI should be green. After merge, deploy (`vercel deploy --prod --yes`) and confirm Vercel logs show `[engine] stage=... lang=... prompt≈...tok` — token count should be ~500-700 for presentation stage (was 2500-2800 before).
 - [ ] **NEXT UP (CTO queue): (3) deeper SEO** — per-page metadata for /login /onboarding etc; dynamic sitemap.
 
+## BOT HARDENING STATUS (June 28)
+
+- **Confirmation replies:** fixed in code. `Confirm` / `Yes` / `Acknowledged` and the button reply title now route into the same deterministic confirmation parser.
+- **One-time confirmation chase:** added. If a lead gives a visit time but does not confirm, cron sends one gentle reminder, then normal nurture continues.
+- **Manual pause:** fixed in both webhook and bot handler. If `bot_paused=true`, the bot stays silent and cron only resumes it after lead silence.
+- **Nurture engine:** pure timeline engine exists and is unit-tested. In-window is 3h / 6h / 12h / 23h. Post-window is plan A → B → C → D.
+- **Template path:** post-window template sends are wired in cron, but the live flag still decides whether they actually send in production.
+- **Sample data:** sample lead/property cleanup is now scheduled for 5 minutes, and cron also sweeps for expired sample rows.
+- **Email alerts:** booking confirmations and agent alerts exist. Agent lifecycle nurture emails exist. Customer nurture email flow is not part of the current tier-1 plan.
+- **Paid plan:** Razorpay webhook activates the paid message quota, and paid status now unlocks the lead/property caps cleanly.
+- **Testing:** nurture simulator route exists for dry runs, and the confirmation/bot-gating/unit tests cover the key branches.
+
+## CURRENT OPEN ITEMS
+
+- Tier-1 stays WhatsApp-only for nurture; customer email nurture stays reserved for tier 2.
+- Need one more live E2E smoke pass with real agent credentials for the site-visit confirmation flow and the nurture re-approach flow.
+- Post-visit nurture remains a tier-2 feature, not a tier-1 promise.
+
 **Founder tasks:**
 - Supabase → Auth → URL config: Site URL `https://convorian.in`; Redirect URLs add `/reset-password`, `/**`, `localhost:3003/**`
 - Resend domain ✅ · Supabase Custom SMTP ✅ (June 10).

@@ -136,6 +136,7 @@ create table if not exists leads (
   window_expires_at timestamptz,
   window_keepalive_sent_at timestamptz,
   bot_paused boolean default false,
+  confirmation_followup_sent_at timestamptz,
   matched_property_id uuid,
   notes text,
   assigned_to uuid,

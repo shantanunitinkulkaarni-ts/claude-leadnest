@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     // Free-plan cap: total leads limited (nudge upgrade). Legacy/paid uncapped.
     const firstAgentId = rows[0].agent_id
-    const { data: planRow } = await supabaseAdmin.from('agents').select('plan').eq('id', firstAgentId).single()
+    const { data: planRow } = await supabaseAdmin.from('agents').select('plan, plan_status').eq('id', firstAgentId).single()
     if (isFreePlan(planRow)) {
       const { count } = await supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('agent_id', firstAgentId).eq('is_sample', false)
       if ((count || 0) + rows.length > FREE_LEAD_CAP) {

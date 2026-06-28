@@ -84,6 +84,9 @@ export function postWindowSlot(nowMs: number): SendWindow {
 function isFlowHalted(lead: any): { halted: boolean; reason: string } {
   if (lead?.bot_paused) return { halted: true, reason: 'bot_paused' }
   if (lead?.opted_in === false || lead?.nurture_state === 'opted_out') return { halted: true, reason: 'opted_out' }
+  if (lead?.pending_appointment_time && !lead?.confirmation_followup_sent_at) {
+    return { halted: true, reason: 'pending_confirmation' }
+  }
   const status = lead?.status
   if (status === 'visit_booked' || status === 'visit_done' || status === 'closed_won' || status === 'closed_lost') {
     return { halted: true, reason: `status_${status}` }

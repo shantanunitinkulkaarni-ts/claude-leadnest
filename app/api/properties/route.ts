@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   if ('error' in access) return access.error
 
   // Free-plan cap: total properties limited (nudge upgrade). Legacy/paid uncapped.
-  const { data: planRow } = await supabaseAdmin.from('agents').select('plan').eq('id', body.agent_id).single()
+  const { data: planRow } = await supabaseAdmin.from('agents').select('plan, plan_status').eq('id', body.agent_id).single()
   if (isFreePlan(planRow)) {
     const { count } = await supabaseAdmin.from('properties').select('id', { count: 'exact', head: true }).eq('agent_id', body.agent_id).eq('is_sample', false)
     if ((count || 0) >= FREE_PROPERTY_CAP) {

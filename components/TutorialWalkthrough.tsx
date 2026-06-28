@@ -203,6 +203,19 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
     }
   }, [visible, step])
 
+  useEffect(() => {
+    if (!visible) return
+    if (process.env.NODE_ENV === 'production') return
+    console.log('[TutorialWalkthrough]', {
+      step,
+      title: STEPS[step]?.title,
+      target: STEPS[step]?.target,
+      rect,
+      hole: !!(rect && STEPS[step]?.target),
+      completed,
+    })
+  }, [visible, step, rect, completed])
+
   // Listen for the user completing the current step's required action
   useEffect(() => {
     if (!visible) return
@@ -261,6 +274,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   const current = STEPS[step]
   const isLast = step === STEPS.length - 1
   const hasTarget = !!current.target && !!rect
+  const isSimTarget = current.target === '[data-tour="sim-panel"]'
   const isAction = !!current.doneEvent && !isReplay
   const nextLocked = isAction && !completed
 
@@ -286,6 +300,8 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   const clampLeft = (x: number) => Math.min(Math.max(16, x), Math.max(16, vw - cardW - 16))
   const clampTop = (y: number) => Math.min(Math.max(16, y), Math.max(16, vh - 260))
   let cardStyle: React.CSSProperties
+  let cardLeft = clampLeft(vw / 2 - cardW / 2)
+  let cardTop = vh / 2 - 170
   let placement: 'right' | 'below' | 'above' | 'bottom' | 'center' = 'center'
 
   if (current.doneEvent) {
@@ -295,35 +311,55 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
       // Sim steps: position the card to the right of the chat (or left if tight)
       const spaceRight = vw - (rect.left + rect.width)
       if (spaceRight >= cardW + 32) {
-        cardStyle = { top: clampTop(rect.top), left: clampLeft(rect.left + rect.width + 16), textAlign: 'left' }
+        cardLeft = clampLeft(rect.left + rect.width + 16)
+        cardTop = clampTop(rect.top)
+        cardStyle = { top: cardTop, left: cardLeft, textAlign: 'left' }
         placement = 'right'
       } else {
         // Sim steps: pin card flush to the left sidebar (fixed position, no calculation)
         // This keeps the chat fully visible + unblocked.
-        cardStyle = { top: clampTop(rect.top), left: 16, textAlign: 'left' }
+        cardLeft = 16
+        cardTop = clampTop(rect.top)
+        cardStyle = { top: cardTop, left: cardLeft, textAlign: 'left' }
         placement = 'right'
       }
     } else if (current.target === '[data-tour="sim-panel"]') {
       // Sim steps (no target measured yet): fallback to bottom
-      cardStyle = { bottom: 24, left: clampLeft(vw / 2 - cardW / 2), textAlign: 'left' }
+      cardLeft = clampLeft(vw / 2 - cardW / 2)
+      cardStyle = { bottom: 24, left: cardLeft, textAlign: 'left' }
       placement = 'bottom'
     } else {
       // Modal steps (add lead/property): pin to the bottom, out of the way
-      cardStyle = { bottom: 24, left: clampLeft(vw / 2 - cardW / 2), textAlign: 'left' }
+      cardLeft = clampLeft(vw / 2 - cardW / 2)
+      cardStyle = { bottom: 24, left: cardLeft, textAlign: 'left' }
       placement = 'bottom'
     }
   } else if (hasTarget && rect) {
     const spaceRight = vw - (sp.left + sp.w)
     if (spaceRight >= cardW + 32) {
-      cardStyle = { top: clampTop(sp.top), left: clampLeft(sp.left + sp.w + 22) }
+      cardLeft = clampLeft(sp.left + sp.w + 22)
+      cardTop = clampTop(sp.top)
+      cardStyle = { top: cardTop, left: cardLeft }
       placement = 'right'
     } else {
       const below = sp.top + sp.h + 22
-      if (below + 240 < vh) { cardStyle = { top: below, left: clampLeft(sp.left) }; placement = 'below' }
-      else { cardStyle = { top: clampTop(sp.top - 252), left: clampLeft(sp.left) }; placement = 'above' }
+      if (below + 240 < vh) {
+        cardTop = below
+        cardLeft = clampLeft(sp.left)
+        cardStyle = { top: cardTop, left: cardLeft }
+        placement = 'below'
+      }
+      else {
+        cardTop = clampTop(sp.top - 252)
+        cardLeft = clampLeft(sp.left)
+        cardStyle = { top: cardTop, left: cardLeft }
+        placement = 'above'
+      }
     }
   } else {
-    cardStyle = { top: vh / 2 - 170, left: clampLeft(vw / 2 - cardW / 2), textAlign: 'center' }
+    cardLeft = clampLeft(vw / 2 - cardW / 2)
+    cardTop = vh / 2 - 170
+    cardStyle = { top: cardTop, left: cardLeft, textAlign: 'center' }
     placement = 'center'
   }
 
@@ -332,13 +368,12 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   let arrow: React.ReactNode = null
   if (hole && (placement === 'right' || placement === 'below' || placement === 'above')) {
     const cx = sp.left + sp.w / 2
-    const cy = sp.top + sp.h / 2
     if (placement === 'right') {
-      arrow = <div style={{ position: 'fixed', top: cy - 9, left: sp.left + sp.w + 4, zIndex: zBase + 2, width: 0, height: 0, borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderRight: `13px solid ${ARROW}`, filter: `drop-shadow(0 0 4px ${ARROW})`, animation: 'tourArrowLeft 0.9s ease-in-out infinite', transition: 'top .35s, left .35s' }} />
+      arrow = <div data-testid="tour-arrow" style={{ position: 'fixed', top: cardTop + 58, left: cardLeft + cardW + 10, zIndex: zBase + 50, width: 0, height: 0, borderTop: '9px solid transparent', borderBottom: '9px solid transparent', borderLeft: `13px solid ${ARROW}`, filter: `drop-shadow(0 0 4px ${ARROW})`, animation: 'tourArrowLeft 0.9s ease-in-out infinite', transition: 'top .35s, left .35s' }} />
     } else if (placement === 'below') {
-      arrow = <div style={{ position: 'fixed', top: sp.top + sp.h + 4, left: cx - 9, zIndex: zBase + 2, width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderBottom: `13px solid ${ARROW}`, filter: `drop-shadow(0 0 4px ${ARROW})`, animation: 'tourArrowUp 0.9s ease-in-out infinite', transition: 'top .35s, left .35s' }} />
+      arrow = <div data-testid="tour-arrow" style={{ position: 'fixed', top: sp.top + sp.h + 4, left: cx - 9, zIndex: zBase + 50, width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderBottom: `13px solid ${ARROW}`, filter: `drop-shadow(0 0 4px ${ARROW})`, animation: 'tourArrowUp 0.9s ease-in-out infinite', transition: 'top .35s, left .35s' }} />
     } else {
-      arrow = <div style={{ position: 'fixed', top: sp.top - 17, left: cx - 9, zIndex: zBase + 2, width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderTop: `13px solid ${ARROW}`, filter: `drop-shadow(0 0 4px ${ARROW})`, animation: 'tourArrowDown 0.9s ease-in-out infinite', transition: 'top .35s, left .35s' }} />
+      arrow = <div data-testid="tour-arrow" style={{ position: 'fixed', top: sp.top - 17, left: cx - 9, zIndex: zBase + 50, width: 0, height: 0, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderTop: `13px solid ${ARROW}`, filter: `drop-shadow(0 0 4px ${ARROW})`, animation: 'tourArrowDown 0.9s ease-in-out infinite', transition: 'top .35s, left .35s' }} />
     }
   }
 
@@ -380,15 +415,15 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
       {arrow}
 
       {/* "Tap here" visual guide during sim steps — below the spotlight */}
-      {current.target === '[data-tour="sim-panel"]' && hole && (
-        <div style={{ position: 'fixed', top: sp.top + sp.h + 16, left: sp.left + sp.w / 2 - 70, zIndex: zBase + 2, background: '#4F46E5', color: '#fff', padding: '8px 14px', borderRadius: 24, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', animation: 'tourTapBlink 1.2s ease-in-out infinite', boxShadow: '0 6px 16px rgba(79,70,229,0.4)' }}>
+      {isSimTarget && hole && (
+        <div data-testid="tour-tap-guide" style={{ position: 'fixed', top: Math.min(vh - 52, sp.top + sp.h + 16), left: clampLeft(sp.left + sp.w / 2 - 88), zIndex: zBase + 50, background: '#4F46E5', color: '#fff', padding: '8px 14px', borderRadius: 24, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', animation: 'tourTapBlink 1.2s ease-in-out infinite', boxShadow: '0 6px 16px rgba(79,70,229,0.4)' }}>
           👇 Tap a reply
         </div>
       )}
 
       {/* White arrow pointing from card to chat */}
-      {current.target === '[data-tour="sim-panel"]' && rect && (
-        <div style={{ position: 'fixed', top: rect.top + 60, left: 340, zIndex: zBase + 2, width: 0, height: 0, borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderLeft: `12px solid #fff`, filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.2))', animation: 'tourArrowLeft 1s ease-in-out infinite' }} />
+      {isSimTarget && rect && (
+        <div data-testid="tour-card-arrow" style={{ position: 'fixed', top: Math.min(vh - 32, cardTop + 58), left: clampLeft(cardLeft + cardW + 10), zIndex: zBase + 50, width: 0, height: 0, borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderLeft: `12px solid #fff`, filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.2))', animation: 'tourArrowLeft 1s ease-in-out infinite' }} />
       )}
 
       <div key={step} style={{

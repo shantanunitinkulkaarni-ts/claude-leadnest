@@ -39,6 +39,18 @@ test.describe('flow halts', () => {
       expect(r.send).toBe(false)
     })
   }
+
+  test('pending confirmation pauses nurture until the one-time chase is sent', () => {
+    const lead = {
+      last_message_at: new Date(MORNING - 5 * H).toISOString(),
+      status: 'new',
+      opted_in: true,
+      pending_appointment_time: new Date(MORNING + 2 * H).toISOString(),
+      pending_appointment_set_at: new Date(MORNING - 2 * H).toISOString(),
+    }
+    expect(decideNurtureStep(lead, {}, MORNING).reason).toBe('pending_confirmation')
+    expect(decideNurtureStep({ ...lead, confirmation_followup_sent_at: new Date(MORNING - H).toISOString() }, {}, MORNING).send).toBe(true)
+  })
 })
 
 test.describe('in-window bands (3/6/12/23h)', () => {

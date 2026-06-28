@@ -7,6 +7,7 @@ import { generateNudge } from '@/lib/gemini'
 import { runNurtureEmails } from '@/lib/nurture'
 import { decideOutreach, pickTemplate, renderTemplate } from '@/lib/outreach'
 import { decideNurtureStep, type NurturePlan } from '@/lib/nurtureFlow'
+import { buildConfirmationFollowupMessage, shouldSendConfirmationFollowup } from '@/lib/confirmationFollowup'
 import { purgeExpiredSampleData } from '@/lib/sampleCleanup'
 
 export const maxDuration = 60
@@ -50,6 +51,73 @@ export async function GET(request: NextRequest) {
     // Re-engage leads who went quiet, while their free 24h window is still open.
     // Bands: 1st nudge after 3h, 2nd after 10h, 3rd ("window save") after 23h.
     // Counter resets to 0 on any inbound (handled in the webhook).
+    const recentlyChasedConfirmation = new Set<string>()
+
+    try {
+      const confirmationCutoff = new Date(Date.now() - 90 * 60 * 1000).toISOString()
+      const { data: pendingLeads } = await supabaseAdmin
+        .from('leads')
+        .select('*, agents(*)')
+        .not('pending_appointment_time', 'is', null)
+        .is('confirmation_followup_sent_at', null)
+        .eq('bot_paused', false)
+        .eq('opted_in', true)
+        .or('nurture_state.is.null,nurture_state.eq.active')
+        .not('status', 'in', '("closed_won","closed_lost","visit_booked","visit_done")')
+        .lt('pending_appointment_set_at', confirmationCutoff)
+        .limit(50)
+
+      for (const lead of (pendingLeads || []) as any[]) {
+        try {
+          const agent = lead.agents
+          if (!agent?.bot_active) continue
+          const followupHour = new Date(Date.now() + 5.5 * 60 * 60 * 1000).getUTCHours()
+          if (followupHour < 9 || followupHour >= 20) continue
+          if (!shouldSendConfirmationFollowup(lead, Date.now()).send) continue
+
+          const { data: existingAppointment } = await supabaseAdmin
+            .from('appointments')
+            .select('id')
+            .eq('lead_id', lead.id)
+            .eq('status', 'upcoming')
+            .maybeSingle()
+          if (existingAppointment) continue
+
+          const { data: propertyRow } = lead.matched_property_id
+            ? await supabaseAdmin.from('properties').select('title').eq('id', lead.matched_property_id).maybeSingle()
+            : { data: null }
+
+          const text = buildConfirmationFollowupMessage(lead, lead.pending_appointment_time, propertyRow?.title || null)
+          const waId = await sendToLead(agent, lead, text)
+          if (!waId) continue
+
+          await supabaseAdmin.from('messages').insert({
+            lead_id: lead.id,
+            agent_id: agent.id,
+            direction: 'outbound',
+            content: text,
+            sent_by: 'bot',
+            wa_message_id: waId || null,
+          })
+          await supabaseAdmin.from('leads').update({
+            confirmation_followup_sent_at: new Date().toISOString(),
+          }).eq('id', lead.id)
+          await supabaseAdmin.from('activity_log').insert({
+            agent_id: agent.id,
+            lead_id: lead.id,
+            type: 'visit_confirmation_followup',
+            title: 'One-time visit confirmation reminder sent',
+            description: text.slice(0, 140),
+          })
+          recentlyChasedConfirmation.add(lead.id)
+          results.nudges++
+        } catch (e) {
+          results.errors++
+          console.error('Confirmation follow-up error for lead', lead.id, e)
+        }
+      }
+    } catch { /* never let the follow-up sweep break the cron */ }
+
     const now = Date.now()
     const H = (n: number) => n * 60 * 60 * 1000
     // IST quiet hours: only send 9 AM–8 PM IST so we never ping at night.
@@ -66,7 +134,7 @@ export async function GET(request: NextRequest) {
     // reviewed on staging. Sections 2-4 (reminders, post-visit, emails) run either way.
     const NURTURE_V2 = process.env.NURTURE_FLOW_V2 === 'true'
     if (NURTURE_V2) {
-      await runNurtureFlowV2(now, TEMPLATES_LIVE, TEMPLATE_COST, results)
+      await runNurtureFlowV2(now, TEMPLATES_LIVE, TEMPLATE_COST, results, recentlyChasedConfirmation)
     }
 
     if (!NURTURE_V2 && withinQuietHours) {
@@ -87,6 +155,7 @@ export async function GET(request: NextRequest) {
         try {
           const agent = lead.agents
           if (!agent?.bot_active) continue
+          if (recentlyChasedConfirmation.has(lead.id)) continue
 
           const lastMsgMs = lead.last_message_at ? new Date(lead.last_message_at).getTime() : 0
           const elapsed = now - lastMsgMs
@@ -160,6 +229,7 @@ export async function GET(request: NextRequest) {
         try {
           const agent = lead.agents
           if (!agent?.bot_active) continue
+          if (recentlyChasedConfirmation.has(lead.id)) continue
           if (!agent.msg91_integrated_number) continue // MSG91-routed agents only
           if (Number(agent.wa_balance || 0) < TEMPLATE_COST) continue // budget gate
 
@@ -358,7 +428,13 @@ async function logNurtureMove(lead: any, agentId: string, move: string, channel:
   } catch { /* logging must never block the pipeline */ }
 }
 
-async function runNurtureFlowV2(nowMs: number, templatesLive: boolean, _templateCost: number, results: CronResults) {
+async function runNurtureFlowV2(
+  nowMs: number,
+  templatesLive: boolean,
+  _templateCost: number,
+  results: CronResults,
+  skipLeadIds: Set<string> = new Set(),
+) {
   const { data: leads } = await supabaseAdmin
     .from('leads')
     .select('*, agents(*)')
@@ -373,6 +449,7 @@ async function runNurtureFlowV2(nowMs: number, templatesLive: boolean, _template
     try {
       const agent = lead.agents
       if (!agent?.bot_active) continue
+      if (skipLeadIds.has(lead.id)) continue
 
       const decision = decideNurtureStep(lead, agent, nowMs)
       if (!decision.send) continue

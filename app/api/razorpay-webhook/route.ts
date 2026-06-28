@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
     case 'subscription.activated':
       // Mandate authorised. The first charge usually fires alongside; mark active.
       update.plan_status = 'active'
+      update.plan = 'monthly'
       update.plan_started_at = new Date().toISOString()
       update.plan_expires_at = paidThrough
       update.subscription_charge_at = nextCharge
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
     case 'subscription.charged':
       // A monthly payment succeeded — extend access to the new period end + reset quota.
       update.plan_status = 'active'
+      update.plan = 'monthly'
       update.plan_expires_at = paidThrough
       update.subscription_charge_at = nextCharge
       update.messages_limit = PAID_MESSAGES_LIMIT
