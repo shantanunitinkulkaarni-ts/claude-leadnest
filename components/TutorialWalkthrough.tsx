@@ -379,11 +379,16 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
 
       {arrow}
 
-      {/* "Tap here" visual guide during sim steps — positioned below spotlight */}
+      {/* "Tap here" visual guide during sim steps — below the spotlight */}
       {current.target === '[data-tour="sim-panel"]' && hole && (
-        <div style={{ position: 'fixed', top: sp.top + sp.h + 12, left: sp.left + sp.w / 2 - 60, zIndex: zBase + 2, background: '#4F46E5', color: '#fff', padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', animation: 'tourTapBlink 1.2s ease-in-out infinite', boxShadow: '0 4px 12px rgba(79,70,229,0.3)' }}>
-          ↓ Tap a reply
+        <div style={{ position: 'fixed', top: sp.top + sp.h + 16, left: sp.left + sp.w / 2 - 70, zIndex: zBase + 2, background: '#4F46E5', color: '#fff', padding: '8px 14px', borderRadius: 24, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', animation: 'tourTapBlink 1.2s ease-in-out infinite', boxShadow: '0 6px 16px rgba(79,70,229,0.4)' }}>
+          👇 Tap a reply
         </div>
+      )}
+
+      {/* White arrow pointing from card to chat */}
+      {current.target === '[data-tour="sim-panel"]' && cardStyle && (
+        <div style={{ position: 'fixed', top: (cardStyle.top as number) + 60, left: 340, zIndex: zBase + 2, width: 0, height: 0, borderTop: '8px solid transparent', borderBottom: '8px solid transparent', borderLeft: `12px solid #fff`, filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.2))', animation: 'tourArrowLeft 1s ease-in-out infinite' }} />
       )}
 
       <div key={step} style={{
