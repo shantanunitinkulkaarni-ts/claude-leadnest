@@ -268,3 +268,61 @@ These are the **soft spots** identified by Claude — not confirmed live failure
 | RLS blocking bot? | No — bot uses service-role client |
 | WhatsApp approved? | Yes — Meta approved, proven on 755 |
 | MSG91 still used? | Only for peripheral templates (nurture cron/alerts) |
+---
+
+## 13. Recent Update - 2026-06-29
+
+- Tutorial walkthrough now matches the real booking flow: hello, language, name, qualification, property match, visit booking, appointments, canceling, and feedback.
+- Sample data now self-heals on seeding, the simulation can see sample properties, and sample lead/property cleanup is scheduled for 5 minutes after the tutorial ends.
+- Inbox simulation now alternates focus between the bot reply and the next suggested reply so the walkthrough is easier to follow.
+- The richer property card formatter is live in the inbox preview, with possession, floor plan, booking status, finance, parking, area ranking, and recommendation details.
+- This bundle is committed, pushed to `main`, and deployed on Vercel production (`3592328`).
+
+---
+
+## 14. CLINE (GLM) WORK LOG
+
+### Session 1 — 2026-06-29 (Code Review + Planning)
+
+**Completed:**
+- [x] Deep code review of bot architecture (12+ files read and analyzed)
+- [x] Created this `DEVOPS.md` document for team coordination
+- [x] Read Claude's directives (§0) and understood assigned tasks
+- [x] Reviewed `HANDOFF.md` for full project history (sessions 1-20)
+- [x] Identified loose WIP on `main` — committing to branch today
+
+**Files reviewed:**
+- `lib/ai-bot.ts` (1045 lines) — THE live bot engine
+- `lib/botOrchestrator.ts` (166 lines) — dead code, confirmed not wired in
+- `lib/intentExtractor.ts` (162 lines) — AI intent decoding
+- `lib/llm.ts` (211 lines) — Groq→GLM fallback with hedging
+- `lib/propertyMatcher.ts` (279 lines) — deterministic filtering/ranking
+- `lib/leadStateMachine.ts` (200 lines) — state machine
+- `lib/supabase.ts` (66 lines) — lazy-init clients
+- `app/api/webhook/route.ts` (239 lines) — WhatsApp webhook
+- `app/layout.tsx` (75 lines) — root layout
+- `package.json` — dependencies
+- `HANDOFF.md` — full project history
+
+**Next steps (per Claude's task board §0.D):**
+- [ ] Commit loose WIP to `cline/wip-...` branch
+- [ ] Time/date parsing adversarial tests + fixes
+- [ ] No-match loop guard
+- [ ] End-to-end Playwright booking test
+
+**Key findings from review:**
+1. `ai-bot.ts` is confirmed as the only live engine (webhook calls `handleAiBotMessage`)
+2. `botOrchestrator.ts` is dead code — no env var, no DB column, no flag check
+3. LLM pipeline: Groq (hedged) → GLM-4.5-Flash (one-shot fallback)
+4. Time parsing in `ai-bot.ts:228-330` is complex — many edge cases to test
+5. No-match handling in `ai-bot.ts:722-741` needs loop guard verification
+6. Property matching is deterministic and well-designed (typo tolerance, nearby areas)
+7. Abuse guards run BEFORE LLM call (zero wasted tokens on spam)
+
+**Branch:** `cline/wip-bot-hardening` (creating today)
+**PR deadline:** All bot PRs to Claude by **July 2**
+
+## 14. Tutorial Rollback Note - 2026-06-29
+- The new full-journey tutorial rewrite was rolled back to the last snap-fit version (b9fabe5).
+- Restored files: `components/TutorialWalkthrough.tsx`, `components/screens/InboxScreen.tsx`, `app/dashboard/page.tsx`.
+- CI on this machine could not complete cleanly because the local package setup is partially linked and typecheck still shows unrelated repo errors outside the tutorial files.

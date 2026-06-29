@@ -10,6 +10,8 @@ const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`
 
 export default defineConfig({
   testDir: './tests',
+  // Pure-function unit tests run separately (no server) via playwright.unit.config.ts.
+  testIgnore: '**/tests/unit/**',
   // Next.js dev compiles routes on first hit — give cold compiles room.
   timeout: 90_000,
   expect: { timeout: 15_000 },
