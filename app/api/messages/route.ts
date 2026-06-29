@@ -50,22 +50,18 @@ export async function POST(request: NextRequest) {
 
   const { data: agent } = await supabaseAdmin
     .from('agents')
-    .select('wa_phone_number_id, wa_access_token, msg91_integrated_number')
+    .select('wa_phone_number_id, wa_access_token')
     .eq('id', body.agent_id)
     .single()
 
-  if (!agent?.wa_phone_number_id && !agent?.msg91_integrated_number) {
+  if (!agent?.wa_phone_number_id) {
     return NextResponse.json({ error: 'WhatsApp not connected' }, { status: 400 })
   }
 
-  // Agents connected via MSG91 send through it; others via Meta Cloud API.
+  // Send via Meta Cloud API direct (the only channel).
   let waId: string | null = null
   let sendError: string | null = null
-  if (agent.msg91_integrated_number) {
-    const { sendViaMsg91, sendWithRetry } = await import('@/lib/whatsapp')
-    const r = await sendWithRetry(() => sendViaMsg91(agent.msg91_integrated_number, toPhone, body.content))
-    waId = r.id; sendError = r.error
-  } else {
+  {
     const { sendWhatsAppMessage } = await import('@/lib/whatsapp')
     waId = await sendWhatsAppMessage(
       agent.wa_phone_number_id,

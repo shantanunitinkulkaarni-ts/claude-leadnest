@@ -9,23 +9,10 @@ import { supabaseAdmin } from './supabase'
 const WA_API_VERSION = 'v19.0'
 const WA_BASE_URL = `https://graph.facebook.com/${WA_API_VERSION}`
 
-// Result of an MSG91 send: the provider message id on success, or the real
-// failure reason on rejection. Previously these helpers returned just `string |
-// null`, throwing away WHY a send failed — so a rejected reply looked identical
-// to a sent one and nobody could see it. See messaging-reliability item #1.
-// `retryable` marks failures worth retrying (momentary glitches) — item #2.
+// Result of a send: the provider message id on success, or the failure reason on
+// rejection (so a rejected reply isn't mistaken for a sent one). `retryable`
+// marks failures worth retrying (momentary glitches).
 export type SendOutcome = { id: string | null; error: string | null; retryable?: boolean }
-
-// Extract a short, human-readable reason from an axios/MSG91 error.
-export function msg91ErrorReason(err: any): string {
-  const data = err?.response?.data
-  if (data) {
-    if (typeof data === 'string') return data.slice(0, 300)
-    const msg = data.message || data.error || data.errors
-    return (typeof msg === 'string' ? msg : JSON.stringify(data)).slice(0, 300)
-  }
-  return String(err?.message || 'unknown send error').slice(0, 300)
-}
 
 // Is a failed send worth retrying? Only momentary glitches — NOT permanent
 // rejections. A permanent 4xx (bad/blocked number, closed window, unapproved
@@ -102,95 +89,6 @@ async function sendViaMeta(
   }
 }
 
-// ─── MSG91 sender (WhatsApp Business API via MSG91 BSP) ───────────────────────
-// Sends a free-text session reply (within the 24h window) through MSG91.
-// integratedNumber = the business number that received the message (from webhook).
-export async function sendViaMsg91(
-  integratedNumber: string,
-  toPhone: string,
-  message: string
-): Promise<SendOutcome> {
-  try {
-    const authkey = process.env.MSG91_AUTHKEY
-    if (!authkey) { console.error('MSG91 send: MSG91_AUTHKEY not set'); return { id: null, error: 'MSG91_AUTHKEY not set', retryable: false } }
-    const to = toPhone.replace(/^\+/, '')
-    // NOTE: the /bulk/ variant of this endpoint accepts ONLY templates
-    // ("for now, only template is supported for bulk"). Free-text session
-    // replies (inside the 24h window) must use the non-bulk endpoint.
-    const res = await axios.post(
-      'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/',
-      {
-        integrated_number: integratedNumber,
-        content_type: 'text',
-        recipient_number: to,
-        // Non-bulk session API expects `text` at the top level
-        // (returns "text not found in request" when nested under payload).
-        text: message,
-        payload: {
-          to,
-          type: 'text',
-          text: { body: message },
-          messaging_product: 'whatsapp'
-        }
-      },
-      { headers: { authkey, 'Content-Type': 'application/json' } }
-    )
-    console.log('MSG91 send OK:', JSON.stringify(res.data).slice(0, 400))
-    // MSG91 returns the stable id as data.message_uuid — capture it FIRST so the
-    // delivery-report webhook (matched by wa_message_id) can attribute reports.
-    // The old order returned 'sent' for every send, making delivery reports
-    // un-matchable (we were blind to failures).
-    const id = res.data?.data?.message_uuid || res.data?.data?.[0]?.requestId || res.data?.requestId || res.data?.request_id || 'sent'
-    return { id, error: null }
-  } catch (err: any) {
-    const reason = msg91ErrorReason(err)
-    console.error('MSG91 send ERROR:', reason)
-    return { id: null, error: reason, retryable: isRetryableSendError(err) }
-  }
-}
-
-// ─── MSG91 image/media session message (within the 24h window) ────────────────
-// Sends an image by URL through MSG91. NOTE: MSG91's media payload shape isn't
-// documented identically across accounts — this follows the session-message
-// pattern (type:image, media link top-level + nested payload, like the text
-// sender). Verify once with POST /api/admin/test-media before enabling broadly
-// (gated by MSG91_MEDIA_LIVE). Logs the full response so the first real send
-// reveals the exact accepted shape. Best-effort: returns null on any failure.
-export async function sendViaMsg91Media(
-  integratedNumber: string,
-  toPhone: string,
-  mediaUrl: string,
-  caption?: string
-): Promise<SendOutcome> {
-  try {
-    const authkey = process.env.MSG91_AUTHKEY
-    if (!authkey) { console.error('MSG91 media: MSG91_AUTHKEY not set'); return { id: null, error: 'MSG91_AUTHKEY not set', retryable: false } }
-    if (!/^https?:\/\//i.test(mediaUrl)) { console.error('MSG91 media: invalid url', mediaUrl); return { id: null, error: 'invalid media url', retryable: false } }
-    const to = toPhone.replace(/^\+/, '')
-    const res = await axios.post(
-      'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/',
-      {
-        integrated_number: integratedNumber,
-        content_type: 'image',
-        recipient_number: to,
-        attachment_url: mediaUrl,
-        ...(caption ? { caption } : {}),
-      },
-      { headers: { authkey, 'Content-Type': 'application/json' } }
-    )
-    console.log('MSG91 media OK:', JSON.stringify(res.data).slice(0, 400))
-    // Capture data.message_uuid FIRST (see sendViaMsg91) so media delivery
-    // reports can be matched to the [photo] message row and we can finally see
-    // why a photo failed to deliver instead of guessing.
-    const id = res.data?.data?.message_uuid || res.data?.data?.[0]?.requestId || res.data?.requestId || res.data?.request_id || 'sent'
-    return { id, error: null }
-  } catch (err: any) {
-    const reason = msg91ErrorReason(err)
-    console.error('MSG91 media ERROR:', reason)
-    return { id: null, error: reason, retryable: isRetryableSendError(err) }
-  }
-}
-
 // ─── Reply channel (Meta Cloud API direct) ───────────────────────────────────
 // A WaChannel carries the agent's Meta credentials so the bot can reply. We run
 // Meta-direct only (Tech Provider) — MSG91 has been removed from the live path.
@@ -236,59 +134,6 @@ export async function sendMetaImage(
   }
 }
 
-// ─── MSG91 template message ───────────────────────────────────────────────────
-// Templates work OUTSIDE the 24h session window (proactive re-engagement +
-// agent alerts). The template must be approved in MSG91 first.
-// `bodyValues` accepts (positional, in template-variable order):
-//   - string[]                 → numbered templates ({{1}},{{2}}…): body_N = value
-//   - { name, value }[]        → NAMED templates ({{customer_name}}…): each body_N
-//                                also carries parameter_name (Meta requires this
-//                                for named-parameter templates).
-type TemplateVar = { name: string; value: string }
-export async function sendViaMsg91Template(
-  integratedNumber: string,
-  toPhone: string,
-  templateName: string,
-  bodyValues: string[] | TemplateVar[],
-  languageCode = 'en'
-): Promise<string | null> {
-  try {
-    const authkey = process.env.MSG91_AUTHKEY
-    if (!authkey) { console.error('MSG91 template send: MSG91_AUTHKEY not set'); return null }
-    const to = toPhone.replace(/^\+/, '')
-    const components: Record<string, any> = {}
-    bodyValues.forEach((v, i) => {
-      if (typeof v === 'string') {
-        // Numbered templates use {{1}}, {{2}}… — parameter_name must match the var name
-        components[`body_${i + 1}`] = { type: 'text', value: v, parameter_name: String(i + 1) }
-      } else {
-        components[`body_${i + 1}`] = { type: 'text', value: v.value, parameter_name: v.name }
-      }
-    })
-    const res = await axios.post(
-      'https://api.msg91.com/api/v5/whatsapp/whatsapp-outbound-message/bulk/',
-      {
-        integrated_number: integratedNumber.replace(/\D/g, ''),
-        content_type: 'template',
-        payload: {
-          messaging_product: 'whatsapp',
-          type: 'template',
-          template: {
-            name: templateName,
-            language: { code: languageCode, policy: 'deterministic' },
-            to_and_components: [{ to: [to], components }],
-          },
-        },
-      },
-      { headers: { authkey, 'Content-Type': 'application/json' } }
-    )
-    console.log('MSG91 template send OK:', JSON.stringify(res.data).slice(0, 500))
-    return res.data?.data?.[0]?.requestId || res.data?.requestId || res.data?.request_id || 'sent'
-  } catch (err: any) {
-    console.error('MSG91 template send ERROR:', JSON.stringify(err?.response?.data || err?.message).slice(0, 500))
-    return null
-  }
-}
 
 // ─── Free-text send to a lead (Meta Cloud API) ───────────────────────────────
 // Used by the nurture cron + reminders. Free-text = only valid inside the lead's
