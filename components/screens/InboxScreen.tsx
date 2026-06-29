@@ -20,6 +20,7 @@ export default function InboxScreen({ agentId }: Props) {
   const [isManual, setIsManual] = useState(false)
   const [isSimulating, setIsSimulating] = useState(false)
   const [simStep, setSimStep] = useState(0)
+  const [pendingTutorialSim, setPendingTutorialSim] = useState(false)
 
   const [activeTab, setActiveTab] = useState<'chat' | 'profile' | 'matched' | 'activity'>('chat')
   const [filter, setFilter] = useState('all')
@@ -28,16 +29,11 @@ export default function InboxScreen({ agentId }: Props) {
   // so the user isn't stuck behind the spotlight overlay trying to set it up.
   useEffect(() => {
     const handler = () => {
-      const sample = leads.find((l: any) => l.is_sample)
-      if (sample) {
-        // Re-select + ensure simulating, but DON'T reset simStep — the tour fires
-        // this on every sim step and resetting would rewind the chip progression.
-        setSelected(sample); setActiveTab('chat'); setIsSimulating(true)
-      }
+      setPendingTutorialSim(true)
     }
     window.addEventListener('leadnest:start-simulation', handler)
     return () => window.removeEventListener('leadnest:start-simulation', handler)
-  }, [leads])
+  }, [])
   const [msgInput, setMsgInput] = useState('')
   const [loadingLeads, setLoadingLeads] = useState(true)
   const [sendLoading, setSendLoading] = useState(false)
@@ -148,6 +144,25 @@ export default function InboxScreen({ agentId }: Props) {
       })
       .catch(() => setLoadingLeads(false))
   }
+
+  useEffect(() => {
+    if (!pendingTutorialSim) return
+
+    const sample = leads.find((l: any) => l.is_sample)
+    if (sample) {
+      // Re-select + ensure simulating, but DON'T reset simStep — the tour fires
+      // this on every sim step and resetting would rewind the chip progression.
+      setSelected(sample)
+      setActiveTab('chat')
+      setIsSimulating(true)
+      setPendingTutorialSim(false)
+      return
+    }
+
+    if (!loadingLeads) {
+      fetchLeads()
+    }
+  }, [pendingTutorialSim, leads, loadingLeads])
 
   const fetchMessages = () => {
     if (!selected) return
