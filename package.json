@@ -10,9 +10,10 @@
     "typecheck": "tsc --noEmit",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
+    "test:unit": "playwright test -c playwright.unit.config.ts",
     "test:critical": "playwright test tests/critical --timeout=10000",
     "test:e2e": "playwright test tests/e2e --timeout=60000",
-    "ci": "npm run lint && npm run typecheck && npm run test:critical && npm run test:e2e"
+    "ci": "npm run lint && npm run typecheck && npm run test:unit && npm run test:critical && npm run test:e2e"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.56.0",
