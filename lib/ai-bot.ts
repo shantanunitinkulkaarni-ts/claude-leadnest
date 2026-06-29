@@ -616,9 +616,10 @@ export async function handleAiBotMessage(opts: {
     .select('*')
     .eq('agent_id', agentId)
     .eq('status', 'active')
-    .eq('is_sample', false)
 
-  const activeProperties = excludeSampleProperties((propertiesRaw || []) as any[])
+  const activeProperties = simulate
+    ? ((propertiesRaw || []) as any[])
+    : excludeSampleProperties((propertiesRaw || []) as any[])
   const ragCriteria = {
     intent: (lead.intent || null) as 'buy' | 'rent' | null,
     preferred_areas: Array.isArray(lead.preferred_areas) ? lead.preferred_areas : [],

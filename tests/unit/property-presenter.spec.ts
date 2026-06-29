@@ -24,6 +24,23 @@ const lodha = {
   features: ['Parking', 'Gym', 'media:https://x/1.jpg'],
   property_media: ['https://x/1.jpg', 'https://x/2.jpg'],
 }
+const launch = {
+  id: 'launch',
+  title: 'Sky Launch',
+  type: 'sale',
+  bhk: '3BHK',
+  location: 'Baner',
+  city: 'Pune',
+  price: 12_500_000,
+  possession_status: 'new_launch',
+  booking_started: false,
+  floor_plan_available: true,
+  area_ranking: 'premium',
+  purchase_indicator: 4,
+  parking_available: true,
+  finance_options: 'Home loan available',
+  broker_recommendation: 'Decent buy. Premium locality. Worth shortlisting.',
+}
 const rental = { id: 'r1', title: 'Sky Rentals', type: 'rental', bhk: '2BHK', location: 'Wakad', rent_per_month: 18_000, deposit: 50_000, size_sqft: 900, features: ['Lift'] }
 const crore = { id: 'c1', title: 'Lux Villa', type: 'sale', category: 'Villa', location: 'Baner', price: 25_000_000 }
 
@@ -65,6 +82,13 @@ test.describe('buildPropertyBlock — only real fields, never invented', () => {
   })
   test('media: markers in features are never shown as amenities', () => {
     expect(buildPropertyBlock(lodha)).not.toContain('media:')
+  })
+
+  test('new construction properties mention booking status clearly', () => {
+    const b = buildPropertyBlock(launch)
+    expect(b).toContain('Possession - New construction')
+    expect(b).toContain('Status - New construction')
+    expect(b).toContain('Booking status - Booking has not begun yet')
   })
 })
 

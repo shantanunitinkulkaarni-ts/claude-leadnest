@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Screen } from '@/app/dashboard/page'
 
 type Rect = { top: number; left: number; width: number; height: number }
@@ -18,128 +18,87 @@ interface Step {
 
 const STEPS: Step[] = [
   {
-    title: 'Welcome to Convorian 👋',
-    text: "Let's take a quick hands-on tour. First you'll watch the AI handle a sample lead live, then add your own — by the end you'll know how to run the whole app.",
-    voice: "Welcome to Convorian. Let's take a quick hands-on tour. First you'll watch the AI handle a sample lead, then add your own.",
+    title: 'Welcome to Convorian',
+    text: 'Let us walk through the full bot journey from hello to booked visit, then show where the appointment appears and how follow-up works.',
+    voice: 'Welcome to Convorian. Let us walk through the full bot journey from hello to booked visit, then show where the appointment appears and how follow-up works.',
   },
   {
-    title: 'Try the bot — right now 🤖',
-    text: 'We added "Priya (Sample Lead)" + sample properties so you can see the bot work before connecting WhatsApp. Click Next — we\'ll open her chat for you, and you just tap the suggested replies. Nothing goes to WhatsApp; it\'s a safe practice run.',
-    voice: "We added a sample lead called Priya so you can see the bot work before connecting WhatsApp. Click Next, and just tap the suggested replies. Nothing goes out over WhatsApp — it's a safe practice run.",
-    tip: 'This whole conversation is a simulation — totally safe to experiment.',
+    title: 'Open the demo lead',
+    text: 'We added Priya, a sample lead, plus a matching sample property so the bot can follow the exact booking flow. This demo is safe and never goes to WhatsApp.',
+    voice: 'We added a sample lead and a matching sample property so the bot can follow the booking flow. This demo is safe and never goes to WhatsApp.',
+    tip: 'The sample lead and sample property auto-clean after 5 minutes.',
     navigate: 'inbox',
     target: '[data-tour="nav-inbox"]',
   },
   {
-    title: 'Step 1 — The greeting',
-    text: 'Tap the suggested "Hi" in the chat. The bot greets the lead warmly and asks their preferred language — its very first qualification move.',
-    voice: 'Tap the suggested Hi. The bot greets the lead and asks their preferred language — its first qualification step.',
+    title: 'Step 1 - Say hi',
+    text: 'Tap Hi. The bot will greet the lead and ask for a language preference first.',
+    voice: 'Tap Hi. The bot greets the lead and asks for a language preference first.',
     navigate: 'inbox',
     target: '[data-tour="sim-panel"]',
     doneEvent: 'sim-sent',
-    actionHint: '👉 Tap a suggested reply in the chat to continue.',
+    actionHint: 'Tap the suggested reply to continue.',
   },
   {
-    title: 'Step 2 — Understanding the need',
-    text: 'Tap the next suggested reply. From plain English the bot extracts buy-vs-rent, the area, and the BHK — no forms, just natural conversation.',
-    voice: 'Tap the next reply. From plain English, the bot works out whether they want to buy or rent, the area, and the number of bedrooms — no forms.',
+    title: 'Step 2 - Language and name',
+    text: 'Choose a language and share the lead name. The bot should remember both and not ask again later.',
+    voice: 'Choose a language and share the lead name. The bot should remember both and not ask again later.',
     navigate: 'inbox',
     target: '[data-tour="sim-panel"]',
     doneEvent: 'sim-sent',
-    actionHint: '👉 Tap the suggested reply.',
+    actionHint: 'Tap the next suggested reply.',
   },
   {
-    title: 'Step 3 — Qualifying the lead',
-    text: 'Keep answering what it asks (name, budget). The bot builds a full profile so it only ever shows the RIGHT properties — never wasting the lead\'s time or yours.',
-    voice: 'Keep answering — name, budget. The bot builds a full profile so it only ever shows the right properties.',
+    title: 'Step 3 - Qualification',
+    text: 'Answer the qualification questions like area and budget. This is what lets the bot narrow down the right properties.',
+    voice: 'Answer the qualification questions like area and budget. This is what lets the bot narrow down the right properties.',
     navigate: 'inbox',
     target: '[data-tour="sim-panel"]',
     doneEvent: 'sim-sent',
-    actionHint: '👉 Tap a suggested reply.',
+    actionHint: 'Tap the next suggested reply.',
   },
   {
-    title: 'Step 4 — The perfect match',
-    text: 'Now the bot presents a property from YOUR list that fits — with real, verified details (it never invents facts). Tap the reply to show interest.',
-    voice: 'Now the bot presents a property from your list that fits, with real verified details. It never invents facts. Tap to show interest.',
+    title: 'Step 4 - Property match',
+    text: 'Now the bot should show a property that matches the saved replies. The card includes price, possession, floor plan, finance, parking, and a recommendation.',
+    voice: 'Now the bot should show a property that matches the saved replies. The card includes price, possession, floor plan, finance, parking, and a recommendation.',
     navigate: 'inbox',
     target: '[data-tour="sim-panel"]',
     doneEvent: 'sim-sent',
-    actionHint: '👉 Tap the suggested reply.',
+    actionHint: 'Tap the next suggested reply.',
   },
   {
-    title: 'Step 5 — Booking the visit',
-    text: 'Give a day/time and your email — the bot books the site visit and emails the confirmation to BOTH you and the lead. Tap through to finish, then click Next.',
-    voice: 'Give a day, time, and your email. The bot books the site visit and emails the confirmation to both you and the lead. Tap through to finish.',
+    title: 'Step 5 - Book the visit',
+    text: 'Pick a visit time, then share an email. The bot stages the visit first and confirms it with the right appointment time.',
+    voice: 'Pick a visit time, then share an email. The bot stages the visit first and confirms it with the right appointment time.',
     navigate: 'inbox',
     target: '[data-tour="sim-panel"]',
     doneEvent: 'sim-sent',
-    actionHint: '👉 Tap the suggested replies to finish booking.',
+    actionHint: 'Tap the suggested replies to finish booking.',
   },
   {
-    title: 'The visit is booked 🎉',
-    text: 'The bot just qualified the lead and booked a site visit — completely on its own. Here it is on your Appointments page.',
-    voice: 'The bot just qualified the lead and booked a site visit, completely on its own. Here it is on your Appointments page.',
+    title: 'Step 6 - Appointments',
+    text: 'Once booked, the visit appears in Appointments. From there you can review it, cancel it with a PIN, or update the follow-up later.',
+    voice: 'Once booked, the visit appears in Appointments. From there you can review it, cancel it with a PIN, or update the follow-up later.',
     navigate: 'appointments',
     target: '[data-tour="appt-list"]',
   },
   {
-    title: 'Manage every appointment',
-    text: 'Every booked visit lands here. You can reschedule or CANCEL it right here (cancelling needs your PIN). After a visit, log the feedback so the bot follows up to close the deal.',
-    voice: 'Every booked visit lands here. You can reschedule or cancel it, which needs your PIN. After a visit, log the feedback so the bot follows up to close the deal.',
-    tip: 'Logging visit feedback is what powers the bot\'s follow-ups — don\'t skip it.',
+    title: 'Step 7 - Feedback matters',
+    text: 'After the visit, log the outcome. That feedback tells the bot what to do next and keeps the nurture flow honest and useful.',
+    voice: 'After the visit, log the outcome. That feedback tells the bot what to do next and keeps the nurture flow useful.',
     navigate: 'appointments',
     target: '[data-tour="appt-list"]',
   },
   {
-    title: 'Your AI Sales Bot',
-    text: 'This is your profile and bot switch. When active, the bot qualifies leads, answers on WhatsApp, and books site visits 24/7. Pausing it needs your PIN (default 1234).',
-    voice: 'This is your bot switch. When active, the bot answers, qualifies, and books visits 24/7. Pausing it needs your PIN — the default is one two three four.',
-    tip: 'Change your PIN from Settings — the default 1234 is for everyone.',
-    target: '[data-tour="agent-card"]',
-  },
-  {
-    title: 'Now add your own Lead',
-    text: 'Click "+ Add Lead", enter a name and WhatsApp number, and save. (Leads also arrive automatically when someone messages you.) Try it now — this unlocks once your lead is added.',
-    voice: 'Now add your own lead. Click Add Lead, enter a name and WhatsApp number, and save. This unlocks once your lead is added.',
-    navigate: 'leads',
-    target: '[data-tour="add-lead"]',
-    doneEvent: 'lead-added',
-    actionHint: '👉 Add a lead using the highlighted button to continue.',
-  },
-  {
-    title: 'Add your own Property',
-    text: 'Click "+ Add detailed property" and fill in price, location, BHK and features. Your AI uses these to recommend matches to leads. Add one to continue.',
-    voice: 'Add your own property. Click Add detailed property and fill in price, location, bedrooms and features. The AI uses these to match leads.',
-    navigate: 'properties',
-    target: '[data-tour="add-property"]',
-    doneEvent: 'property-added',
-    actionHint: '👉 Add a property using the highlighted button to continue.',
-  },
-  {
-    title: 'Track your ROI',
-    text: 'See pipeline value, conversion rates, and estimated commission — split across rentals and purchases — so you always know what Convorian earns you.',
-    voice: 'Track your ROI here — pipeline value, conversion rates, and estimated commission, so you always know what Convorian earns you.',
-    navigate: 'analytics',
-    target: '[data-tour="nav-analytics"]',
-  },
-  {
-    title: 'Connect WhatsApp',
-    text: 'When you\'re ready to go live, connect your WhatsApp number here. WhatsApp messages are billed directly by Meta to your own account — no markup from us. Our team can help with setup.',
-    voice: "When you're ready to go live, connect your WhatsApp number here. Messages are billed directly by Meta to your own account, with no markup from us.",
-    tip: 'Not sure how? Our team will help you connect — just ask from here.',
-    navigate: 'balance',
-    target: '[data-tour="wa-topup"]',
-  },
-  {
-    title: "You're all set! 🎉",
-    text: "That's the whole flow: experience the bot → add leads & properties → let it convert them → log visit feedback to close. Replay this tour anytime from the profile menu (top-right).",
-    voice: "That's it — you're all set. Experience the bot, add your leads and properties, and let it convert them. You can replay this tour anytime from the profile menu.",
+    title: 'You are ready',
+    text: 'That is the full journey: greet, qualify, match, book, confirm, manage, and close the loop with feedback. You can replay this tour anytime.',
+    voice: 'That is the full journey: greet, qualify, match, book, confirm, manage, and close the loop with feedback.',
   },
 ]
 
 const PAD = 8
 
-export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: Screen) => void }) {
+export default function TutorialWalkthrough({ onNavigate, agentId }: { onNavigate?: (s: Screen) => void, agentId?: string }) {
   const [visible, setVisible] = useState(false)
   const [step, setStep] = useState(0)
   const [rect, setRect] = useState<Rect | null>(null)
@@ -148,6 +107,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   // Replays from the profile menu are a refresher — never re-lock the
   // hands-on steps (the user already has leads/properties by then).
   const [isReplay, setIsReplay] = useState(false)
+  const cleanupTimerRef = useRef<number | null>(null)
 
   const finish = useCallback(() => {
     localStorage.setItem('leadnest_tutorial_seen', 'true')
@@ -156,11 +116,23 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
       window.dispatchEvent(new Event('leadnest:go-inbox'))
       window.dispatchEvent(new Event('leadnest:tour-done-toast'))
     } catch { /* ignore */ }
+    if (cleanupTimerRef.current) {
+      window.clearTimeout(cleanupTimerRef.current)
+    }
+    if (agentId) {
+      cleanupTimerRef.current = window.setTimeout(() => {
+        fetch('/api/sample-data', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agent_id: agentId }),
+        }).catch(() => {})
+      }, 5 * 60 * 1000)
+    }
     setVisible(false)
     setStep(0)
     setRect(null)
     setCompleted(false)
-  }, [])
+  }, [agentId])
 
   // Initial mount — show only if never seen
   useEffect(() => {
@@ -172,10 +144,26 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
 
   // Allow re-launching from anywhere (profile menu, settings, etc.)
   useEffect(() => {
-    const handler = () => { setStep(0); setCompleted(false); setIsReplay(true); setVisible(true) }
+    const handler = () => {
+      setStep(0)
+      setCompleted(false)
+      setIsReplay(true)
+      if (cleanupTimerRef.current) {
+        window.clearTimeout(cleanupTimerRef.current)
+        cleanupTimerRef.current = null
+      }
+      if (agentId) {
+        fetch('/api/sample-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agent_id: agentId }),
+        }).catch(() => {})
+      }
+      setVisible(true)
+    }
     window.addEventListener('leadnest:restart-tutorial', handler)
     return () => window.removeEventListener('leadnest:restart-tutorial', handler)
-  }, [])
+  }, [agentId])
 
   // Reset completion whenever the step changes
   useEffect(() => { setCompleted(false) }, [step])
@@ -325,7 +313,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
     // so the entire chat/modal window stays visible + unblocked.
     if (current.target === '[data-tour="sim-panel"]' && hasTarget && rect) {
       // Sim steps: position the card to the right of the chat (or left if tight)
-      cardLeft = clampLeft(rect.left - cardW - 56)
+      cardLeft = clampLeft(rect.left - cardW - 96)
       cardTop = clampTop(rect.top)
       cardStyle = { top: cardTop, left: cardLeft, textAlign: 'left' }
       placement = 'right'
@@ -407,8 +395,8 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
 
       {/* "Tap here" visual guide during sim steps — below the spotlight */}
       {isSimTarget && hole && (
-        <div data-testid="tour-tap-guide" style={{ position: 'fixed', top: guideRect ? Math.max(16, guideRect.top - 38) : Math.min(vh - 52, sp.top + sp.h + 16), left: guideRect ? clampLeft(guideRect.left + 8) : clampLeft(sp.left + sp.w / 2 - 88), zIndex: zBase + 50, background: '#4F46E5', color: '#fff', padding: '8px 14px', borderRadius: 24, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', animation: 'tourTapBlink 1.2s ease-in-out infinite', boxShadow: '0 6px 16px rgba(79,70,229,0.4)' }}>
-          👇 Tap a reply
+        <div data-testid="tour-tap-guide" style={{ position: 'fixed', top: guideRect ? Math.max(8, guideRect.top - 52) : Math.min(vh - 52, sp.top + sp.h + 8), left: guideRect ? clampLeft(guideRect.left) : clampLeft(sp.left + sp.w / 2 - 88), zIndex: zBase + 50, pointerEvents: 'none', background: '#4F46E5', color: '#fff', padding: '8px 14px', borderRadius: 24, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', animation: 'tourTapBlink 1.2s ease-in-out infinite', boxShadow: '0 6px 16px rgba(79,70,229,0.4)' }}>
+          Tap a reply
         </div>
       )}
 

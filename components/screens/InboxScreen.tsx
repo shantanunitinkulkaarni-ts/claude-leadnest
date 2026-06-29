@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { getSupabase } from '@/lib/supabase'
 import ConnectWhatsAppButton from '@/components/ConnectWhatsAppButton'
+import { buildPropertyBlock } from '@/lib/propertyPresenter'
 
 interface Props { agentId: string }
 
@@ -22,6 +23,8 @@ export default function InboxScreen({ agentId }: Props) {
   const [simStep, setSimStep] = useState(0)
   const [tutorialRunning, setTutorialRunning] = useState(false)
   const [assistantReplying, setAssistantReplying] = useState(false)
+  const [simAttention, setSimAttention] = useState<'reply' | 'bot'>('reply')
+  const [activeBotReplyId, setActiveBotReplyId] = useState<string | number | null>(null)
 
   const [activeTab, setActiveTab] = useState<'chat' | 'profile' | 'matched' | 'activity'>('chat')
   const [filter, setFilter] = useState('all')
@@ -72,6 +75,7 @@ export default function InboxScreen({ agentId }: Props) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const simStepLineRef = useRef<HTMLDivElement>(null)
   const simRefocusTimer = useRef<number | null>(null)
+  const simAttentionTimer = useRef<number | null>(null)
   const assistantReplyStartedAt = useRef<number | null>(null)
 
   const openBookModal = () => {
@@ -303,41 +307,47 @@ export default function InboxScreen({ agentId }: Props) {
     }
   }, [activeTab, selected?.id])
 
-  // During the tutorial simulation, keep the latest bot reply in view so the
-  // user sees the response before the next reply chips get attention again.
   useEffect(() => {
     if (!tutorialRunning || !isSimulating || !selected?.is_sample) return
-    const botReplies = Array.from(document.querySelectorAll('[data-tour="bot-reply"]')) as HTMLElement[]
-    const lastBotReply = botReplies[botReplies.length - 1]
-    if (lastBotReply) {
-      try { lastBotReply.scrollIntoView({ behavior: 'smooth', block: 'center' }) } catch { /* ignore */ }
-    }
-  }, [messages, tutorialRunning, isSimulating, selected?.id])
-
-  useEffect(() => {
     if (!assistantReplying || !assistantReplyStartedAt.current) return
-    const foundFreshBotReply = messages.some(msg =>
+
+    const freshBotReplies = messages.filter(msg =>
       msg.sent_by === 'bot' && new Date(msg.created_at).getTime() >= (assistantReplyStartedAt.current || 0)
     )
-    if (foundFreshBotReply) {
-      assistantReplyStartedAt.current = null
-      setAssistantReplying(false)
-    }
-  }, [messages, assistantReplying])
+    const lastFreshBotReply = freshBotReplies[freshBotReplies.length - 1]
+    if (!lastFreshBotReply) return
 
-  // After the bot reply is shown, bring attention back to the next reply chips.
-  useEffect(() => {
-    if (!tutorialRunning || !isSimulating || !selected?.is_sample) return
-    if (simRefocusTimer.current) window.clearTimeout(simRefocusTimer.current)
-    simRefocusTimer.current = window.setTimeout(() => {
-      try { simStepLineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) } catch { /* ignore */ }
-      const nextReply = document.querySelector('[data-tour="sim-reply"]') as HTMLElement | null
-      if (nextReply) nextReply.focus()
+    assistantReplyStartedAt.current = null
+    setAssistantReplying(false)
+    setActiveBotReplyId(lastFreshBotReply.id)
+    setSimAttention('bot')
+
+    window.setTimeout(() => {
+      const botBubble = document.querySelector(`[data-tour-message-id="${lastFreshBotReply.id}"]`) as HTMLElement | null
+      if (botBubble) {
+        try {
+          botBubble.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          botBubble.focus?.({ preventScroll: true } as any)
+        } catch { /* ignore */ }
+      }
+    }, 0)
+
+    if (simAttentionTimer.current) window.clearTimeout(simAttentionTimer.current)
+    simAttentionTimer.current = window.setTimeout(() => {
+      setSimAttention('reply')
+      setActiveBotReplyId(null)
+      try {
+        simStepLineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        const nextReply = document.querySelector('[data-tour="sim-reply"]') as HTMLButtonElement | null
+        nextReply?.focus({ preventScroll: true })
+      } catch { /* ignore */ }
     }, 3000)
-    return () => {
-      if (simRefocusTimer.current) window.clearTimeout(simRefocusTimer.current)
-    }
-  }, [simStep, tutorialRunning, isSimulating, selected?.id])
+  }, [messages, assistantReplying, tutorialRunning, isSimulating, selected?.id])
+
+  useEffect(() => () => {
+    if (simAttentionTimer.current) window.clearTimeout(simAttentionTimer.current)
+    if (simRefocusTimer.current) window.clearTimeout(simRefocusTimer.current)
+  }, [])
 
   const handleSendMessage = async () => {
     if (tutorialRunning) return
@@ -378,6 +388,10 @@ export default function InboxScreen({ agentId }: Props) {
   const handleSimulateLeadMessage = async (overrideText?: string) => {
     const inputContent = (overrideText ?? msgInput).trim()
     if (!inputContent || !selected) return
+
+    if (simAttentionTimer.current) window.clearTimeout(simAttentionTimer.current)
+    setSimAttention('bot')
+    setActiveBotReplyId(null)
 
     // Optimistic UI update
     const optimisticMsg = {
@@ -604,9 +618,21 @@ export default function InboxScreen({ agentId }: Props) {
                         <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.direction === 'outbound' ? 'flex-end' : 'flex-start' }}>
                           {msg.direction === 'outbound' && <div style={{ fontSize: 10, color: '#9E9B92', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>{msg.sent_by === 'bot' ? '🤖 Convorian bot' : '👤 You'}</div>}
                           <div
+                            data-tour-message-id={msg.id}
                             data-tour={msg.direction === 'outbound' && msg.sent_by === 'bot' ? 'bot-reply' : undefined}
                             tabIndex={msg.direction === 'outbound' && msg.sent_by === 'bot' ? -1 : undefined}
-                            style={{ padding: '9px 13px', fontSize: 13, lineHeight: 1.5, maxWidth: '72%', background: msg.direction === 'outbound' ? (msg.sent_by === 'bot' ? '#15161B' : '#4F46E5') : '#fff', color: msg.direction === 'outbound' ? '#fff' : '#15161B', borderRadius: msg.direction === 'outbound' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', border: msg.direction === 'inbound' ? '1px solid rgba(26,25,22,0.08)' : 'none' }}
+                            style={{
+                              padding: '9px 13px',
+                              fontSize: 13,
+                              lineHeight: 1.5,
+                              maxWidth: '72%',
+                              background: msg.direction === 'outbound' ? (msg.sent_by === 'bot' ? '#15161B' : '#4F46E5') : '#fff',
+                              color: msg.direction === 'outbound' ? '#fff' : '#15161B',
+                              borderRadius: msg.direction === 'outbound' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                              border: msg.direction === 'inbound' ? '1px solid rgba(26,25,22,0.08)' : 'none',
+                              outline: msg.direction === 'outbound' && msg.sent_by === 'bot' && simAttention === 'bot' && msg.id === activeBotReplyId ? '3px solid rgba(26,95,165,0.35)' : 'none',
+                              boxShadow: msg.direction === 'outbound' && msg.sent_by === 'bot' && simAttention === 'bot' && msg.id === activeBotReplyId ? '0 0 0 4px rgba(26,95,165,0.08)' : 'none',
+                            }}
                           >{msg.content}</div>
                           <div style={{ fontSize: 10, color: '#C8C5BC', marginTop: 3 }}>{formatTime(msg.created_at)}</div>
                         </div>
@@ -616,14 +642,16 @@ export default function InboxScreen({ agentId }: Props) {
                     {isSimulating && selected?.is_sample && (() => {
                       const email = agent?.email || 'you@email.com'
                       const SCRIPT: { caption: string; suggestions: string[] }[] = [
-                        { caption: 'Start like a real buyer would — say hello.', suggestions: ['Hi'] },
-                        { caption: 'Tell the bot what you want — plain English works.', suggestions: ['I want to buy a 2 BHK in Wakad'] },
-                        { caption: 'It qualifies the lead. Answer what it asks (name, budget…).', suggestions: ['My name is Rahul', 'Budget around ₹90 lakh'] },
-                        { caption: 'Keep answering until it shows a matching property.', suggestions: ['Yes, show me the options'] },
-                        { caption: 'Now act interested — ask to visit the property.', suggestions: ["I'd like to visit this one"] },
-                        { caption: 'Give it a day and time for the site visit.', suggestions: ['Saturday at 11 AM'] },
-                        { caption: 'It needs an email to send the confirmation — give yours.', suggestions: [email] },
-                        { caption: '🎉 Done! The bot qualified the lead, booked a visit, and emailed the confirmation — exactly what it does 24/7 on real WhatsApp leads once you connect. Add your own leads & properties anytime.', suggestions: [] },
+                        { caption: 'Start with a hello.', suggestions: ['Hi'] },
+                        { caption: 'Pick a language.', suggestions: ['English'] },
+                        { caption: 'Share the lead name.', suggestions: ['My name is Rahul'] },
+                        { caption: 'Tell the bot what you need.', suggestions: ['I want to buy a 2 BHK in Wakad'] },
+                        { caption: 'Give the budget.', suggestions: ['Budget around Rs 90 lakh'] },
+                        { caption: 'Ask for the options.', suggestions: ['Yes, show me the options'] },
+                        { caption: 'Show interest in one property.', suggestions: ["I'd like to visit this one"] },
+                        { caption: 'Choose a visit slot.', suggestions: ['Saturday at 11 AM'] },
+                        { caption: 'Share the email for confirmation.', suggestions: [email] },
+                        { caption: 'Done - the visit is booked and should now show in Appointments.', suggestions: [] },
                       ]
                       const stepIdx = Math.min(simStep, SCRIPT.length - 1)
                       const cur = SCRIPT[stepIdx]
@@ -631,7 +659,7 @@ export default function InboxScreen({ agentId }: Props) {
                       return (
                         <div ref={simStepLineRef} data-tour="sim-step-line" style={{ padding: '10px 16px', borderTop: '1px solid rgba(26,95,165,0.18)', background: '#F4F8FD' }}>
                           <div style={{ fontSize: 11.5, marginBottom: cur.suggestions.length ? 8 : 0, display: 'flex', gap: 6, lineHeight: 1.5 }}>
-                            <strong style={{ color: '#1A5FA5', whiteSpace: 'nowrap' }}>{isDone ? '✅' : `Step ${stepIdx + 1}/7`}</strong>
+                            <strong style={{ color: '#1A5FA5', whiteSpace: 'nowrap' }}>{isDone ? 'Done' : `Step ${stepIdx + 1}/9`}</strong>
                             <span style={{ color: '#3D5A80' }}>{cur.caption}</span>
                           </div>
                           {cur.suggestions.length > 0 && (
@@ -642,10 +670,23 @@ export default function InboxScreen({ agentId }: Props) {
                                   data-tour="sim-reply"
                                   onClick={() => handleSimulateLeadMessage(s)}
                                   onFocus={() => {
+                                    setSimAttention('reply')
                                     try { simStepLineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) } catch { /* ignore */ }
                                   }}
-                                  style={{ fontSize: 12, padding: '6px 12px', borderRadius: 16, border: '1px solid rgba(26,95,165,0.3)', background: '#fff', color: '#1A5FA5', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}
-                                >💬 {s}</button>
+                                  style={{
+                                    fontSize: 12,
+                                    padding: '6px 12px',
+                                    borderRadius: 16,
+                                    border: '1px solid rgba(26,95,165,0.3)',
+                                    background: '#fff',
+                                    color: '#1A5FA5',
+                                    cursor: 'pointer',
+                                    fontFamily: 'inherit',
+                                    fontWeight: 500,
+                                    outline: simAttention === 'reply' && i === 0 ? '3px solid rgba(26,95,165,0.18)' : 'none',
+                                    boxShadow: simAttention === 'reply' && i === 0 ? '0 0 0 4px rgba(26,95,165,0.06)' : 'none',
+                                  }}
+                                >Reply - {s}</button>
                               ))}
                             </div>
                           )}
@@ -717,14 +758,30 @@ export default function InboxScreen({ agentId }: Props) {
                         </div>
                       )
                       return matchedProps.map((p: any) => (
-                        <div key={p.id} style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 10, padding: '12px 14px', marginBottom: 10 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B' }}>{p.title}</div>
+                        <div key={p.id} style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '14px 16px', marginBottom: 10, boxShadow: '0 8px 24px rgba(26,25,22,0.04)' }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#15161B' }}>{p.title}</div>
                           <div style={{ fontSize: 11, color: '#9E9B92', marginTop: 2 }}>{p.location}, {p.city}</div>
-                          <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-                            <span style={{ fontSize: 13, fontWeight: 500, color: '#1A5FA5' }}>₹{(p.price || p.rent_per_month || 0).toLocaleString('en-IN')}{p.type === 'rental' ? '/mo' : ''}</span>
+                          <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#1A5FA5' }}>Price - ₹{(p.price || p.rent_per_month || 0).toLocaleString('en-IN')}{p.type === 'rental' ? '/mo' : ''}</span>
                             {p.bhk && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#F4F3EE', color: '#6B6860' }}>{p.bhk}</span>}
                             <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: p.type === 'sale' ? '#EEF4FC' : '#FEF9E7', color: p.type === 'sale' ? '#1A5FA5' : '#B7770D', textTransform: 'capitalize' }}>{p.type}</span>
                           </div>
+                          <div style={{ marginTop: 12, display: 'grid', gap: 6 }}>
+                            {buildPropertyBlock(p).split('\n').slice(1).map((line, idx) => {
+                              const [label, ...rest] = line.split(' - ')
+                              return (
+                                <div key={idx} style={{ fontSize: 12.25, lineHeight: 1.45, color: '#4A4750' }}>
+                                  <span style={{ fontWeight: 600, color: '#15161B' }}>{label} - </span>
+                                  <span>{rest.join(' - ')}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {p.description && (
+                            <div style={{ marginTop: 10, fontSize: 12.25, lineHeight: 1.55, color: '#6B6860', background: '#FAFAFB', border: '1px solid rgba(26,25,22,0.06)', borderRadius: 10, padding: '10px 12px' }}>
+                              {p.description}
+                            </div>
+                          )}
                         </div>
                       ))
                     })()}
