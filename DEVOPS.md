@@ -305,10 +305,9 @@ These are the **soft spots** identified by Claude — not confirmed live failure
 - `HANDOFF.md` — full project history
 
 **Next steps (per Claude's task board §0.D):**
-- [ ] Commit loose WIP to `cline/wip-...` branch
+- [x] Commit loose WIP to `cline/wip-bot-hardening` branch — **DONE** (pushed to origin)
 - [ ] Time/date parsing adversarial tests + fixes
 - [ ] No-match loop guard
-- [ ] End-to-end Playwright booking test
 
 **Key findings from review:**
 1. `ai-bot.ts` is confirmed as the only live engine (webhook calls `handleAiBotMessage`)
@@ -322,7 +321,7 @@ These are the **soft spots** identified by Claude — not confirmed live failure
 **Branch:** `cline/wip-bot-hardening` (creating today)
 **PR deadline:** All bot PRs to Claude by **July 2**
 
-## 14. Tutorial Rollback Note - 2026-06-29
+## 15. Tutorial Rollback Note - 2026-06-29
 - The new full-journey tutorial rewrite was rolled back to the last snap-fit version (b9fabe5).
 - Restored files: `components/TutorialWalkthrough.tsx`, `components/screens/InboxScreen.tsx`, `app/dashboard/page.tsx`.
 - CI on this machine could not complete cleanly because the local package setup is partially linked and typecheck still shows unrelated repo errors outside the tutorial files.
