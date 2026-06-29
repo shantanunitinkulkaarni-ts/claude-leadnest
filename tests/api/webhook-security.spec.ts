@@ -12,7 +12,7 @@ import { test, expect } from '@playwright/test'
 
 const CONFIGURED_SECRET = process.env.WEBHOOK_SIMULATE_SECRET
 
-const the legacy providerPayload = {
+const webhookPayload = {
   integratedNumber: '919999999999',
   customerNumber: '919876543210',
   uuid: 'test-uuid-webhook-auth',
@@ -23,7 +23,7 @@ const the legacy providerPayload = {
 test.describe('POST /api/webhook — auth gate rejects forged requests', () => {
   test('missing x-webhook-secret header → rejected (403 or 500)', async ({ request }) => {
     const res = await request.post('/api/webhook', {
-      data: the legacy providerPayload,
+      data: webhookPayload,
       headers: { 'Content-Type': 'application/json' },
     })
     // 403 = secret set, header missing → correctly rejected.
@@ -37,7 +37,7 @@ test.describe('POST /api/webhook — auth gate rejects forged requests', () => {
   test('wrong x-webhook-secret → 403 (only when server has secret configured)', async ({ request }) => {
     test.skip(!CONFIGURED_SECRET, 'WEBHOOK_SIMULATE_SECRET not set — server would 500 before checking header')
     const res = await request.post('/api/webhook', {
-      data: the legacy providerPayload,
+      data: webhookPayload,
       headers: {
         'Content-Type': 'application/json',
         'x-webhook-secret': 'this-is-definitely-wrong',
@@ -50,7 +50,7 @@ test.describe('POST /api/webhook — auth gate rejects forged requests', () => {
 
   test('empty x-webhook-secret → rejected (403 or 500)', async ({ request }) => {
     const res = await request.post('/api/webhook', {
-      data: the legacy providerPayload,
+      data: webhookPayload,
       headers: {
         'Content-Type': 'application/json',
         'x-webhook-secret': '',
@@ -62,7 +62,7 @@ test.describe('POST /api/webhook — auth gate rejects forged requests', () => {
   test('correct x-webhook-secret → auth gate passes, request processed (200)', async ({ request }) => {
     test.skip(!CONFIGURED_SECRET, 'WEBHOOK_SIMULATE_SECRET not set in test env — skip correct-auth test')
     const res = await request.post('/api/webhook', {
-      data: the legacy providerPayload,
+      data: webhookPayload,
       headers: {
         'Content-Type': 'application/json',
         'x-webhook-secret': CONFIGURED_SECRET!,
