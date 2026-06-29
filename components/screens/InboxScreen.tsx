@@ -20,7 +20,6 @@ export default function InboxScreen({ agentId }: Props) {
   const [isManual, setIsManual] = useState(false)
   const [isSimulating, setIsSimulating] = useState(false)
   const [simStep, setSimStep] = useState(0)
-  const [tutorialRunning, setTutorialRunning] = useState(false)
 
   const [activeTab, setActiveTab] = useState<'chat' | 'profile' | 'matched' | 'activity'>('chat')
   const [filter, setFilter] = useState('all')
@@ -39,18 +38,6 @@ export default function InboxScreen({ agentId }: Props) {
     window.addEventListener('leadnest:start-simulation', handler)
     return () => window.removeEventListener('leadnest:start-simulation', handler)
   }, [leads])
-
-  // Track tutorial visibility — block chat input while tutorial is running
-  useEffect(() => {
-    const startHandler = () => setTutorialRunning(true)
-    const finishHandler = () => setTutorialRunning(false)
-    window.addEventListener('leadnest:tutorial-visible', startHandler)
-    window.addEventListener('leadnest:tutorial-hidden', finishHandler)
-    return () => {
-      window.removeEventListener('leadnest:tutorial-visible', startHandler)
-      window.removeEventListener('leadnest:tutorial-hidden', finishHandler)
-    }
-  }, [])
   const [msgInput, setMsgInput] = useState('')
   const [loadingLeads, setLoadingLeads] = useState(true)
   const [sendLoading, setSendLoading] = useState(false)
@@ -585,16 +572,16 @@ export default function InboxScreen({ agentId }: Props) {
                       )
                     })()}
                     <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(26,25,22,0.08)', background: '#fff', display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                      <input
-                        value={msgInput}
-                        onChange={e => setMsgInput(e.target.value)}
+                      <input 
+                        value={msgInput} 
+                        onChange={e => setMsgInput(e.target.value)} 
                         onKeyDown={e => {
-                          if (e.key === 'Enter' && !tutorialRunning) {
+                          if (e.key === 'Enter') {
                             if (isSimulating) handleSimulateLeadMessage()
                             else if (isManual) handleSendMessage()
                           }
                         }}
-                        disabled={tutorialRunning || (!isManual && !isSimulating)} 
+                        disabled={!isManual && !isSimulating} 
                         placeholder={isSimulating ? 'Type a message from the lead...' : (isManual ? 'Type your message and press Enter...' : 'Take over or simulate to type...')} 
                         style={{ flex: 1, height: 38, border: '1px solid rgba(26,25,22,0.18)', borderRadius: 20, padding: '0 14px', fontSize: 13, background: (isManual || isSimulating) ? '#fff' : '#F4F3EE', color: '#15161B', outline: 'none', fontFamily: 'inherit', opacity: (isManual || isSimulating) ? 1 : 0.6, cursor: (isManual || isSimulating) ? 'text' : 'not-allowed' }} 
                       />

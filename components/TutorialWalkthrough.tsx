@@ -179,12 +179,6 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   // Reset completion whenever the step changes
   useEffect(() => { setCompleted(false) }, [step])
 
-  // Notify screens when tutorial is visible/hidden — so they can disable inputs, etc.
-  useEffect(() => {
-    if (visible) window.dispatchEvent(new Event('leadnest:tutorial-visible'))
-    else window.dispatchEvent(new Event('leadnest:tutorial-hidden'))
-  }, [visible])
-
   // Auto-advance the simulation: when the user taps a reply (sim-sent completes a
   // sim step), move to the next step automatically after a beat — no Next click.
   useEffect(() => {
@@ -299,9 +293,8 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
         placement = 'right'
       } else {
         const spaceLeft = rect.left
-        if (spaceLeft >= cardW + 16) {
-          // Snap the card's right edge to the chat's left edge (no gap)
-          cardStyle = { top: clampTop(rect.top), left: clampLeft(rect.left - cardW), textAlign: 'left' }
+        if (spaceLeft >= cardW + 32) {
+          cardStyle = { top: clampTop(rect.top), left: clampLeft(rect.left - cardW - 16), textAlign: 'left' }
           placement = 'right'
         } else {
           cardStyle = { top: clampTop(rect.top - 252), left: clampLeft(rect.left), textAlign: 'left' }
@@ -364,7 +357,6 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
         @keyframes tourArrowUp { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-7px) } }
         @keyframes tourArrowDown { 0%,100% { transform: translateY(0) } 50% { transform: translateY(7px) } }
         @keyframes tourNextPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(21,22,27,0.0) } 50% { box-shadow: 0 0 0 6px rgba(79,70,229,0.18) } }
-        @keyframes tourTapBlink { 0%,100% { opacity: 1 } 50% { opacity: 0.5 } }
       `}</style>
 
       {/* Dark + blurred backdrop. Four panels around the hole keep the target
@@ -383,13 +375,6 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
       )}
 
       {arrow}
-
-      {/* "Tap here" visual guide during sim steps */}
-      {current.target === '[data-tour="sim-panel"]' && hole && (
-        <div style={{ position: 'fixed', bottom: sp.top + sp.h + 12, left: sp.left + sp.w / 2 - 60, zIndex: zBase + 2, background: '#4F46E5', color: '#fff', padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', animation: 'tourTapBlink 1.2s ease-in-out infinite', boxShadow: '0 4px 12px rgba(79,70,229,0.3)' }}>
-          ↓ Tap a reply
-        </div>
-      )}
 
       <div key={step} style={{
         position: 'fixed', maxWidth: cardW, width: `min(${cardW}px, calc(100vw - 32px))`,
