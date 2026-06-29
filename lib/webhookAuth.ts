@@ -3,7 +3,7 @@ import { timingSafeEqual, createHmac } from 'crypto'
 // ─── Shared-secret header verification ───────────────────────────────────────
 // Used by the dashboard "simulate lead" form post, which sends a custom header:
 //   Header name:  x-webhook-secret
-//   Header value: <MSG91_WEBHOOK_SECRET env var>
+//   Header value: <WEBHOOK_SIMULATE_SECRET env var>
 // Compared constant-time to prevent timing-oracle attacks.
 export function verifySharedSecret(
   incoming: string | null | undefined,

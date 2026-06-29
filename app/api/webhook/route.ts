@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     {
       const devBypass = process.env.NODE_ENV !== 'production' && process.env.SKIP_WEBHOOK_AUTH === 'true'
       const metaOk = verifyMetaSignature(rawBody, request.headers.get('x-hub-signature-256'), process.env.WHATSAPP_APP_SECRET)
-      const sharedSecret = process.env.MSG91_WEBHOOK_SECRET // legacy name; gates the simulate form
+      const sharedSecret = process.env.WEBHOOK_SIMULATE_SECRET // legacy name; gates the simulate form
       const sharedOk = verifySharedSecret(request.headers.get('x-webhook-secret'), sharedSecret)
       if (devBypass) log('auth_bypass', { note: 'dev mode' })
       else if (!metaOk && !sharedOk) {
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     // ── Parse inbound ────────────────────────────────────────────────────
     // Two sources: Meta Cloud API (real WhatsApp) and the dashboard "simulate
-    // lead" form post (forcedAgentId). MSG91 has been removed.
+    // lead" form post (forcedAgentId). the legacy provider has been removed.
     const contentType = request.headers.get('content-type') || ''
     let fromPhone = '', messageText = '', waMessageId = '', forcedAgentId = '', metaPhoneNumberId = ''
     let isNonTextMedia = false

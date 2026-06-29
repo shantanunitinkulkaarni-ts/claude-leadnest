@@ -75,7 +75,7 @@ export function decideOutreach(
 }
 
 // ─── Approved template suite (see TEMPLATE_SUITE.md) ─────────────────────────
-// Names + which languages are APPROVED. Update `approvedLangs` as MSG91 clears
+// Names + which languages are APPROVED. Update `approvedLangs` as Meta approves them
 // each. The cron only sends templates listed here as approved.
 export const TEMPLATES = {
   // Meta approvals (2026-06-24): ALL templates approved in en + hi + mr. A
@@ -90,7 +90,7 @@ export const TEMPLATES = {
   // visit_reminder (Utility, en) is sent from the appointment-reminder path.
 }
 
-// Body text of each approved template (must match what was approved in MSG91),
+// Body text of each approved template (must match what was approved on the WABA),
 // used to render the REAL message for the agent's Inbox — so they see exactly
 // what the lead received, not a placeholder.
 export const TEMPLATE_BODIES: Record<string, Record<string, string>> = {
@@ -137,9 +137,9 @@ export function renderTemplate(name: string, language: string, values: { name: s
 // The {{var}} tokens in TEMPLATE_BODIES ARE the canonical definition — variable
 // names AND their order. Everything that sends a template (cron, alerts, the
 // /admin test tool) derives the shape from here, so code can never drift from
-// what was approved in MSG91 without this one map being wrong too. If a real
+// what was approved on the WABA without this one map being wrong too. If a real
 // send fails with "parameter_name is missing"/"localizable_params (0)", the
-// approved MSG91 template's variables don't match the body here — fix the body.
+// approved the legacy provider template's variables don't match the body here — fix the body.
 export function templateVars(name: string, language = 'en'): string[] {
   const body = TEMPLATE_BODIES[name]?.[language] || TEMPLATE_BODIES[name]?.en || ''
   const seen = new Set<string>()
@@ -177,7 +177,7 @@ function propertyType(lead: any): string {
 
 // Pick WHICH approved template fits this lead's state, the language version,
 // and the body variable values IN ORDER. Returns null if nothing approved.
-// MSG91 maps values positionally (body_1, body_2, …) → they MUST be in the same
+// Meta maps values positionally (body_1, body_2, …) → they MUST be in the same
 // order the variables appear in the template body. `lang` = 'en' | 'hi' | 'mr'.
 export function pickTemplate(
   lead: any, agent: any, lang: string

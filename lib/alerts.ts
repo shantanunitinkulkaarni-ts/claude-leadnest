@@ -4,7 +4,7 @@ import { sendWhatsAppMessage } from './whatsapp'
 // ─── High-priority agent alerts: the trio ─────────────────────────────────────
 // Founder rule (June 13): anything that directly affects ROI must reach the
 // agent on EVERY channel we have — email + WhatsApp now, voice call later.
-// WhatsApp goes via Meta Cloud API direct (MSG91 fully removed). Out-of-window
+// WhatsApp goes via Meta Cloud API direct (the legacy provider fully removed). Out-of-window
 // WhatsApp alerts will need an approved Meta alert template (follow-up); until
 // then email is the guaranteed channel and the WhatsApp leg is best-effort.
 //

@@ -287,7 +287,7 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
         {[
           { k: 'Plan', v: (d?.plan ? d.plan.charAt(0).toUpperCase() + d.plan.slice(1) : 'Monthly') + ' \u2014 ' + (d?.plan === 'free' ? '\u20b90' : '\u20b9999') + '/month' },
           { k: 'Message usage', v: `${d?.messages_used ?? 0} / ${d?.messages_limit ?? 5000} this month` },
-          { k: 'WhatsApp', v: (d?.wa_verified || d?.msg91_integrated_number || d?.phone) ? 'Connected \u2713' : 'Setup in progress \u2014 our team is on it' },
+          { k: 'WhatsApp', v: (d?.wa_verified || d?.phone) ? 'Connected \u2713' : 'Setup in progress \u2014 our team is on it' },
         ].map((row, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < 2 ? '1px solid rgba(26,25,22,0.06)' : 'none' }}>
             <span style={{ fontSize: 13, color: '#3D3B34' }}>{row.k}</span>
