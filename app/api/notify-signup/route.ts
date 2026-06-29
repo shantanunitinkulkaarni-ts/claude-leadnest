@@ -5,7 +5,7 @@ import { sendEmail, escapeHtml } from '@/lib/email'
 import { checkRateLimit } from '@/lib/rateLimit'
 
 // Alerts the Convorian team that a new agent signed up and needs their WhatsApp
-// number activated on MSG91 (concierge onboarding, pre-self-serve). Public —
+// number activated on Meta (concierge onboarding, pre-self-serve). Public —
 // called from the onboarding flow; only sends a team email, no data exposure.
 const ALERT_TO = process.env.FOUNDER_ALERT_EMAIL || 'support@convorian.in'
 
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
           <tr><td><strong>WhatsApp</strong></td><td>&nbsp;${phone}</td></tr>
           <tr><td><strong>Email</strong></td><td>&nbsp;${email}</td></tr>
         </table>
-        <p><strong>Action:</strong> onboard <strong>${phone}</strong> in MSG91, then set it as this agency's WhatsApp # in <a href="https://convorian.in/admin">/admin</a>.</p>`,
+        <p><strong>Action:</strong> connect this agency's WhatsApp via Meta embedded signup in <a href="https://convorian.in/admin">/admin</a>.</p>`,
     })
     return NextResponse.json({ ok: true })
   } catch (e: any) {

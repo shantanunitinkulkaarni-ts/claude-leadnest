@@ -20,12 +20,12 @@ function extractButtonText(body: any): string {
   )
 }
 
-test.describe('MSG91 button text extraction', () => {
+test.describe('the legacy provider button text extraction', () => {
   test('plain text message', () => {
     expect(extractButtonText({ text: 'Hello', contentType: 'text' })).toBe('Hello')
   })
 
-  test('button as JSON string (the format MSG91 actually sends)', () => {
+  test('button as JSON string (the format the legacy provider actually sends)', () => {
     expect(extractButtonText({
       text: '',
       contentType: 'button',
@@ -114,7 +114,7 @@ test.describe('Opt-out pattern detection', () => {
 })
 
 // ─── Content-dedup trigger for button taps without UUID ───────────────────────
-// When MSG91 sends a button tap with no uuid, wa_message_id is stored as null.
+// When the legacy provider sends a button tap with no uuid, wa_message_id is stored as null.
 // Postgres doesn't enforce uniqueness on null, so retries can double-fire the
 // engine. The webhook checks for same content <60s when uuid is absent.
 

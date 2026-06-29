@@ -1,5 +1,5 @@
 // ─── Delivery-report parsing (provider-agnostic, pure + testable) ────────────
-// MSG91/Meta delivery-status callbacks vary in shape by account/version: a single
+// the legacy provider/Meta delivery-status callbacks vary in shape by account/version: a single
 // object, a `data: [...]` array, or nested reports, with the id/status/error
 // under many possible field names. These pure helpers normalise that mess so the
 // route handler (app/api/webhook/status) only does the DB write. Kept pure (no

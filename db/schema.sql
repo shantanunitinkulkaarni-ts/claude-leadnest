@@ -58,7 +58,6 @@ create table if not exists agents (
   razorpay_customer_id text,
   razorpay_subscription_id text,
   subscription_charge_at timestamptz,
-  msg91_integrated_number text,
   consent_terms boolean default false,
   consent_marketing boolean default false,
   consent_at timestamptz,
@@ -308,7 +307,6 @@ CREATE UNIQUE INDEX activity_log_pkey ON public.activity_log USING btree (id);
 CREATE INDEX idx_activity_lead_id ON public.activity_log USING btree (lead_id);
 CREATE UNIQUE INDEX agents_email_key ON public.agents USING btree (email);
 CREATE UNIQUE INDEX agents_pkey ON public.agents USING btree (id);
-CREATE INDEX idx_agents_msg91_number ON public.agents USING btree (msg91_integrated_number);
 CREATE INDEX idx_agents_rzp_subscription ON public.agents USING btree (razorpay_subscription_id);
 CREATE UNIQUE INDEX appointments_lead_upcoming_uniq ON public.appointments USING btree (lead_id) WHERE (status = 'upcoming'::text);
 CREATE UNIQUE INDEX appointments_pkey ON public.appointments USING btree (id);

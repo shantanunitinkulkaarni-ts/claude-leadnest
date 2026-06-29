@@ -57,7 +57,7 @@ test.describe('extractEvents', () => {
     expect(out).toEqual([{ id: 'abc123', status: 'delivered', error: '' }])
   })
 
-  test('data array of reports (common MSG91 bulk shape)', () => {
+  test('data array of reports (common the legacy provider bulk shape)', () => {
     const out = extractEvents({
       data: [
         { requestId: 'r1', status: 'delivered' },
@@ -83,7 +83,7 @@ test.describe('extractEvents', () => {
     expect(out).toEqual([{ id: 'u7', status: 'failed', error: 'no whatsapp' }])
   })
 
-  test('MSG91 media report keyed by message_uuid matches (the photo-delivery fix)', () => {
+  test('the legacy provider media report keyed by message_uuid matches (the photo-delivery fix)', () => {
     const out = extractEvents({ data: [{ message_uuid: '7b4ba6f0', status: 'failed', reason: 'media download failed' }] })
     expect(out).toEqual([{ id: '7b4ba6f0', status: 'failed', error: 'media download failed' }])
   })

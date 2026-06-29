@@ -511,7 +511,7 @@ export async function handleAiBotMessage(opts: {
   phone: string
   message: string
   agentId: string
-  channel: WaChannel   // how to reply — MSG91 or Meta Cloud API direct
+  channel: WaChannel   // how to reply — Meta Cloud API direct
   simulate?: boolean   // onboarding simulation: run the real bot but DON'T send
                        // real WhatsApp messages (replies are still saved to the inbox)
 }): Promise<void> {
@@ -520,7 +520,7 @@ export async function handleAiBotMessage(opts: {
   // 1. Load agent
   const { data: agent } = await supabaseAdmin
     .from('agents')
-    .select('id, name, agency_name, phone, email, office_open, office_close, weekly_off, msg91_integrated_number')
+    .select('id, name, agency_name, phone, email, office_open, office_close, weekly_off')
     .eq('id', agentId)
     .single()
 

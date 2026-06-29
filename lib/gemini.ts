@@ -670,8 +670,8 @@ export async function generateBotReply(
     reschedulingLocked: (rescheduleRes.count ?? 0) >= 3,
     detectedLang,
     incomingMessage,
-    // Photo sending is gated until the MSG91 media format is verified live.
-    canSendPhotos: process.env.MSG91_MEDIA_LIVE === 'true',
+    // Photo sending is gated by WA_MEDIA_LIVE (Meta media).
+    canSendPhotos: process.env.WA_MEDIA_LIVE === 'true',
   }
 
   const systemPrompt = buildEnginePrompt(ctx, stage, messageCount)

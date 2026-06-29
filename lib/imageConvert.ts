@@ -2,7 +2,7 @@ import sharp from 'sharp'
 
 // ─── WhatsApp-safe image conversion (shared by upload + backfill) ─────────────
 // WhatsApp/Meta only deliver JPEG/PNG images and silently drop others (AVIF,
-// HEIC, TIFF…) even when MSG91 returns "success" — this was why property photos
+// HEIC, TIFF…) even when WhatsApp returns "success" — this was why property photos
 // never arrived. Re-encode every image to a small JPEG so it always delivers.
 
 export const WA_MAX_DIMENSION = 1600 // long-edge cap; plenty sharp on a phone

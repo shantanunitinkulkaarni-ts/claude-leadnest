@@ -91,7 +91,7 @@ async function sendViaMeta(
 
 // ─── Reply channel (Meta Cloud API direct) ───────────────────────────────────
 // A WaChannel carries the agent's Meta credentials so the bot can reply. We run
-// Meta-direct only (Tech Provider) — MSG91 has been removed from the live path.
+// Meta-direct only (Tech Provider) — the legacy provider has been removed from the live path.
 export type WaChannel = { phoneNumberId: string; accessToken: string }
 
 // Send free-text to a lead via Meta Cloud API. Normalised to a SendOutcome.

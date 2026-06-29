@@ -9,7 +9,6 @@ export type AlertContent = {
   subject: string
   html: string
   whatsappText: string
-  templateValues: string[] // for the MSG91 alert template: [name, phone, reason]
 }
 
 const esc = (s: string) => String(s || '').replace(/[<>]/g, '')
@@ -83,9 +82,8 @@ export function buildAlertContent(
     `${spec.emoji} Convorian alert\n\n${reasonLine}` +
     (botReplyLine ? `\n\n${botReplyLine}` : '') +
     `\n\n👉 ${spec.action}`
-  const templateValues = [name, phone, `${reasonLine}${botReplyLine ? ` ${botReplyLine}` : ''} ${spec.action}`.slice(0, 200)]
 
-  return { subject, html, whatsappText, templateValues }
+  return { subject, html, whatsappText }
 }
 
 function labelShort(sig: PrioritySignal): string {

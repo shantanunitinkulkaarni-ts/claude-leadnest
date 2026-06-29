@@ -4,16 +4,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { extractEvents } from '@/lib/deliveryStatus'
 
-// ─── MSG91 / Meta delivery-status callback ───────────────────────────────────
+// ─── the legacy provider / Meta delivery-status callback ───────────────────────────────────
 // Configure this URL as the WhatsApp "delivery report" / status webhook in the
-// MSG91 dashboard: https://convorian.in/api/webhook/status
+// the legacy provider dashboard: https://convorian.in/api/webhook/status
 //
 // Why this exists: a 200 + requestId from the SEND api only means "accepted into
 // the queue", NOT delivered. Meta can still reject (bad params, paused template,
 // quality/limit, closed 24h window). Without this handler those failures are
 // invisible — the Inbox shows the message as sent and nobody knows it bounced.
 //
-// MSG91's status payload shape varies by account/version, so parsing is delegated
+// the legacy provider's status payload shape varies by account/version, so parsing is delegated
 // to lib/deliveryStatus (pure + unit-tested). Here we log the FULL body (so the
 // first real callback reveals the exact shape) and stamp the matching row.
 
@@ -49,19 +49,19 @@ async function handle(body: any) {
   return { ok: true, matched }
 }
 
-// Shared-secret gate. MSG91's delivery webhook can't send a custom header, so we
+// Shared-secret gate. the legacy provider's delivery webhook can't send a custom header, so we
 // authenticate via a secret URL query param (?token=...). Rollout is safe: while
-// MSG91_STATUS_SECRET is UNSET the endpoint stays open (unchanged behaviour);
-// once it's set in Vercel AND the MSG91 delivery-report URL is updated to include
+// DELIVERY_STATUS_SECRET is UNSET the endpoint stays open (unchanged behaviour);
+// once it's set in Vercel AND the the legacy provider delivery-report URL is updated to include
 // ?token=<secret>, all unauthenticated callers (fake delivered/failed reports)
 // get 401'd. Without this, anyone could POST bogus delivery statuses for any msg.
 function statusAuthed(request: NextRequest): boolean {
-  const secret = process.env.MSG91_STATUS_SECRET
+  const secret = process.env.DELIVERY_STATUS_SECRET
   if (!secret) {
     // Fail CLOSED in production: an unset secret must NOT mean "accept anything"
     // (that lets anyone POST fake delivered/failed reports). Open only in dev.
     if (process.env.NODE_ENV === 'production') {
-      console.warn('[delivery-status] MSG91_STATUS_SECRET unset — rejecting callback in production')
+      console.warn('[delivery-status] DELIVERY_STATUS_SECRET unset — rejecting callback in production')
       return false
     }
     return true // local dev convenience only
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// MSG91 may verify the callback URL with a GET first.
+// the legacy provider may verify the callback URL with a GET first.
 export async function GET() {
   return new NextResponse('OK', { status: 200 })
 }

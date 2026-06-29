@@ -123,9 +123,9 @@ export async function GET(request: NextRequest) {
     // IST quiet hours: only send 9 AM–8 PM IST so we never ping at night.
     const istHour = new Date(now + 5.5 * H(1)).getUTCHours()
     const withinQuietHours = istHour >= 9 && istHour < 20
-    // Approved-template sending master switch (flip on after verifying MSG91 format).
-    const TEMPLATES_LIVE = process.env.MSG91_TEMPLATES_LIVE === 'true'
-    const TEMPLATE_COST = Number(process.env.MSG91_TEMPLATE_COST || '1') // ₹ per send
+    // Approved-template master switch (flip on once Meta nurture templates are approved).
+    const TEMPLATES_LIVE = process.env.NURTURE_TEMPLATES_LIVE === 'true'
+    const TEMPLATE_COST = Number(process.env.NURTURE_TEMPLATE_COST || '1') // ₹ per send
 
     // ── Nurture-flow v2 (full timeline engine) — DARK until flipped on. ──
     // When NURTURE_FLOW_V2=true, the new engine (lib/nurtureFlow) drives BOTH the
@@ -264,7 +264,7 @@ export async function GET(request: NextRequest) {
         // primary capture; this WhatsApp ping is a best-effort nudge).
         const msg = `Site visit with ${visit.leads?.name || visit.leads?.phone} was today. How did it go? Log the outcome in your Convorian dashboard so the AI can follow up and close.`
         const agentAsRecipient = { phone: ag.phone }
-        if (ag.msg91_integrated_number || ag.wa_phone_number_id) {
+        if (ag.wa_phone_number_id) {
           await sendToLead(ag, agentAsRecipient, msg)
         }
         await supabaseAdmin
@@ -418,7 +418,7 @@ async function runNurtureFlowV2(
 }
 
 // Map a post-window plan to an approved template. Plans B (open question) and C
-// (offer) need their own templates approved in MSG91 first — until then they
+// (offer) need their own templates approved on the agent's WABA first — until then they
 // return null and the lead waits. A (re-approach) and D (routine) reuse the
 // already-approved suite via pickTemplate.
 function planTemplateForFlow(plan: NurturePlan, lead: any, agent: any, lang: string) {

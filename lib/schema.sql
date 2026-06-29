@@ -16,7 +16,7 @@
 --   - messages.wa_message_id partial unique index (dedup)
 --   - leads.last_nudge_at / window_nudge_count / nurture_state / template_touches
 --     / opted_in / consent_*
---   - agents.msg91_integrated_number / outreach_intensity / nurture_emails_sent
+--   - agents.outreach_intensity / nurture_emails_sent
 --     / consent_terms / consent_marketing / plan_status='trial' etc.
 --   - service_role grants (`service_role_grants.sql`) — REQUIRED for app
 --     to read without "permission denied for table X" errors
