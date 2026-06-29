@@ -97,6 +97,11 @@ export async function POST(request: NextRequest) {
         fromPhone = msg.from || ''
         messageText =
           msg.text?.body ||
+          // Template quick-reply buttons arrive as type:'button' (button.text/payload) —
+          // without this, a customer tapping a button on a nurture template sent an
+          // empty message and got the "Sorry, I didn't catch that" fallback.
+          msg.button?.text ||
+          msg.button?.payload ||
           msg.interactive?.button_reply?.title ||
           msg.interactive?.list_reply?.title ||
           ''
