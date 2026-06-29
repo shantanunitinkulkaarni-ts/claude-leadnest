@@ -1,6 +1,51 @@
 # Convorian — Master Project Doc (LIVING — read first, update every chat)
 
-*Last updated: 2026-06-26 — session 19 (LAUNCH-READY: self-serve WABA+templates, simulation+enterprise tutorial, alpha disclaimers, free-plan billing, bot-quality fixes)*
+*Last updated: 2026-06-29 — session 21 (Cline/GLM onboarded, code review, team coordination doc created)*
+
+## ⭐ SESSION 21 — CLINE (GLM) ONBOARDED + CODE REVIEW (2026-06-29)
+
+**Cline (GLM) joined the team as a junior developer.** Work distribution:
+- **Claude** = lead until July 6 (architectural review, final sign-off)
+- **Codex Plus** = UI/tests/tutorials (25 days remaining)
+- **Cline (GLM)** = bot hardening, testing, launch prep (30 days remaining)
+
+**Shipped this session:**
+- Created `DEVOPS.md` — team coordination document with roles, sprint plan, task board, git workflow, risk register. Claude added §0 Lead Directives (read first).
+- Deep code review of bot architecture (12+ files analyzed). Key findings documented in `DEVOPS.md` §14.
+- Confirmed `lib/ai-bot.ts` is the only live engine; `lib/botOrchestrator.ts` is dead code (not wired in, no flag check).
+- Identified loose WIP on `main` (DEVOPS.md, HANDOFF.md, dashboard/page.tsx, TutorialWalkthrough.tsx, InboxScreen.tsx) — committing to `cline/wip-bot-hardening` branch per Claude's directive.
+
+**Cline's assigned tasks (per Claude's task board in DEVOPS.md §0.D):**
+1. Commit loose WIP to branch — **in progress**
+2. Time/date parsing adversarial tests + fixes — "kal subah", "day after tomorrow", "22-06", "next Monday"
+3. No-match loop guard — when zero properties match, offer nearby areas / callback; never re-ask
+4. End-to-end Playwright booking test on sample lead (qualify → match → book → email)
+
+**Rules (Claude-enforced):**
+- All bot PRs need Claude review and must land by **July 2**
+- `npm run typecheck && npm run lint && npm run test:critical` green before requesting review
+- Behaviour-preserving fixes only in `lib/ai-bot.ts` and `lib/gemini.ts` — no refactoring pre-launch
+- No uncommitted WIP — commit to branch immediately
+
+**Notes for next session:**
+- Cline is reading remaining bot files (`lib/whatsapp.ts`, `lib/propertySearch.ts`, `lib/propertyPresenter.ts`, `lib/botGuards.ts`, `lib/appointment.ts`, `lib/stageMachine.ts`, `lib/leadMemory.ts`, `lib/propertyRag.ts`, `db/schema.sql`, `tests/`) before starting on time parsing tests.
+- See `DEVOPS.md` for full team coordination, sprint plan, and task board.
+
+---
+
+## ⭐ SESSION 20 — TUTORIAL / SAMPLE HARDENING (2026-06-29)
+
+**Shipped and deployed today:**
+- Tutorial walkthrough now follows the real customer path: hello, language, name, qualification, matched property, visit booking, appointments, canceling, and feedback.
+- Sample demo data now self-heals: `/api/sample-data` refreshes the Wakad/Baner sample properties, the simulation can see sample properties, and sample lead/property rows clean up 5 minutes after the tutorial ends.
+- Inbox simulation now alternates attention between the bot reply and the next suggested reply so the walkthrough feels guided instead of static.
+- Property cards in the inbox now use the richer broker-style formatter with possession, floor plan, booking status, finance, parking, area ranking, and recommendation text.
+- Production deploy completed on 2026-06-29; commit `3592328` is on `main`.
+
+**Notes for next session:**
+- Keep sample data excluded from real customer flows.
+- If the tutorial cleanup needs debugging, start with `app/api/sample-data/route.ts`, `components/TutorialWalkthrough.tsx`, and the inbox simulation block in `components/screens/InboxScreen.tsx`.
+- Current live production alias: `https://convorian.in`.
 
 ## ⭐ SESSION 19 — LAUNCH READINESS (2026-06-26)
 
@@ -710,3 +755,9 @@ Vision (founder): an engine that **learns from conversations and customizes per 
 - AWS App Runner was set up then abandoned (account stuck activating; Vercel chosen). Workflow is manual-only.
 - **Claude Design (visual overhaul):** Available at work but NOT in scope for launch. Parked for post-launch UX refinement (colors, typography, mobile optimizations). Founder can request when product is stable.
 - **Codex Resources (Session 18):** GPT 5.5 + 5.4 + 5.4 mini available; **use 5.4 mini for cosmetics** (cost), 5.4+ for logic. Work on local branches (`codex/*`); Claude (you) reviews PRs. Non-blocking to the bot.
+
+SESSION 21 - TUTORIAL ROLLBACK (2026-06-29)
+- Rolled the tutorial back to the last snap-fit version from b9fabe5.
+- Restored the older walkthrough card placement and inbox simulator behavior.
+- This rollback was needed because the newer full-flow tutorial rewrite drifted away from the working demo path.
+- CI was attempted but the local package layout is partially linked and typecheck still reports unrelated repo-wide errors outside the tutorial files.

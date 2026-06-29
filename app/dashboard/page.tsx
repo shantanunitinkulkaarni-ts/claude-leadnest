@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
@@ -96,13 +96,11 @@ export default function DashboardPage() {
       await refreshAgent(teamMember.agent_id)
       setIsLoading(false)
 
-      // Seed the onboarding sample lead + properties only for first-time tours.
-      if (typeof window !== 'undefined' && localStorage.getItem('leadnest_tutorial_seen') !== 'true') {
-        fetch('/api/sample-data', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agent_id: teamMember.agent_id }),
-        }).catch(() => {})
-      }
+      // Seed the onboarding sample lead + properties (idempotent — only once).
+      fetch('/api/sample-data', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: teamMember.agent_id }),
+      }).catch(() => {})
     }
     init()
   }, [router, refreshAgent])
@@ -176,7 +174,7 @@ export default function DashboardPage() {
         </div>
       </div>
       <SupportChat agentId={agentId ?? undefined} />
-      <TutorialWalkthrough onNavigate={setScreen} agentId={agentId ?? undefined} />
+      <TutorialWalkthrough onNavigate={setScreen} />
       {tourDone && (
         <div style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 9500, maxWidth: 320, background: '#15161B', color: '#fff', borderRadius: 14, padding: '16px 18px', boxShadow: '0 16px 40px rgba(0,0,0,0.3)', animation: 'tourCardIn 0.3s ease' }}>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>🎉 You're all set — your bot is active!</div>
