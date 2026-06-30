@@ -660,7 +660,27 @@ export async function handleAiBotMessage(opts: {
 
     if (result.properties.length === 0) {
       const areaText = areas.join(', ') || 'that area'
-      searchReply = `I looked through all our ${intent === 'rent' ? 'rental' : 'sale'} properties in ${areaText} but don't have a match right now. 😔\n\nTo serve you better, shall I schedule a call with our team? They may have options that aren't listed yet.`
+      const intentLabel = intent === 'rent' ? 'rental' : 'sale'
+
+      // Use the search result level to give a better response than a flat "no match".
+      switch (result.level) {
+        case 'no_inventory':
+          searchReply = `I don't have any ${intentLabel} properties listed at the moment. Would you like me to have our team reach out to help find options for you? 😊`
+          break
+        case 'nearby': {
+          const nearbyAreas = result.nearbyAreas || []
+          const nearbyText = nearbyAreas.length > 0
+            ? `I don't have exact matches in ${areaText}, but I found some great options in nearby areas like ${nearbyAreas.slice(0, 3).join(', ')}. Would you like to see those?`
+            : `I don't have exact matches in ${areaText}, but there are properties nearby. Would you like to explore other areas?`
+          searchReply = `${nearbyText} 😊`
+          break
+        }
+        case 'area_no_budget':
+          searchReply = `I found ${intentLabel} properties in ${areaText}, but they're above your budget range. Would you like to see them anyway, or shall I adjust the search? 😊`
+          break
+        default:
+          searchReply = `I looked through all our ${intentLabel} properties in ${areaText} but don't have a match right now. 😔\n\nTo serve you better, shall I schedule a call with our team? They may have options that aren't listed yet.`
+      }
     } else {
       // Build the property message ENTIRELY in code — every price/size/spec is
       // copied straight from the database. The AI is never allowed to type a
