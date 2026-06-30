@@ -48,16 +48,19 @@ async function googleTranslate(text: string, target: string, source: string): Pr
   return j?.data?.translations?.[0]?.translatedText || text
 }
 
-// Sarvam Mayura translate — stubbed until we switch providers. Same signature.
+// Sarvam Mayura translate. Sarvam uses BCP-47 codes with an -IN suffix
+// (mr-IN, ta-IN, en-IN; Odia is od-IN). Auto-detect source with "auto".
 async function sarvamTranslate(text: string, target: string, source: string): Promise<string> {
   const key = process.env.SARVAM_API_KEY
-  if (!key) return text
+  if (!key) { console.warn('[translate] SARVAM_API_KEY not set'); return text }
+  const toSarvam = (c: string) => c === 'en' ? 'en-IN' : c === 'or' ? 'od-IN' : `${c}-IN`
   const res = await fetch('https://api.sarvam.ai/translate', {
     method: 'POST',
     headers: { 'api-subscription-key': key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: text, source_language_code: source, target_language_code: target }),
+    body: JSON.stringify({ input: text, source_language_code: toSarvam(source), target_language_code: toSarvam(target) }),
   })
   const j: any = await res.json()
+  if (j?.error) { console.error('[translate] sarvam error:', JSON.stringify(j.error).slice(0, 200)); return text }
   return j?.translated_text || text
 }
 
