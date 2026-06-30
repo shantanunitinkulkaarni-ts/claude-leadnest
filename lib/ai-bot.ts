@@ -136,6 +136,12 @@ type AIDecision = {
   personality_cues?: Record<string, string | number | boolean>
 }
 
+type TutorialDecision = {
+  reply: string
+  updates?: Record<string, any>
+  action?: AIDecision['action']
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MAX_HISTORY = 12   // max chat entries to keep (6 exchanges)
@@ -329,6 +335,18 @@ function parseTimeString(timeStr: string): string | null {
   return `${yyyy}-${mm}-${dd}T${hh}:${min}:00+05:30`
 }
 
+// Detect an explicit request to switch chat language (e.g. "english please",
+// "talk in hindi", "मराठीत बोला"). The LLM over-sticks to the stored language and
+// refuses to switch, so we honor the request deterministically in code instead.
+function detectLanguageSwitchRequest(text: string): string | null {
+  const t = (text || '').toLowerCase()
+  if (/\bhinglish\b/.test(t)) return 'hinglish'
+  if (/\b(english|englsih|inglish|angre[zj]i)\b/.test(t)) return 'en'
+  if (/\bmarathi\b/.test(t) || /मराठी/.test(text)) return 'mr'
+  if (/\bhindi\b/.test(t) || /हिंदी|हिन्दी/.test(text)) return 'hi'
+  return null
+}
+
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, properties?: any[], recentHistory: ChatEntry[] = [], propertyRag?: string): string {
@@ -390,6 +408,12 @@ function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, prop
   const todayIST = new Date().toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
   })
+  const knownNameRule = lead.name
+    ? `- The lead's name is already known as "${lead.name}". Greet them naturally by name if it feels right, but DO NOT ask for their name again unless they explicitly correct it.`
+    : `- The lead's name is not known yet. Ask for their name warmly early in the conversation.`
+  const knownLanguageRule = lead.language
+    ? `- The lead's language is already stored as ${langLabel}. Continue in that language and do NOT ask language preference again unless they ask to switch.`
+    : `- If the lead's language is not known yet, ask whether they prefer English, Hindi, or Hinglish before moving deeper into qualification.`
 
   return `You are a WhatsApp property assistant for ${agentName} (${agencyName}).
 Office hours: ${openTime} to ${closeTime}${weekOff ? `, closed on ${weekOff}s` : ''}.
@@ -401,18 +425,23 @@ compute it from today's date above.
 
 LANGUAGE: Always reply in ${langLabel} only. Never switch unless the user explicitly asks.
 
-CONVERSATION FLOW (follow this order, skip what is already known):
+STATE-FIRST FLOW:
+${knownNameRule}
+${knownLanguageRule}
+- Continue from the highest known point in the funnel. Never restart from greeting/name/language if CURRENT LEAD STATE or CURRENT CHAT HISTORY already contains that information.
+
+CONVERSATION FLOW (only ask for what is still unknown):
 1. Greet warmly
-2. Ask language preference (English / Hindi / Hinglish)
-3. Ask their name
-4. Ask: looking to Rent or Buy?
-5. Ask: which area?
-6. Ask: monthly budget? (for rent) or total budget? (for buy)
-7. Ask: how many bedrooms? (1BHK / 2BHK / 3BHK etc.)
+2. If language is unknown → ask language preference (English / Hindi / Hinglish)
+3. If name is unknown → ask their name
+4. If intent is unknown → ask: looking to Rent or Buy?
+5. If area is unknown → ask: which area?
+6. If budget is unknown → ask: monthly budget? (for rent) or total budget? (for buy)
+7. If bedrooms are unknown → ask: how many bedrooms? (1BHK / 2BHK / 3BHK etc.)
 8. Once you have intent + area → set action to "search_properties"
 9. Present matched properties using ONLY the data provided
 10. Offer photos when presenting properties ("Would you like photos?")
-11. When user wants to visit → ASK for preferred date and time (e.g., "tomorrow at 11 AM")
+11. When user wants to visit → ASK for preferred date and time (e.g. "tomorrow at 11 AM")
 12. Once user gives time → ask for their email address for confirmation
 13. Once user gives email → set action "book_visit" to create appointment
 14. Confirm on WhatsApp with all details (property, time, contact)
@@ -505,6 +534,70 @@ function parseAIDecision(raw: string): AIDecision | null {
   }
 }
 
+function getTutorialDecision(messageCount: number, message: string, agent: any, lead: any): TutorialDecision | null {
+  const clean = (message || '').trim()
+  const email = lead?.email || agent?.email || ''
+  if (messageCount === 1) {
+    return {
+      reply: "Hello! I'd love to help you with your property search. Which language are you most comfortable in: English, Hindi, or Hinglish?",
+    }
+  }
+  if (messageCount === 2) {
+    const wantsHindi = /hindi/i.test(clean)
+    const wantsHinglish = /hinglish/i.test(clean)
+    return {
+      reply: wantsHindi
+        ? 'Great, we can continue in Hindi. May I know your name?'
+        : wantsHinglish
+          ? 'Perfect, we can continue in Hinglish. May I know your name?'
+          : 'Perfect, we can continue in English. May I know your name?',
+      updates: { language: wantsHindi ? 'hi' : wantsHinglish ? 'hinglish' : 'en' },
+    }
+  }
+  if (messageCount === 3) {
+    const extracted = clean.match(/my name is\s+(.+)/i)?.[1]?.trim() || clean
+    const firstName = extracted.replace(/[.!,]+$/g, '').trim()
+    return {
+      reply: `Nice to meet you, ${firstName}. Are you looking to rent or buy, and what kind of home are you searching for?`,
+      updates: { name: firstName },
+    }
+  }
+  if (messageCount === 4) {
+    return {
+      reply: "Got it. You're looking to buy a 2 BHK in Wakad. What budget would you like me to work with?",
+      updates: { intent: 'buy', preferred_areas: ['Wakad'], bhk: '2 BHK' },
+    }
+  }
+  if (messageCount === 5) {
+    return {
+      reply: "Thanks, that's helpful.",
+      updates: { budget_max: 9000000 },
+      action: 'search_properties',
+    }
+  }
+  if (messageCount === 6) {
+    return {
+      reply: 'Excellent choice. What day and time would suit you for a site visit?',
+    }
+  }
+  if (messageCount === 7) {
+    return {
+      reply: `I can try to arrange that slot. Please share your email address so I can send the visit confirmation to you and ${agent?.name || 'our team'}.`,
+      updates: { visit_time: clean },
+    }
+  }
+  if (messageCount === 8) {
+    return {
+      reply: email && clean === email
+        ? `Thanks. I'm confirming the visit now and the email confirmation will be sent to ${clean}.`
+        : "Thanks. I'm confirming the visit now and I'll send the email confirmation there.",
+      updates: { email: clean },
+      action: 'book_visit',
+    }
+  }
+  return null
+}
+
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 export async function handleAiBotMessage(opts: {
@@ -514,8 +607,9 @@ export async function handleAiBotMessage(opts: {
   channel: WaChannel   // how to reply — Meta Cloud API direct
   simulate?: boolean   // onboarding simulation: run the real bot but DON'T send
                        // real WhatsApp messages (replies are still saved to the inbox)
+  tutorialMode?: boolean
 }): Promise<void> {
-  const { phone, message, agentId, channel, simulate } = opts
+  const { phone, message, agentId, channel, simulate, tutorialMode } = opts
 
   // 1. Load agent
   const { data: agent } = await supabaseAdmin
@@ -573,7 +667,15 @@ export async function handleAiBotMessage(opts: {
   // 3. Add incoming message to chat history
   const history: ChatEntry[] = Array.isArray(lead.chat_history) ? lead.chat_history : []
   history.push({ role: 'user', text: message, ts: new Date().toISOString() })
+  // Honor an explicit language-switch request ("english please", "hindi me bolo")
+  // before the prompt is built, so the bot actually switches instead of refusing.
+  const forcedLang = detectLanguageSwitchRequest(message)
+  if (forcedLang && forcedLang !== lead.language) lead.language = forcedLang
   const messageCount = history.filter(entry => entry.role === 'user').length
+  const tutorialOpeningFlow = !!tutorialMode && !!lead.is_sample && messageCount <= 2
+  const leadForFlow = tutorialOpeningFlow
+    ? { ...lead, name: null, language: null }
+    : lead
 
   // 3b. TROLL KIT — run abuse guards BEFORE any LLM call so spam/junk costs
   //     nothing. If a guard trips, send its fixed reply and stop here.
@@ -631,7 +733,7 @@ export async function handleAiBotMessage(opts: {
     limit: 5,
   })
 
-  const currentStage = detectStage(lead, messageCount)
+  const currentStage = detectStage(leadForFlow, messageCount)
 
   // Deterministic confirmation for existing appointments. This covers short
   // replies like "Confirm", "Yes", or "Acknowledged" even if the LLM misses it.
@@ -677,15 +779,34 @@ export async function handleAiBotMessage(opts: {
 
   // 5. First AI call — understand and decide
   let decision: AIDecision | null = null
-  try {
-    const raw = await callLLM([
-      { role: 'system', content: buildSystemPrompt(agent, lead, existingAppointment, activeProperties, history.slice(-8), propertyRag) },
-      { role: 'user', content: `Conversation:\n${conversationText}\n\nRespond with JSON only.` },
-    ], { maxTokens: 600, temperature: 0.35 })
+  if (tutorialMode && lead.is_sample) {
+    const tutorialDecision = getTutorialDecision(messageCount, message, agent, lead)
+    if (tutorialDecision) {
+      decision = {
+        stage:
+          messageCount <= 2 ? 'language' :
+          messageCount === 3 ? 'name' :
+          messageCount <= 5 ? 'qualifying' :
+          messageCount === 6 ? 'property_shown' :
+          messageCount === 7 ? 'awaiting_visit_time' :
+          'awaiting_email',
+        reply: tutorialDecision.reply,
+        action: tutorialDecision.action || null,
+        updates: tutorialDecision.updates || {},
+      }
+    }
+  }
+  if (!decision) {
+    try {
+      const raw = await callLLM([
+        { role: 'system', content: buildSystemPrompt(agent, leadForFlow, existingAppointment, activeProperties, history.slice(-8), propertyRag) },
+        { role: 'user', content: `Conversation:\n${conversationText}\n\nRespond with JSON only.` },
+      ], { maxTokens: 600, temperature: 0.35 })
 
-    decision = parseAIDecision(raw)
-  } catch (err) {
-    console.error('[ai-bot] LLM error (first call):', err)
+      decision = parseAIDecision(raw)
+    } catch (err) {
+      console.error('[ai-bot] LLM error (first call):', err)
+    }
   }
 
   if (!decision) {
@@ -696,6 +817,7 @@ export async function handleAiBotMessage(opts: {
   let finalReply = decision.reply
   let searchReply: string | null = null  // second message sent after "let me check"
   const photosToSend: string[] = []
+  let resolvedMatchedPropertyId: string | null = lead.matched_property_id || null
 
   // 6. Execute action
   if (decision.action === 'search_properties') {
@@ -738,11 +860,12 @@ export async function handleAiBotMessage(opts: {
         .from('leads')
         .update({ matched_property_id: result.properties[0].id })
         .eq('id', lead.id)
+      resolvedMatchedPropertyId = result.properties[0].id
     }
   }
 
   if (decision.action === 'send_photos') {
-    const propertyId = lead.matched_property_id
+    const propertyId = resolvedMatchedPropertyId
     if (propertyId) {
       const { data: prop } = await supabaseAdmin
         .from('properties')
@@ -799,6 +922,8 @@ export async function handleAiBotMessage(opts: {
 
   if (decision.updates?.name) leadUpdates.name = decision.updates.name
   if (decision.updates?.language) leadUpdates.language = decision.updates.language
+  // An explicit switch request always wins + persists (don't let the LLM revert it).
+  if (forcedLang) leadUpdates.language = forcedLang
   if (decision.updates?.intent) leadUpdates.intent = decision.updates.intent
   if (decision.updates?.preferred_areas?.length) leadUpdates.preferred_areas = decision.updates.preferred_areas
   if (decision.updates?.budget_max) leadUpdates.budget_max = decision.updates.budget_max
@@ -957,13 +1082,13 @@ export async function handleAiBotMessage(opts: {
     } else {
       // Cancel the old visit, then book the new time on the same property.
       await supabaseAdmin.from('appointments').update({ status: 'cancelled' }).eq('id', existingAppointment!.id)
-      const propertyId = lead.matched_property_id || existingAppointment!.property_id
+      const propertyId = resolvedMatchedPropertyId || existingAppointment!.property_id
       finalReply = await createAppointment(newTime, propertyId)
     }
 
   } else if (decision.action === 'book_visit') {
     const visitTime = newTime || lead.pending_appointment_time
-    const propertyId = lead.matched_property_id || existingAppointment?.property_id
+    const propertyId = resolvedMatchedPropertyId || existingAppointment?.property_id
 
     if (existingAppointment) {
       // Don't double-book — offer reschedule or cancel.
