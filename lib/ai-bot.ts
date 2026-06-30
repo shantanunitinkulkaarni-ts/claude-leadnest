@@ -423,7 +423,7 @@ function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, prop
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
   })
   const knownNameRule = lead.name
-    ? `- The lead's name is already known as "${lead.name}". Greet them naturally by name if it feels right, but DO NOT ask for their name again unless they explicitly correct it.`
+    ? `- The lead's name is already known as "${lead.name}". Use their name SPARINGLY — an occasional, natural touch at most. Do NOT open messages with "Hello ${lead.name}" or "${lead.name}," — repeating their name every message sounds robotic. DO NOT ask for their name again unless they explicitly correct it.`
     : `- The lead's name is not known yet. Ask for their name warmly early in the conversation.`
   const knownLanguageRule = lead.language
     ? `- The lead's language is already stored as ${langLabel}. Continue in that language and do NOT ask language preference again unless they ask to switch.`
@@ -1134,6 +1134,15 @@ export async function handleAiBotMessage(opts: {
       finalReply = `You already have a site visit booked for ${formatIST(existingAppointment.scheduled_at)}. Would you like to reschedule it to a new time, or cancel it? 😊`
     } else if (!visitTime || !propertyId) {
       const leadName = leadUpdates.name || lead.name || phone
+      console.error('[ai-bot] booking missing data', {
+        lead_id: lead.id,
+        visitTime: visitTime || null,
+        propertyId: propertyId || null,
+        pendingFromDb: bookingLeadState?.pending_appointment_time || null,
+        matchedFromDb: bookingLeadState?.matched_property_id || null,
+        matchedResolved: resolvedMatchedPropertyId || null,
+        tutorialMode: !!tutorialMode,
+      })
       finalReply = `I have your details — our team will reach out shortly to lock in your visit slot. 🙏`
       await emailSuperadmin(
         '⚠️ Booking could not complete (missing data)',
@@ -1141,6 +1150,13 @@ export async function handleAiBotMessage(opts: {
       )
     } else if (bookingTimeIssue(visitTime, agent)) {
       // Outside office hours / day off — ask for a valid slot, don't book it.
+      console.error('[ai-bot] booking blocked by schedule', {
+        lead_id: lead.id,
+        visitTime,
+        weekly_off: agent.weekly_off || null,
+        office_open: agent.office_open || null,
+        office_close: agent.office_close || null,
+      })
       finalReply = bookingTimeIssue(visitTime, agent)!
     } else {
       finalReply = await createAppointment(visitTime, propertyId)
