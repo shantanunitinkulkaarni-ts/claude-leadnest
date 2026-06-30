@@ -15,6 +15,7 @@ import { detectStage } from './stageMachine'
 import { excludeSampleProperties } from './propertyVisibility'
 import { buildPropertyRagContext } from './propertyRag'
 import { buildLeadMemoryContext } from './leadMemory'
+import { translateText, needsTranslation, detectIndianScript } from './translate'
 
 // Send an email via Resend's REST API (lib/email.ts — no SDK dependency).
 // IMPORTANT: do NOT use the `resend` npm package here — it is not installed,
@@ -344,16 +345,29 @@ function detectLanguageSwitchRequest(text: string): string | null {
   if (/\b(english|englsih|inglish|angre[zj]i)\b/.test(t)) return 'en'
   if (/\bmarathi\b/.test(t) || /मराठी/.test(text)) return 'mr'
   if (/\bhindi\b/.test(t) || /हिंदी|हिन्दी/.test(text)) return 'hi'
+  if (/\btamil\b/.test(t)) return 'ta'
+  if (/\btelugu\b/.test(t)) return 'te'
+  if (/\bkannada\b/.test(t)) return 'kn'
+  if (/\bmalayalam\b/.test(t)) return 'ml'
+  if (/\bbengali\b|\bbangla\b/.test(t)) return 'bn'
+  if (/\bgujarati\b/.test(t)) return 'gu'
+  if (/\bpunjabi\b|\bpanjabi\b/.test(t)) return 'pa'
+  if (/\b(odia|oriya)\b/.test(t)) return 'or'
+  if (/\burdu\b/.test(t)) return 'ur'
+  if (/\bassamese\b/.test(t)) return 'as'
   return null
 }
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(agent: any, lead: any, existingAppointment: any, properties?: any[], recentHistory: ChatEntry[] = [], propertyRag?: string): string {
+  // Languages the LLM writes poorly (Marathi, Tamil, …) are WRITTEN in English and
+  // translated on the way out (see translate.ts) — only en/hi/hinglish are native.
   const lang = lead.language || 'en'
+  const writeLang = needsTranslation(lang) ? 'en' : lang
   const langLabel =
-    lang === 'hi' ? 'Hindi' :
-    lang === 'hinglish' ? 'Hinglish (Hindi written in English letters)' :
+    writeLang === 'hi' ? 'Hindi' :
+    writeLang === 'hinglish' ? 'Hinglish (Hindi written in English letters)' :
     'English'
 
   const agentName = agent.name || 'our team'
@@ -669,7 +683,9 @@ export async function handleAiBotMessage(opts: {
   history.push({ role: 'user', text: message, ts: new Date().toISOString() })
   // Honor an explicit language-switch request ("english please", "hindi me bolo")
   // before the prompt is built, so the bot actually switches instead of refusing.
-  const forcedLang = detectLanguageSwitchRequest(message)
+  // Explicit request ("english please") OR the lead writing in an Indian script
+  // (Tamil/Telugu/Bengali…) sets the chat language deterministically.
+  const forcedLang = detectLanguageSwitchRequest(message) || detectIndianScript(message)
   if (forcedLang && forcedLang !== lead.language) lead.language = forcedLang
   const messageCount = history.filter(entry => entry.role === 'user').length
   const tutorialOpeningFlow = !!tutorialMode && !!lead.is_sample && messageCount <= 2
@@ -1002,11 +1018,34 @@ export async function handleAiBotMessage(opts: {
     finalReply = 'Please share a valid email address like name@example.com so I can confirm your visit.'
   }
 
+  let bookingLeadState: any = null
+  if (decision.action === 'book_visit' || decision.action === 'reschedule_visit') {
+    const { data } = await supabaseAdmin
+      .from('leads')
+      .select('name, email, matched_property_id, pending_appointment_time')
+      .eq('id', lead.id)
+      .maybeSingle()
+    bookingLeadState = data || null
+  }
+
+  if (tutorialMode && lead.is_sample && decision.action === 'book_visit' && !resolvedMatchedPropertyId && !bookingLeadState?.matched_property_id) {
+    const { data: sampleProp } = await supabaseAdmin
+      .from('properties')
+      .select('id')
+      .eq('agent_id', agentId)
+      .eq('is_sample', true)
+      .eq('status', 'active')
+      .ilike('location', 'Wakad')
+      .limit(1)
+      .maybeSingle()
+    if (sampleProp?.id) resolvedMatchedPropertyId = sampleProp.id
+  }
+
   // Shared helper: create an appointment + send confirmation emails.
   // Returns the customer-facing message (clean success, or honest failure).
   async function createAppointment(visitTime: string, propertyId: string): Promise<string> {
-    const leadName = leadUpdates.name || lead.name || 'Guest'
-    const customerEmail = leadUpdates.email || lead.email
+    const leadName = leadUpdates.name || bookingLeadState?.name || lead.name || 'Guest'
+    const customerEmail = leadUpdates.email || bookingLeadState?.email || lead.email
 
     const { error: appointmentErr } = await supabaseAdmin
       .from('appointments')
@@ -1087,8 +1126,8 @@ export async function handleAiBotMessage(opts: {
     }
 
   } else if (decision.action === 'book_visit') {
-    const visitTime = newTime || lead.pending_appointment_time
-    const propertyId = resolvedMatchedPropertyId || existingAppointment?.property_id
+    const visitTime = newTime || bookingLeadState?.pending_appointment_time || lead.pending_appointment_time
+    const propertyId = resolvedMatchedPropertyId || bookingLeadState?.matched_property_id || existingAppointment?.property_id
 
     if (existingAppointment) {
       // Don't double-book — offer reschedule or cancel.
@@ -1120,6 +1159,12 @@ export async function handleAiBotMessage(opts: {
   // 9. Send reply (capture the Meta message id for delivery tracking).
   // In simulate mode we skip the real WhatsApp send entirely — the reply is still
   // saved below so it shows in the inbox, but nothing goes out over Meta.
+  // Speak the lead's language: the bot reasoned + wrote in English; translate the
+  // customer-facing text out (Marathi/Tamil/…). Best-effort — keeps English on failure.
+  if (needsTranslation(lead.language)) {
+    finalReply = await translateText(finalReply, lead.language, 'en')
+    if (searchReply) searchReply = await translateText(searchReply, lead.language, 'en')
+  }
   const finalOut = simulate ? { id: null } : await waSendText(channel, phone, finalReply)
   let searchOut: { id: string | null } | null = null
   if (searchReply) {
