@@ -17,8 +17,15 @@ export const INDIAN_LANGUAGES: Record<string, string> = {
 // translator. Everything else (incl. Marathi, which the LLM mangles) is translated.
 const NATIVE_OK = new Set(['en', 'hinglish'])
 
+// Languages ENABLED for translation — comma-separated env, default just Marathi to
+// control cost on limited credits. Expand later WITHOUT a code change, e.g.
+// TRANSLATE_LANGS=mr,ta,te,kn  (set in Vercel, then redeploy).
+function enabledLangs(): Set<string> {
+  return new Set((process.env.TRANSLATE_LANGS || 'mr').split(',').map(s => s.trim()).filter(Boolean))
+}
+
 export function needsTranslation(lang?: string | null): boolean {
-  return !!lang && !NATIVE_OK.has(lang) && lang in INDIAN_LANGUAGES
+  return !!lang && !NATIVE_OK.has(lang) && lang in INDIAN_LANGUAGES && enabledLangs().has(lang)
 }
 
 // Translate `text` from `source` → `target` (BCP-47-ish codes: en, mr, ta, …).
