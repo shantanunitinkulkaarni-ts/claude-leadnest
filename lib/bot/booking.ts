@@ -2,13 +2,23 @@
 // Appointment booking/reschedule/cancel logic for the AI bot.
 // Extracted from lib/ai-bot.ts as part of the Phase 1 refactor.
 //
-// Phase 3 will harden this: full E2E tests, fix the "missing data" path.
+// Phase 3: extracted pure helpers to booking_pure.ts for unit testing.
 
 import { supabaseAdmin } from '../supabase'
 import { formatIST, bookingTimeIssue } from '../timeParser'
 import { sendCustomerConfirmation, sendAgentNotification, emailSuperadmin, notifyAgentOfTrollHalt } from './emails'
+import {
+  buildCancelReply,
+  buildReschedulePrompt,
+  buildTrollHaltReply,
+  buildDoubleBookReply,
+  buildMissingDataAlert,
+  buildSuccessReply,
+  shouldAllowReschedule,
+  resolveBookingData,
+} from './booking_pure'
 
-const RESCHEDULE_LIMIT = 5
+export { RESCHEDULE_LIMIT } from './booking_pure'
 
 export type BookingContext = {
   agentId: string
@@ -68,9 +78,7 @@ export async function createAppointment(
   if (customerEmail) await sendCustomerConfirmation(customerEmail, leadName, propertyTitle, visitTime)
   if (agent!.email) await sendAgentNotification(agent!.email, leadName, phone, customerEmail || 'Not provided', propertyTitle, visitTime)
 
-  return `✅ Your site visit is confirmed for ${formatIST(visitTime)}.` +
-    (customerEmail ? ` A confirmation email is on its way to ${customerEmail}.` : '') +
-    ` See you then, ${leadName}! 😊`
+  return buildSuccessReply(visitTime, customerEmail, leadName)
 }
 
 export async function executeBookingAction(
@@ -83,9 +91,8 @@ export async function executeBookingAction(
   if (action === 'cancel_visit') {
     if (existingAppointment) {
       await supabaseAdmin.from('appointments').update({ status: 'cancelled' }).eq('id', existingAppointment.id)
-      return `Done — your site visit for ${formatIST(existingAppointment.scheduled_at)} has been cancelled. Would you like to book a new time? 😊`
     }
-    return `You don't have an upcoming site visit to cancel. Would you like to book one? 😊`
+    return buildCancelReply(existingAppointment)
   }
 
   if (action === 'reschedule_visit') {
@@ -94,12 +101,12 @@ export async function executeBookingAction(
       .select('id', { count: 'exact', head: true })
       .eq('lead_id', lead.id)
 
-    if ((apptCount || 0) >= RESCHEDULE_LIMIT) {
+    if (!shouldAllowReschedule(apptCount || 0)) {
       await notifyAgentOfTrollHalt(agent, lead, phone, 'too many reschedules')
-      return `I see you've changed your visit time a few times already. To make sure we get it right, our team will personally connect with you to finalise a slot. 🙏`
+      return buildTrollHaltReply()
     }
     if (!newTime) {
-      return `Sure, let's reschedule! What new date and time works for you? (e.g. "tomorrow 3 PM")`
+      return buildReschedulePrompt()
     }
     if (bookingTimeIssue(newTime, agent)) {
       return bookingTimeIssue(newTime, agent)!
@@ -110,11 +117,10 @@ export async function executeBookingAction(
   }
 
   // action === 'book_visit'
-  const visitTime = newTime || bookingLeadState?.pending_appointment_time || lead.pending_appointment_time
-  const propertyId = resolvedMatchedPropertyId || bookingLeadState?.matched_property_id || existingAppointment?.property_id
+  const { visitTime, propertyId } = resolveBookingData(newTime, bookingLeadState, lead, resolvedMatchedPropertyId, existingAppointment)
 
   if (existingAppointment) {
-    return `You already have a site visit booked for ${formatIST(existingAppointment.scheduled_at)}. Would you like to reschedule it to a new time, or cancel it? 😊`
+    return buildDoubleBookReply(existingAppointment)
   }
   if (!visitTime || !propertyId) {
     const leadName = leadUpdates.name || lead.name || phone
@@ -127,11 +133,9 @@ export async function executeBookingAction(
       matchedResolved: resolvedMatchedPropertyId || null,
       tutorialMode: !!ctx.tutorialMode,
     })
-    await emailSuperadmin(
-      '⚠️ Booking could not complete (missing data)',
-      `A booking was triggered but data was missing.\n\nLead: ${leadName}\nPhone: ${phone}\nEmail: ${leadUpdates.email || lead.email || 'MISSING'}\nVisit time: ${visitTime || 'MISSING'}\nProperty: ${propertyId || 'MISSING — no property matched yet'}`
-    )
-    return `I have your details — our team will reach out shortly to lock in your visit slot. 🙏`
+    const alert = buildMissingDataAlert(leadName, phone, leadUpdates.email || lead.email, visitTime, propertyId)
+    await emailSuperadmin(alert.alertSubject, alert.alertBody)
+    return alert.reply
   }
   if (bookingTimeIssue(visitTime, agent)) {
     console.error('[ai-bot] booking blocked by schedule', {
