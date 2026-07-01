@@ -53,6 +53,24 @@ export default function InboxScreen({ agentId }: Props) {
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  // Guided simulation script — the sample-lead demo walked step by step. Each
+  // entry has EXACTLY ONE suggested reply so `simStep` (incremented once per
+  // send) always lines up with the entry the user is currently on. (Previously
+  // one entry asked for both "name" and "budget" at once — tapping just the
+  // name chip silently skipped past budget and desynced the whole tour.)
+  const simEmail = agent?.email || 'you@email.com'
+  const SIM_SCRIPT: { caption: string; suggestions: string[] }[] = [
+    { caption: 'Start like a real buyer would — say hello.', suggestions: ['Hi'] },
+    { caption: 'Tell the bot what you want — plain English works.', suggestions: ['I want to buy a 2 BHK in Wakad'] },
+    { caption: 'It asks your name — reply naturally.', suggestions: ['My name is Rahul'] },
+    { caption: 'Now it asks your budget.', suggestions: ['Budget around ₹90 lakh'] },
+    { caption: 'Keep going until it shows a matching property.', suggestions: ['Yes, show me the options'] },
+    { caption: 'Now act interested — ask to visit the property.', suggestions: ["I'd like to visit this one"] },
+    { caption: 'Give it a day and time for the site visit.', suggestions: ['Saturday at 11 AM'] },
+    { caption: 'It needs an email to send the confirmation — give yours.', suggestions: [simEmail] },
+    { caption: '🎉 Done! The bot qualified the lead, booked a visit, and emailed the confirmation — exactly what it does 24/7 on real WhatsApp leads once you connect. Add your own leads & properties anytime.', suggestions: [] },
+  ]
+
   const openBookModal = () => {
     if (!selected) return
     // Default to tomorrow's date
@@ -350,10 +368,19 @@ export default function InboxScreen({ agentId }: Props) {
     }
     setMessages(prev => [...prev, optimisticMsg])
     setMsgInput('')
+    // The step the user is CURRENTLY responding to (before incrementing) tells us
+    // whether this send completes the whole guided demo (the last real step,
+    // just before the trailing "done" entry).
+    const isFinalScriptStep = simStep === SIM_SCRIPT.length - 2
     setSimStep(s => s + 1) // advance the guided walkthrough
-    // Advance the spotlight tutorial when it's gating on a simulation send.
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('leadnest:tour-action', { detail: 'sim-sent' }))
+      // Fired once, only when the full demo (hello → qualify → match → book) is
+      // done — the spotlight tutorial waits on this single event instead of
+      // trying to keep its own step count in sync with every chip tapped here.
+      if (isFinalScriptStep) {
+        window.dispatchEvent(new CustomEvent('leadnest:tour-action', { detail: 'visit-booked' }))
+      }
     }
 
     try {
@@ -407,6 +434,9 @@ export default function InboxScreen({ agentId }: Props) {
         .inbox-tab:hover { color: #1A5FA5 !important; }
         .inbox-btn:hover { filter: brightness(0.9); }
         .inbox-btn-dark:hover { background-color: #333 !important; }
+        @keyframes simChipPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(26,95,165,0.28) } 50% { box-shadow: 0 0 0 5px rgba(26,95,165,0) } }
+        .sim-chip-pulse { animation: simChipPulse 1.6s ease-in-out infinite; }
+        .sim-chip-pulse:hover { filter: brightness(0.97); animation: none; }
       `}</style>
       <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
         {/* Left list */}
@@ -556,30 +586,20 @@ export default function InboxScreen({ agentId }: Props) {
                       <div ref={messagesEndRef} />
                     </div>
                     {isSimulating && selected?.is_sample && (() => {
-                      const email = agent?.email || 'you@email.com'
-                      const SCRIPT: { caption: string; suggestions: string[] }[] = [
-                        { caption: 'Start like a real buyer would — say hello.', suggestions: ['Hi'] },
-                        { caption: 'Tell the bot what you want — plain English works.', suggestions: ['I want to buy a 2 BHK in Wakad'] },
-                        { caption: 'It qualifies the lead. Answer what it asks (name, budget…).', suggestions: ['My name is Rahul', 'Budget around ₹90 lakh'] },
-                        { caption: 'Keep answering until it shows a matching property.', suggestions: ['Yes, show me the options'] },
-                        { caption: 'Now act interested — ask to visit the property.', suggestions: ["I'd like to visit this one"] },
-                        { caption: 'Give it a day and time for the site visit.', suggestions: ['Saturday at 11 AM'] },
-                        { caption: 'It needs an email to send the confirmation — give yours.', suggestions: [email] },
-                        { caption: '🎉 Done! The bot qualified the lead, booked a visit, and emailed the confirmation — exactly what it does 24/7 on real WhatsApp leads once you connect. Add your own leads & properties anytime.', suggestions: [] },
-                      ]
-                      const stepIdx = Math.min(simStep, SCRIPT.length - 1)
-                      const cur = SCRIPT[stepIdx]
-                      const isDone = stepIdx >= SCRIPT.length - 1
+                      const totalRealSteps = SIM_SCRIPT.length - 1 // excludes the trailing "done" entry
+                      const stepIdx = Math.min(simStep, SIM_SCRIPT.length - 1)
+                      const cur = SIM_SCRIPT[stepIdx]
+                      const isDone = stepIdx >= SIM_SCRIPT.length - 1
                       return (
                         <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(26,95,165,0.18)', background: '#F4F8FD' }}>
                           <div style={{ fontSize: 11.5, marginBottom: cur.suggestions.length ? 8 : 0, display: 'flex', gap: 6, lineHeight: 1.5 }}>
-                            <strong style={{ color: '#1A5FA5', whiteSpace: 'nowrap' }}>{isDone ? '✅' : `Step ${stepIdx + 1}/7`}</strong>
+                            <strong style={{ color: '#1A5FA5', whiteSpace: 'nowrap' }}>{isDone ? '✅' : `Step ${stepIdx + 1}/${totalRealSteps}`}</strong>
                             <span style={{ color: '#3D5A80' }}>{cur.caption}</span>
                           </div>
                           {cur.suggestions.length > 0 && (
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                               {cur.suggestions.map((s, i) => (
-                                <button key={i} onClick={() => handleSimulateLeadMessage(s)} style={{ fontSize: 12, padding: '6px 12px', borderRadius: 16, border: '1px solid rgba(26,95,165,0.3)', background: '#fff', color: '#1A5FA5', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>💬 {s}</button>
+                                <button key={i} onClick={() => handleSimulateLeadMessage(s)} className="sim-chip-pulse" style={{ fontSize: 12, padding: '6px 12px', borderRadius: 16, border: '1px solid rgba(26,95,165,0.3)', background: '#fff', color: '#1A5FA5', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>💬 {s}</button>
                               ))}
                             </div>
                           )}
