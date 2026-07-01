@@ -11,6 +11,7 @@ type RecentChatEntry = {
 
 function missingLeadFields(lead: any, existingAppointment?: ExistingAppointment): string[] {
   const missing: string[] = []
+  if (!lead?.language) missing.push('language')
   if (!lead?.name) missing.push('name')
   if (!lead?.intent) missing.push('intent')
   if (!Array.isArray(lead?.preferred_areas) || !lead.preferred_areas.length) missing.push('preferred_areas')
@@ -30,6 +31,7 @@ export function buildLeadMemoryContext(lead: any, existingAppointment?: Existing
     current_stage: lead?.bot_stage || 'greeting',
     lead_status: lead?.status || null,
     known: {
+      language: lead?.language || null,
       name: lead?.name || null,
       intent: lead?.intent || null,
       preferred_areas: Array.isArray(lead?.preferred_areas) ? lead.preferred_areas : [],

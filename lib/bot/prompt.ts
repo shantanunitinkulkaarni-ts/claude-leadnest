@@ -1,6 +1,6 @@
 // lib/bot/prompt.ts
 // System prompt builder for the AI bot. Extracted from lib/ai-bot.ts.
-// Phase 2 will add deterministic state-first enforcement + tone wiring here.
+// Phase 2: deterministic state-first enforcement + few-shot examples.
 
 import { needsTranslation } from '../translate'
 import { formatIST, humanizeTimeLabel } from '../timeParser'
@@ -58,6 +58,59 @@ export function buildSystemPrompt(
   const todayIST = new Date().toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
   })
+
+  // ── Deterministic NEXT STEP ──────────────────────────────────────────────
+  // The LLM was restarting the funnel because it had to *infer* what to ask
+  // from the missing[] array. Now we compute the exact next step in code and
+  // tell the LLM to do THAT and nothing else.
+  const known = {
+    language: !!lead.language,
+    name: !!lead.name,
+    intent: !!lead.intent,
+    area: Array.isArray(lead.preferred_areas) && lead.preferred_areas.length > 0,
+    budget: !!lead.budget_max,
+    bhk: !!lead.bhk,
+    visitTime: !!lead.pending_appointment_time || !!existingAppointment,
+    email: !!lead.email,
+  }
+  const hasExistingAppt = !!existingAppointment
+  let nextStep = ''
+  let expectedStage = ''
+
+  if (hasExistingAppt) {
+    nextStep = 'The lead already has a site visit booked. Tell them the existing appointment time and ask if they want to reschedule or cancel. Do NOT ask any qualification questions.'
+    expectedStage = 'visit_confirmed'
+  } else if (!known.language) {
+    nextStep = 'Ask: "Which language are you most comfortable in — English, Hindi, or Hinglish?"'
+    expectedStage = 'language'
+  } else if (!known.name) {
+    nextStep = `Ask for their name warmly. Do NOT ask about language (already known: ${langLabel}).`
+    expectedStage = 'name'
+  } else if (!known.intent) {
+    nextStep = 'Ask: "Are you looking to rent or buy?"'
+    expectedStage = 'intent'
+  } else if (!known.area) {
+    nextStep = 'Ask: "Which area are you looking for?"'
+    expectedStage = 'qualifying'
+  } else if (!known.budget) {
+    nextStep = lead.intent === 'rent'
+      ? 'Ask: "What is your monthly budget for rent?"'
+      : 'Ask: "What is your total budget for buying?"'
+    expectedStage = 'qualifying'
+  } else if (!known.bhk) {
+    nextStep = 'Ask: "How many bedrooms — 1BHK, 2BHK, or 3BHK?"'
+    expectedStage = 'qualifying'
+  } else if (!known.visitTime) {
+    nextStep = 'Ask: "What day and time would suit you for a site visit?"'
+    expectedStage = 'awaiting_visit_time'
+  } else if (!known.email) {
+    nextStep = 'Ask: "Please share your email address so I can send the visit confirmation."'
+    expectedStage = 'awaiting_email'
+  } else {
+    nextStep = 'All details collected. Set action to "book_visit" to create the appointment.'
+    expectedStage = 'visit_confirmed'
+  }
+
   const knownNameRule = lead.name
     ? `- The lead's name is already known as "${lead.name}". Use their name SPARINGLY — an occasional, natural touch at most. Do NOT open messages with "Hello ${lead.name}" or "${lead.name}," — repeating their name every message sounds robotic. DO NOT ask for their name again unless they explicitly correct it.`
     : `- The lead's name is not known yet. Ask for their name warmly early in the conversation.`
@@ -75,10 +128,19 @@ compute it from today's date above.
 
 LANGUAGE: Always reply in ${langLabel} only. Never switch unless the user explicitly asks.
 
-STATE-FIRST FLOW:
+═══ YOUR NEXT STEP (deterministic — do THIS, not something else) ═══
+${nextStep}
+
+Set "stage" to "${expectedStage}".
+If the customer's message answers the current question, extract their answer into
+"updates" and ADVANCE to the next missing field — do NOT re-ask what they just answered.
+═══════════════════════════════════════════════════════════════════
+
+STATE-FIRST FLOW (critical — read before responding):
 ${knownNameRule}
 ${knownLanguageRule}
 - Continue from the highest known point in the funnel. Never restart from greeting/name/language if CURRENT LEAD STATE or CURRENT CHAT HISTORY already contains that information.
+- If the customer changes a previously known field (e.g. they want a different area), update it and continue from there.
 
 CONVERSATION FLOW (only ask for what is still unknown):
 1. Greet warmly
