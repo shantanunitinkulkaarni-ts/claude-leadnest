@@ -11,10 +11,12 @@ const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000 // India is UTC+5:30
 // Human-friendly India-time label, e.g. "Mon, 23 Jun, 03:00 PM". Always renders
 // in IST regardless of the server timezone, so the bot and emails agree.
 export function formatIST(isoTime: string): string {
+  const d = new Date(isoTime)
+  if (isNaN(d.getTime())) return isoTime
   try {
-    return new Date(isoTime).toLocaleString('en-IN', {
+    return d.toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
-      weekday: 'short', day: 'numeric', month: 'short',
+      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
     })
   } catch {
@@ -55,8 +57,10 @@ export function humanizeTimeLabel(label: string): string {
 
 // The IST weekday name ("Sunday") of a visit time.
 export function visitWeekdayIST(isoTime: string): string {
+  const d = new Date(isoTime)
+  if (isNaN(d.getTime())) return ''
   try {
-    return new Date(isoTime).toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'Asia/Kolkata' })
+    return d.toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'Asia/Kolkata' })
   } catch {
     return ''
   }
@@ -117,11 +121,13 @@ const HINDI_TIME_WORDS: Record<string, string> = {
 function normalizeHindiTimePhrases(text: string): string {
   let t = text.toLowerCase().trim()
 
+  // Sort by key length DESCENDING so multi-word phrases replace first
+  const sortedWords = Object.entries(HINDI_TIME_WORDS).sort((a, b) => b[0].length - a[0].length)
   // Replace Hindi time words with English equivalents
-  for (const [hindi, english] of Object.entries(HINDI_TIME_WORDS)) {
+  for (const [hindi, english] of sortedWords) {
     // Use word boundary to avoid partial matches
     const regex = new RegExp(`\\b${hindi}\\b`, 'gi')
-    if (regex.test(t)) {
+        if (t.includes(hindi)) {
       t = t.replace(regex, english)
     }
   }
@@ -135,6 +141,19 @@ function normalizeHindiTimePhrases(text: string): string {
   // Handle "se" (from) and "tak" (until) — these are range indicators
   t = t.replace(/\bse\b/gi, '')
   t = t.replace(/\btak\b/gi, '')
+
+  // Attach AM/PM to a bare o'clock hour when a time-of-day word is present,
+  // so "5 o'clock evening" resolves to 5 PM instead of 05:00 (ambiguous).
+  if (/\b(morning|subah)\b/i.test(t)) {
+        t = t.replace(/(\d{1,2})\s*o'?clock\b(?!\s*(am|pm))/gi, "$1 AM")
+  }
+  // "midnight" forces AM regardless of hour — 12 o'clock midnight = 00:00.
+  if (/\bmidnight\b/i.test(t)) {
+    t = t.replace(/(\d{1,2})\s*o'?clock\b(?!\s*(am|pm))/gi, "$1 AM")
+  } else
+  if (/\b(evening|afternoon|night|shaam|dopahar|raat|midnight)\b/i.test(t)) {
+        t = t.replace(/(\d{1,2})\s*o'?clock\b(?!\s*(am|pm))/gi, "$1 PM")
+  }
 
   // Handle "saade" (half past) — "saade 3" → "3:30"
   t = t.replace(/saade\s+(\d+)\b/gi, (_, h) => `${parseInt(h)}:30`)
@@ -181,6 +200,11 @@ export function parseTimeString(timeStr: string): string | null {
     const mo = parseInt(isoMatch[2]) - 1
     const d = parseInt(isoMatch[3])
     let h = isoMatch[4] != null ? parseInt(isoMatch[4]) : 11 // default 11 AM if no time given
+    // If no HH:MM captured, try to read a bare hour with am/pm (e.g. "2026-06-22 3 pm")
+    if (isoMatch[4] == null) {
+      const bareHourAp = t.match(/\b(\d{1,2})\s*(am|pm)\b/i)
+            if (bareHourAp) { h = parseInt(bareHourAp[1]) }
+    }
     let mi = isoMatch[5] != null ? parseInt(isoMatch[5]) : 0
     // Honour an am/pm that may appear after the time (e.g. "2026-06-22 3 pm")
     const ap = t.match(/(am|pm)/)
@@ -215,6 +239,12 @@ export function parseTimeString(timeStr: string): string | null {
     hours = parseInt(bareMatch[1])
   } else {
     return null // No usable time found — caller will ask again
+  }
+
+  // Indian convention: Hindi "baje" (o'clock) without a time-of-day word
+  // implies daytime (PM) for hours 1-7. English "o'clock" stays ambiguous.
+  if (!ampmMatch && /\bbaje|bajkar\b/i.test(timeStr) && hours >= 1 && hours <= 7) {
+    hours += 12
   }
 
   // Work entirely in IST. The server runs on UTC, so we shift "now" by +5:30
