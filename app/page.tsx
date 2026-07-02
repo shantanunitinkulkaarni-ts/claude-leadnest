@@ -27,7 +27,7 @@ function Nav() {
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '14px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 28, height: 28, borderRadius: 8, background: `linear-gradient(135deg, ${G.green}, #4338CA)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#fff' }}>🏠</div>
-          <span style={{ fontSize: 16, fontWeight: 600, color: G.dark, letterSpacing: '-0.01em' }}>Convorian</span>
+          <span style={{ fontSize: 16, fontWeight: 600, color: G.dark, letterSpacing: '-0.01em' }}>TING</span>
         </div>
         <div style={{ display: 'flex', gap: 32, alignItems: 'center' }}>
           {['Features', 'Pricing', 'For Agents'].map(item => (
@@ -66,7 +66,7 @@ function Hero() {
         </h1>
 
         <p style={{ fontSize: 18, color: G.muted, lineHeight: 1.6, maxWidth: 700, margin: '0 auto 32px', fontWeight: 400 }}>
-          Convorian is an AI sales engine built for real estate agents. Your bot answers leads 24/7, qualifies them, books site visits, and tracks ROI. Close deals on autopilot.
+          TING is an AI sales engine built for real estate agents. Your bot answers leads 24/7, qualifies them, books site visits, and tracks ROI. Close deals on autopilot.
         </p>
 
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 32 }}>
@@ -208,7 +208,7 @@ function Solution() {
     <section style={{ paddingTop: 80, paddingBottom: 80, background: '#FAFAFB' }} id="features">
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 32px' }}>
         <div style={{ textAlign: 'center', marginBottom: 60 }}>
-          <h2 style={{ fontSize: 40, fontWeight: 700, color: G.dark, letterSpacing: '-0.02em', marginBottom: 16 }}>How Convorian Works</h2>
+          <h2 style={{ fontSize: 40, fontWeight: 700, color: G.dark, letterSpacing: '-0.02em', marginBottom: 16 }}>How TING Works</h2>
           <p style={{ fontSize: 16, color: G.muted, maxWidth: 600, margin: '0 auto' }}>A sales engine that works while you sleep</p>
         </div>
 
@@ -338,7 +338,7 @@ function CTA() {
 
       <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 32px', position: 'relative', zIndex: 1, textAlign: 'center' }}>
         <h2 style={{ fontSize: 42, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', marginBottom: 20, lineHeight: 1.2 }}>
-          Your first deal pays for a year of Convorian
+          Your first deal pays for a year of TING
         </h2>
         <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.6)', marginBottom: 32, lineHeight: 1.6 }}>
           Stop losing leads to time delays. Start closing deals on autopilot — 24/7, even while you sleep.
@@ -349,7 +349,7 @@ function CTA() {
             Start Free — No Card
           </button>
           {process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP && (
-            <a href={`https://wa.me/${process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP.replace(/\D/g, '')}?text=Hi%20Convorian!%20I%20want%20to%20schedule%20a%20demo`} target="_blank" style={{ padding: '14px 32px', borderRadius: 12, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', fontSize: 14, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}>
+            <a href={`https://wa.me/${process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP.replace(/\D/g, '')}?text=Hi%20TING!%20I%20want%20to%20schedule%20a%20demo`} target="_blank" style={{ padding: '14px 32px', borderRadius: 12, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', fontSize: 14, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }}>
               Chat on WhatsApp
             </a>
           )}
@@ -372,7 +372,7 @@ function Footer() {
         <div style={{ maxWidth: 360 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             <div style={{ width: 26, height: 26, borderRadius: 8, background: G.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#fff' }}>🏠</div>
-            <span style={{ fontSize: 15, fontWeight: 700, color: G.dark }}>Convorian</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: G.dark }}>TING</span>
           </div>
           <p style={{ fontSize: 13, color: G.muted, lineHeight: 1.6, margin: 0 }}>
             AI-powered WhatsApp automation that helps real estate agents in India answer, qualify, and convert leads 24/7.
@@ -394,7 +394,7 @@ function Footer() {
         </div>
       </div>
       <div style={{ maxWidth: 1000, margin: '28px auto 0', paddingTop: 20, borderTop: `1px solid ${G.border}`, fontSize: 12, color: G.muted, textAlign: 'center' }}>
-        © {new Date().getFullYear()} Convorian. All rights reserved. · convorian.in
+        © {new Date().getFullYear()} Convorian. TING is a product of Convorian. · convorian.in
       </div>
     </footer>
   )

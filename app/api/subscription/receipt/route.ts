@@ -8,7 +8,7 @@ import { requireAgentAccess } from '@/lib/apiAuth'
 // Opened in a new browser tab (carries the auth cookie); the user prints or
 // "Save as PDF" from the browser — no server-side PDF dependency.
 //
-// We label it a "Payment Receipt" (not a tax invoice): Convorian is run as a
+// We label it a "Payment Receipt" (not a tax invoice): TING is run as a
 // sole proprietorship and is not GST-registered.
 
 function esc(s: unknown): string {
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     // ev = the charge being receipted. Subscription events and credit top-ups
     // share the same receipt layout; only the line-item label differs.
     let ev: { created_at: string; amount: number; payment_id: string | null } | null = null
-    let lineLabel = 'Convorian — Monthly Subscription'
+    let lineLabel = 'TING — Monthly Subscription'
     let lineSub = 'AI WhatsApp assistant · 1 month'
     let payVia = 'Paid via UPI Autopay (Razorpay).'
 
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
       if (!txn) return new NextResponse('Receipt not found', { status: 404 })
       const pid = (txn.description || '').match(/pay_[A-Za-z0-9]+/)?.[0] || null
       ev = { created_at: txn.created_at, amount: Number(txn.amount), payment_id: pid }
-      lineLabel = 'Convorian — Messaging Credits Top-up'
+      lineLabel = 'TING — Messaging Credits Top-up'
       lineSub = 'Prepaid WhatsApp messaging credits'
       payVia = 'Paid via Razorpay.'
     } else {
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Receipt ${esc(receiptNo)} — Convorian</title>
+<title>Receipt ${esc(receiptNo)} — TING</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1f2024; background: #F4F3EE; padding: 32px 16px; }
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
 <body>
   <div class="sheet">
     <div class="head">
-      <div class="brand">Convorian<small>AI WhatsApp Assistant for Real Estate</small></div>
+      <div class="brand">TING<small>AI WhatsApp Assistant for Real Estate</small></div>
       <div class="doc-label">
         <div class="t">Payment Receipt</div>
         <div class="n">${esc(receiptNo)}</div>
@@ -172,13 +172,13 @@ export async function GET(request: NextRequest) {
       </div>
 
       <div class="note">
-        ${esc(payVia)} This is a payment receipt, not a tax invoice — Convorian is
-        operated as a sole proprietorship and is not registered for GST, so no GST has been charged.
+        ${esc(payVia)} This is a payment receipt, not a tax invoice — TING is
+        operated by Convorian, which is currently a sole proprietorship and is not registered for GST, so no GST has been charged.
         Please retain this receipt for your records.
       </div>
     </div>
     <div class="foot">
-      Convorian · <a href="https://convorian.in">convorian.in</a> · Questions? <a href="mailto:support@convorian.in">support@convorian.in</a>
+      Convorian · TING is a product of Convorian · <a href="https://convorian.in">convorian.in</a> · Questions? <a href="mailto:support@convorian.in">support@convorian.in</a>
     </div>
   </div>
   <div class="actions">

@@ -6,13 +6,13 @@
 
 ## 1. Agreement
 
-By signing up for or using Convorian ("Platform", "Service"), you ("Agent", "you") agree to these Terms of Service ("Terms") with Convorian ("Convorian", "we", "us") — currently operated as a sole proprietorship by its founder in India. If you do not agree, do not use the Service.
+By signing up for or using TING ("Platform", "Service"), you ("Agent", "you") agree to these Terms of Service ("Terms") with Convorian ("Convorian", "we", "us") — currently operated as a sole proprietorship by its founder in India. If you do not agree, do not use the Service.
 
 ---
 
 ## 2. The Service
 
-Convorian provides an AI-powered WhatsApp automation and lead nurturing platform for businesses. The platform allows agents to manage leads, automate conversations via WhatsApp, book appointments, and track sales performance.
+TING provides an AI-powered WhatsApp automation and lead nurturing platform for businesses. The platform allows agents to manage leads, automate conversations via WhatsApp, book appointments, and track sales performance.
 
 ---
 
@@ -38,13 +38,13 @@ You must be:
 ## 5. Acceptable Use
 
 You agree NOT to:
-- Use Convorian for any illegal purpose
+- Use TING for any illegal purpose
 - Message leads who have not consented to receive communications from you
 - Send spam, misleading, fraudulent, or harassing messages
 - Upload or process data of minors under 18
 - Attempt to reverse engineer, hack, or disrupt the platform
-- Resell or sublicense access to Convorian without written permission
-- Use Convorian to send bulk unsolicited marketing messages
+- Resell or sublicense access to TING without written permission
+- Use TING to send bulk unsolicited marketing messages
 - Impersonate any person or entity
 - Violate Meta's WhatsApp Business Policy or any applicable messaging laws
 
@@ -55,13 +55,13 @@ Violation of these terms may result in immediate account suspension without refu
 ## 6. WhatsApp & Messaging Compliance
 
 **You are solely responsible for:**
-- Obtaining explicit consent from all leads before adding them to Convorian and messaging them via WhatsApp
+- Obtaining explicit consent from all leads before adding them to TING and messaging them via WhatsApp
 - Complying with TRAI regulations, WhatsApp Business Policy, and all applicable Indian and international communication laws
 - Maintaining records of consent for all leads
 - Providing an opt-out mechanism to all leads
 - The content of all messages sent through your account
 
-Convorian is a technology platform — we are not responsible for how you use it to communicate with your leads. Any penalties, bans, or legal action arising from non-compliant messaging are your responsibility.
+TING is a technology platform — we are not responsible for how you use it to communicate with your leads. Any penalties, bans, or legal action arising from non-compliant messaging are your responsibility.
 
 ---
 
@@ -115,7 +115,7 @@ Convorian is a technology platform — we are not responsible for how you use it
 
 ## 12. AI-Generated Content
 
-- Convorian's AI engine generates messages on behalf of agents
+- TING's AI engine generates messages on behalf of agents
 - Agents are responsible for reviewing and approving AI-generated communications where required
 - Convorian does not guarantee the accuracy, completeness, or appropriateness of AI outputs
 - The AI engine will never fabricate property details, pricing, or availability — it is instructed to say "let me check with the team" when uncertain
@@ -125,10 +125,10 @@ Convorian is a technology platform — we are not responsible for how you use it
 
 ## 13. Intellectual Property
 
-- Convorian owns all rights to the platform, AI engine, code, and brand
+- Convorian owns all rights to TING, the AI engine, code, and brand
 - You retain ownership of your data and content
-- You may not copy, reproduce, or distribute any part of Convorian's platform or technology
-- "Convorian" name and logo are trademarks of Convorian
+- You may not copy, reproduce, or distribute any part of TING or its technology
+- "TING" and "Convorian" names and logos are trademarks of Convorian
 
 ---
 
@@ -199,4 +199,4 @@ Convorian
 Email: legal@convorian.in
 Website: https://convorian.in
 
-*By using Convorian, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.*
+*By using TING, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service.*

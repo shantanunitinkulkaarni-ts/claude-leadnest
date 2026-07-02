@@ -5,8 +5,8 @@ import MarkdownDoc from '@/components/MarkdownDoc'
 import LegalShell from '@/components/LegalShell'
 
 export const metadata: Metadata = {
-  title: 'Refund & Cancellation Policy — Convorian',
-  description: 'How billing, cancellations and refunds work for Convorian subscriptions.',
+  title: 'Refund & Cancellation Policy — TING',
+  description: 'How billing, cancellations and refunds work for TING subscriptions.',
 }
 
 function getContent(): string {

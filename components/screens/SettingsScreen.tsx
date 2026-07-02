@@ -1,5 +1,5 @@
 ﻿'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import TwoFactorSettings from '@/components/TwoFactorSettings'
 import ConnectWhatsAppButton from '@/components/ConnectWhatsAppButton'
 
@@ -33,6 +33,8 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
 
   const [keepAlive, setKeepAlive] = useState(true)
   const [lowBalanceAlert, setLowBalanceAlert] = useState(true)
+  const botControlsRef = useRef<HTMLDivElement>(null)
+  const [botControlsBlink, setBotControlsBlink] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -55,18 +57,29 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId])
 
+  useEffect(() => {
+    const showBotControls = () => {
+      botControlsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setBotControlsBlink(true)
+      setTimeout(() => setBotControlsBlink(false), 1600)
+    }
+    window.addEventListener('leadnest:show-bot-controls', showBotControls)
+    return () => window.removeEventListener('leadnest:show-bot-controls', showBotControls)
+  }, [])
+
   const handleToggleBot = async () => {
     if (botActive) { setPinPurpose('pause'); setPinInput(''); setPinError(''); return }
     await executeToggle(true)
   }
 
-  const executeToggle = async (newVal: boolean) => {
+  const executeToggle = async (newVal: boolean, pin?: string) => {
     setBotActive(newVal)
     try {
-      await fetch('/api/agent?id=' + agentId, {
+      const res = await fetch('/api/agent?id=' + agentId, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bot_active: newVal })
+        body: JSON.stringify({ bot_active: newVal, ...(pin ? { pin } : {}) })
       })
+      if (!res.ok) throw new Error('Could not update bot status')
     } catch { setBotActive(!newVal) }
   }
 
@@ -107,7 +120,7 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
       if (!res.ok) { setPinError(data.error || 'Incorrect PIN'); return }
       const purpose = pinPurpose; const lvl = pendingIntensity
       setPinPurpose(null); setPinInput(''); setPinError(''); setPendingIntensity(null)
-      if (purpose === 'pause') executeToggle(false)
+      if (purpose === 'pause') executeToggle(false, pinInput)
       else if (purpose === 'keepalive') { setKeepAlive(false); localStorage.setItem('leadnest_keepalive', 'false') }
       else if (purpose === 'outreach' && lvl) applyIntensity(lvl)
       if (data.mustSetPin) setTimeout(() => { setShowSetPin(true); setNewPin(''); setNewPinConfirm(''); setNewPinError('') }, 300)
@@ -188,7 +201,15 @@ export default function SettingsScreen({ agentId, agent: initialAgent }: Props) 
       <div style={{ fontSize: 15, fontWeight: 500, color: '#15161B', marginBottom: 16 }}>Settings</div>
 
       {/* Account */}
-      <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '20px 22px', marginBottom: 14 }}>
+      <div ref={botControlsRef} style={{
+        background: botControlsBlink ? '#F6F5FF' : '#fff',
+        border: botControlsBlink ? '1px solid #4F46E5' : '1px solid rgba(26,25,22,0.08)',
+        boxShadow: botControlsBlink ? '0 0 0 4px rgba(79,70,229,0.12)' : 'none',
+        borderRadius: 14,
+        padding: '20px 22px',
+        marginBottom: 14,
+        transition: 'background 0.25s, border-color 0.25s, box-shadow 0.25s'
+      }}>
         <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid rgba(26,25,22,0.08)' }}>Account</div>
         {accountRows.map((row, i) => (
           <div key={row.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: i < accountRows.length - 1 ? '1px solid rgba(26,25,22,0.06)' : 'none' }}>

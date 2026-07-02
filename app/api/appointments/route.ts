@@ -93,7 +93,7 @@ export async function PATCH(request: NextRequest) {
 
   // When post-visit feedback is logged, push it onto the LEAD so the AI bot can
   // open its next message by referencing the visit and nurture toward a close.
-  // This feedback context is Convorian's core conversion edge.
+  // This feedback context is TING's core conversion edge.
   const apptLeadId = (data as any)?.lead_id
   if (safeUpdates.post_visit_result && apptLeadId) {
     const { data: leadRow } = await supabaseAdmin

@@ -7,13 +7,13 @@ type Msg = { from: 'user' | 'support'; text: string; logId?: string; rated?: 'up
 
 const GREETING: Msg = {
   from: 'support',
-  text: "Hi! I'm Convorian's support assistant. Ask me about setup, billing, invoices or your account — I'll help, or connect you to our team.",
+  text: "Hi! I'm TING's support assistant. Ask me about setup, billing, invoices or your account — I'll help, or connect you to our team.",
 }
 
 // WhatsApp / email escalation — shown when the assistant hands off to a human.
 function Escalation({ context }: { context: string }) {
   const [copied, setCopied] = useState(false)
-  const waLink = supportWhatsappLink(`Hi Convorian support, I need help.\n\n(From support chat) ${context}`.slice(0, 600))
+  const waLink = supportWhatsappLink(`Hi TING support, I need help.\n\n(From support chat) ${context}`.slice(0, 600))
   const copyEmail = () => {
     try { navigator.clipboard.writeText(SUPPORT_EMAIL) } catch { /* ignore */ }
     setCopied(true)
@@ -141,7 +141,7 @@ export default function SupportChat({ agentId }: { agentId?: string } = {}) {
         }}>
           <div style={{ padding: '14px 18px', background: 'linear-gradient(135deg,#4F46E5,#7C3AED)', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>Convorian Support</div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>TING Support</div>
               <div style={{ fontSize: 11, opacity: 0.85 }}>Usually replies instantly</div>
             </div>
             <button onClick={handleClose} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 16 }}>✕</button>

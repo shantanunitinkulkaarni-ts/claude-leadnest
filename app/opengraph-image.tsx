@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og'
 
 export const runtime = 'edge'
-export const alt = 'Convorian — AI WhatsApp Sales Engine for Real Estate'
+export const alt = 'TING — AI WhatsApp Sales Engine for Real Estate'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
@@ -24,9 +24,9 @@ export default function OGImage() {
         {/* Logo area */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 40 }}>
           <div style={{ width: 52, height: 52, borderRadius: 12, background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ color: 'white', fontSize: 28, fontWeight: 700, display: 'flex' }}>C</div>
+            <div style={{ color: 'white', fontSize: 28, fontWeight: 700, display: 'flex' }}>T</div>
           </div>
-          <div style={{ color: 'white', fontSize: 32, fontWeight: 700, letterSpacing: '-0.5px', display: 'flex' }}>Convorian</div>
+          <div style={{ color: 'white', fontSize: 32, fontWeight: 700, letterSpacing: '-0.5px', display: 'flex' }}>TING</div>
         </div>
 
         {/* Headline */}

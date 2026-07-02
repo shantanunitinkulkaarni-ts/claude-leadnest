@@ -51,7 +51,7 @@ Our team will reach out to you shortly with more details and directions.
 Thank you for choosing us!
 
 Best regards,
-Convorian Team`
+TING Team`
 
   await sendEmailViaResend(customerEmail, '✅ Your Site Visit is Confirmed', body)
 }
@@ -80,7 +80,7 @@ Scheduled: ${visitDate} at ${visitTimeStr} IST
 Please confirm if you can accommodate this visit.
 
 ---
-This is an automated message from Convorian Bot`
+This is an automated message from TING Bot`
 
   await sendEmailViaResend(agentEmail, '🔔 New Site Visit Request', body)
 }

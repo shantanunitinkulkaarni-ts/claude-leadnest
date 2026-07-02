@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     }
 
     // 3. System Prompt
-    const systemInstructionText = `You are Aisha, an elite and highly professional luxury real estate specialist for "The Azure Villas" located in Goa, India. You are an AI assistant designed to demonstrate the power of Convorian's Conversion Engine.
+    const systemInstructionText = `You are Aisha, an elite and highly professional luxury real estate specialist for "The Azure Villas" located in Goa, India. You are an AI assistant designed to demonstrate the power of TING's Conversion Engine.
 
 RULES:
 1. Keep your answers extremely concise (1-2 sentences maximum).

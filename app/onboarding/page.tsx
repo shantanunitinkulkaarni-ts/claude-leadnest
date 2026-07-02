@@ -202,7 +202,7 @@ export default function OnboardingPage() {
               <div className="logo-dot">
                 <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
               </div>
-              <span className="logo-name">Convorian</span>
+              <span className="logo-name">TING</span>
             </div>
           </div>
 
@@ -270,7 +270,7 @@ export default function OnboardingPage() {
                 <>
                   <div style={{ textAlign: 'center', marginBottom: 32 }}>
                     <div className="form-card-icon" style={{ background: '#EEF2FF', margin: '0 auto 16px', fontSize: 24, fontWeight: 700 }}>C</div>
-                    <div className="form-card-title" style={{ fontSize: 24 }}>Welcome to Convorian</div>
+                    <div className="form-card-title" style={{ fontSize: 24 }}>Welcome to TING</div>
                     <div className="form-card-desc">Create your account to set up your WhatsApp AI assistant.</div>
                   </div>
               
@@ -445,7 +445,7 @@ export default function OnboardingPage() {
                   style={{ marginTop: 2, width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }}
                 />
                 <span>
-                  I agree to Convorian&apos;s <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green, #4F46E5)', textDecoration: 'underline' }}>Terms of Service</a> and <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green, #4F46E5)', textDecoration: 'underline' }}>Privacy Policy</a>, and consent to receive product updates, tips and offers from Convorian on WhatsApp and email. You can opt out anytime.
+                  I agree to TING&apos;s <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green, #4F46E5)', textDecoration: 'underline' }}>Terms of Service</a> and <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green, #4F46E5)', textDecoration: 'underline' }}>Privacy Policy</a>, and consent to receive product updates, tips and offers from TING on WhatsApp and email. You can opt out anytime.
                 </span>
               </label>
               <div className="form-footer">
@@ -463,7 +463,7 @@ export default function OnboardingPage() {
               <div className="complete-title">You're all set, {firstName}!</div>
               <div className="complete-sub">Your account is ready. Next, add your properties so the bot is ready. Then you can connect your WhatsApp from Settings — our team will assist with the setup.</div>
               <div style={{ marginTop: 14, fontSize: 12.5, color: '#7A5200', background: '#FEF6E0', border: '1px solid #F0D98C', borderRadius: 8, padding: '10px 12px', lineHeight: 1.55, textAlign: 'left' }}>
-                ⚠️ <strong>Alpha:</strong> Convorian is in early testing. The assistant chats with your real leads, so occasional hiccups are possible — please don&apos;t connect your most premium clients just yet.
+                ⚠️ <strong>Alpha:</strong> TING is in early testing. The assistant chats with your real leads, so occasional hiccups are possible — please don&apos;t connect your most premium clients just yet.
               </div>
               <button className="btn-launch" onClick={() => router.push('/dashboard')}>
                 Open my dashboard

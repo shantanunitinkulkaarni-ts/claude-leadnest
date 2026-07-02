@@ -3,8 +3,8 @@ import LegalShell from '@/components/LegalShell'
 import HelpContent from '@/components/HelpContent'
 
 export const metadata: Metadata = {
-  title: 'Help & FAQ — Convorian',
-  description: 'Answers to common questions about Convorian — your AI WhatsApp assistant for real estate. Billing, setup, data privacy and how to reach support.',
+  title: 'Help & FAQ — TING',
+  description: 'Answers to common questions about TING — your AI WhatsApp assistant for real estate. Billing, setup, data privacy and how to reach support.',
 }
 
 export default function HelpPage() {

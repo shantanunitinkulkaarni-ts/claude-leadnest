@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import SmartBackLink from './SmartBackLink'
 
-// Shared chrome (header + footer) for legal pages — keeps Convorian branding
+// Shared chrome (header + footer) for legal pages — keeps TING product branding
 // consistent and gives Meta reviewers clear navigation + contact info.
 export default function LegalShell({ children }: { children: React.ReactNode }) {
   return (
@@ -11,8 +11,8 @@ export default function LegalShell({ children }: { children: React.ReactNode }) 
         <div style={{ maxWidth: 820, margin: '0 auto', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icon.webp" alt="Convorian" width={28} height={28} style={{ borderRadius: 8 }} />
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#15161B', letterSpacing: '-0.01em' }}>Convorian</span>
+            <img src="/icon.webp" alt="TING" width={28} height={28} style={{ borderRadius: 8 }} />
+            <span style={{ fontSize: 16, fontWeight: 700, color: '#15161B', letterSpacing: '-0.01em' }}>TING</span>
           </Link>
           <SmartBackLink style={{ fontSize: 13, color: '#4F46E5', fontWeight: 600, textDecoration: 'none' }} />
         </div>
@@ -34,7 +34,7 @@ export default function LegalShell({ children }: { children: React.ReactNode }) 
             <Link href="/terms-of-service" style={{ color: '#4F46E5', textDecoration: 'none', margin: '0 10px' }}>Terms of Service</Link>
             <Link href="/refund-policy" style={{ color: '#4F46E5', textDecoration: 'none', margin: '0 10px' }}>Refund Policy</Link>
           </div>
-          © {new Date().getFullYear()} Convorian · Pune, Maharashtra, India · <a href="mailto:support@convorian.in" style={{ color: '#4F46E5', textDecoration: 'none' }}>support@convorian.in</a>
+          © {new Date().getFullYear()} Convorian · TING is a product of Convorian · Pune, Maharashtra, India · <a href="mailto:support@convorian.in" style={{ color: '#4F46E5', textDecoration: 'none' }}>support@convorian.in</a>
         </div>
       </footer>
     </div>

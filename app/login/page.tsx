@@ -112,7 +112,7 @@ export default function LoginPage() {
             <div className="logo-dot">
               <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </div>
-            <span className="logo-name" style={{ marginLeft: 8 }}>Convorian</span>
+            <span className="logo-name" style={{ marginLeft: 8 }}>TING</span>
           </div>
           <h1 className="onboard-headline" style={{ color: 'var(--ink)', marginTop: 24, fontSize: 32 }}>Welcome back</h1>
           <p className="onboard-sub" style={{ color: 'var(--ink-3)' }}>Sign in to manage your automated lead engine</p>
@@ -177,7 +177,7 @@ export default function LoginPage() {
           </>)}
 
           <div style={{ textAlign: 'center', marginTop: 30, fontSize: 13, color: 'var(--ink-4)' }}>
-            Don't have an account? <span style={{ color: 'var(--green)', cursor: 'pointer', fontWeight: 500 }} onClick={() => router.push('/onboarding')}>Set up your Convorian</span>
+            Don't have an account? <span style={{ color: 'var(--green)', cursor: 'pointer', fontWeight: 500 }} onClick={() => router.push('/onboarding')}>Set up your TING</span>
           </div>
         </div>
       </div>

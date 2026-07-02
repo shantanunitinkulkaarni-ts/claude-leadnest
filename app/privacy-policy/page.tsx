@@ -5,8 +5,8 @@ import MarkdownDoc from '@/components/MarkdownDoc'
 import LegalShell from '@/components/LegalShell'
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy — Convorian',
-  description: 'How Convorian collects, uses, stores and protects your data.',
+  title: 'Privacy Policy — TING',
+  description: 'How TING collects, uses, stores and protects your data.',
 }
 
 function getContent(): string {

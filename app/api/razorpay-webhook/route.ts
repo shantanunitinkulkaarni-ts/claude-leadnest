@@ -132,8 +132,8 @@ export async function POST(request: NextRequest) {
         const receiptUrl = `https://convorian.in/api/subscription/receipt?agent_id=${agentId}&event_id=${chargeEventId}`
         await sendEmail({
           to: agent.email,
-          subject: `Payment receipt — ₹${amt} Convorian subscription`,
-          html: `<p>Hi ${agent.name || 'there'},</p><p>Your monthly Convorian subscription payment of <strong>₹${amt}</strong> was successful. Thank you!</p><p><a href="${receiptUrl}">View / download your receipt →</a></p><p>— Team Convorian</p>`,
+          subject: `Payment receipt — ₹${amt} TING subscription`,
+          html: `<p>Hi ${agent.name || 'there'},</p><p>Your monthly TING subscription payment of <strong>₹${amt}</strong> was successful. Thank you!</p><p><a href="${receiptUrl}">View / download your receipt →</a></p><p>— Team TING</p>`,
         })
       }
     } catch (mailErr: any) {

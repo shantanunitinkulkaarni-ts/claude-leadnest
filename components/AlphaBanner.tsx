@@ -10,16 +10,16 @@ type Lang = 'en' | 'hi' | 'mr'
 
 const COPY: Record<Lang, { short: string; full: string }> = {
   en: {
-    short: 'Alpha — Convorian is in early testing.',
-    full: 'Convorian is in its alpha stage. The AI assistant chats with your real leads, so occasional hiccups or pauses are possible while we improve it. Please don\'t connect your most premium/high-value clients just yet — use it with regular leads while we stabilise. Thank you for testing with us 🙏',
+    short: 'Alpha — TING is in early testing.',
+    full: 'TING is in its alpha stage. The AI assistant chats with your real leads, so occasional hiccups or pauses are possible while we improve it. Please don\'t connect your most premium/high-value clients just yet — use it with regular leads while we stabilise. Thank you for testing with us 🙏',
   },
   hi: {
-    short: 'अल्फा — Convorian अभी शुरुआती परीक्षण में है।',
-    full: 'Convorian अभी अल्फा चरण में है। AI असिस्टेंट आपकी असली लीड्स से बात करता है, इसलिए सुधार के दौरान कभी-कभी रुकावट या देरी हो सकती है। कृपया अभी अपने सबसे प्रीमियम/महत्वपूर्ण क्लाइंट न जोड़ें — स्थिर होने तक इसे सामान्य लीड्स के साथ इस्तेमाल करें। परीक्षण में साथ देने के लिए धन्यवाद 🙏',
+    short: 'अल्फा — TING अभी शुरुआती परीक्षण में है।',
+    full: 'TING अभी अल्फा चरण में है। AI असिस्टेंट आपकी असली लीड्स से बात करता है, इसलिए सुधार के दौरान कभी-कभी रुकावट या देरी हो सकती है। कृपया अभी अपने सबसे प्रीमियम/महत्वपूर्ण क्लाइंट न जोड़ें — स्थिर होने तक इसे सामान्य लीड्स के साथ इस्तेमाल करें। परीक्षण में साथ देने के लिए धन्यवाद 🙏',
   },
   mr: {
-    short: 'अल्फा — Convorian सध्या सुरुवातीच्या चाचणीत आहे.',
-    full: 'Convorian सध्या अल्फा टप्प्यात आहे. AI असिस्टंट तुमच्या प्रत्यक्ष लीड्सशी संवाद साधतो, त्यामुळे आम्ही सुधारणा करत असताना कधीकधी अडथळे किंवा विलंब होऊ शकतो. कृपया तुमचे सर्वात प्रीमियम/महत्त्वाचे ग्राहक अजून जोडू नका — स्थिर होईपर्यंत सामान्य लीड्ससोबत वापरा. चाचणीत सहभागी झाल्याबद्दल धन्यवाद 🙏',
+    short: 'अल्फा — TING सध्या सुरुवातीच्या चाचणीत आहे.',
+    full: 'TING सध्या अल्फा टप्प्यात आहे. AI असिस्टंट तुमच्या प्रत्यक्ष लीड्सशी संवाद साधतो, त्यामुळे आम्ही सुधारणा करत असताना कधीकधी अडथळे किंवा विलंब होऊ शकतो. कृपया तुमचे सर्वात प्रीमियम/महत्त्वाचे ग्राहक अजून जोडू नका — स्थिर होईपर्यंत सामान्य लीड्ससोबत वापरा. चाचणीत सहभागी झाल्याबद्दल धन्यवाद 🙏',
   },
 }
 

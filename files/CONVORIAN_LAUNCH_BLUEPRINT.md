@@ -1,17 +1,17 @@
-# CONVORIAN — Complete Launch Blueprint
+# TING - Complete Launch Blueprint
 ### CTO Master Document | Version 1.0
 *Owner: Shantanu Kulkaarni | Prepared by: Claude (CTO)*
 *Last Updated: June 2026*
 
 ---
 
-> This document is the single source of truth for everything required to launch Convorian as a production-grade, enterprise-level SaaS platform. It covers legal, technical, financial, security, marketing, operations, and risk — nothing is skipped. Claude Code should read this document and execute tasks in order of priority.
+> This document is the single source of truth for everything required to launch TING as a production-grade, enterprise-level SaaS platform. It covers legal, technical, financial, security, marketing, operations, and risk - nothing is skipped. Claude Code should read this document and execute tasks in order of priority.
 
 ---
 
 ## CURRENT STATE (as of June 2026) — READ FIRST
 
-- **Brand:** renamed LeadNest → **Convorian**. Domain: **convorian.in** (registered). Code rebrand still pending.
+- **Product:** **TING**. **Company:** **Convorian**. Domain: **convorian.in** (registered). Visible product rebrand is now TING.
 - **AI:** **Groq — Llama 3.3 70B** (free tier). Not Gemini/Vertex anymore.
 - **Hosting:** moving to **AWS App Runner** (region us-east-1, account 261955339877). The old GCP project was suspended.
 - **Payments:** Razorpay **active** via individual (sole-proprietor) onboarding — can accept payments. Test + live keys exist. App integration pending (BalanceScreen still simulated; a PAN-data correction is being processed).
@@ -58,7 +58,7 @@
 1. ~~Gemini model name~~ — **DONE:** migrated to Groq Llama 3.3 70B (lib/gemini.ts; filename kept)
 2. ~~Demo-chat simulation broken~~ — **DONE:** works; moved to landing page as `<LiveChatDemo />`. Will be removed once Meta API is live so we can test the real thing.
 3. Dashboard UI polish — **largely DONE** (Inbox, Leads, Properties, Appointments, ROI, Settings overhauled)
-4. **Rebrand LeadNest → Convorian everywhere** — PENDING (brand name + new colour theme)
+4. **Keep visible product wording as TING** - DONE. Convorian remains company/legal/domain identity.
 
 ### Pages Required Before Launch
 - [ ] Landing page live at convorian.in
@@ -123,7 +123,7 @@ Required documents:
 
 ### DPDP Act Compliance (India)
 - Digital Personal Data Protection Act 2023 — India's equivalent of GDPR
-- Convorian handles personal data (names, phone numbers, conversation history)
+- TING handles personal data (names, phone numbers, conversation history)
 - Requirements:
   - Appoint a Data Protection Officer (can be you initially)
   - Collect only data necessary for the service
@@ -222,9 +222,9 @@ Meta has strict policies. Violating them = account banned.
 - Keep template library: appointment reminders, follow-ups, re-engagement
 
 **Agent Responsibility:**
-- Convorian is the platform — agents are responsible for their own compliance
+- TING is the product; Convorian is the company — agents are responsible for their own compliance
 - This must be stated clearly in Terms of Service
-- Add: "By using Convorian, you agree to obtain proper consent before messaging any lead"
+- Add: "By using TING, you agree to obtain proper consent before messaging any lead"
 
 ### Cookie Consent
 - Add cookie consent banner to landing page
@@ -485,13 +485,13 @@ Policy:
 
 **Channel 1: Direct WhatsApp Outreach**
 - Build a list of 500 real estate agents from MagicBricks, 99acres, Housing.com listings
-- Send personalised WhatsApp message introducing Convorian
+- Send personalised WhatsApp message introducing TING
 - Offer free demo / free trial
 - Legal: Must have a legitimate reason to contact — use public listings
 
 **Channel 2: Real Estate Facebook & WhatsApp Groups**
 - India has thousands of active real estate agent groups
-- Join, provide value, then introduce Convorian
+- Join, provide value, then introduce TING
 - Do not spam — be genuinely helpful first
 
 **Channel 3: YouTube / Instagram Reels**
@@ -612,7 +612,7 @@ Steps:
 
 ### WhatsApp Campaigns for Onboarding
 - Target: New signups who haven't added their first lead
-- Message: "Hi [Name]! Your Convorian account is ready. Add your first lead in 2 minutes and watch the AI take over 👉 [link]"
+- Message: "Hi [Name]! Your TING account is ready. Add your first lead in 2 minutes and watch the AI take over 👉 [link]"
 - Only send to opted-in users
 - Frequency: Max 1 message per 3 days during trial
 
@@ -664,7 +664,7 @@ Day 14: Trial ends → soft paywall
 **Phase 2 (Month 3–6):** Fine-tune on real estate conversation data
 - Collect anonymised successful conversations (with agent consent)
 - Fine-tune a smaller open model (Llama 3.x / Mistral)
-- This becomes the Convorian Conversion Engine v2
+- This becomes the TING Conversion Engine v2
 
 **Phase 3 (Month 6–12):** Multi-vertical intelligence
 - Separate prompt layers per industry (real estate, insurance, education, auto)
@@ -744,7 +744,7 @@ This is the virtuous cycle. Protect it. It is your core competitive advantage.
 ### TECHNICAL (Claude Code)
 - [x] Migrate AI to Groq (Llama 3.3 70B)
 - [x] Demo-chat working (now on landing page; remove once Meta API live for real testing)
-- [ ] **Rebrand LeadNest → Convorian everywhere** (brand name + new colour theme)
+- [x] **Keep visible product wording as TING everywhere**
 - [ ] Add Privacy Policy page at /privacy-policy (content ready in files/)
 - [ ] Add Terms of Service page at /terms-of-service (content ready in files/)
 - [ ] Add Refund Policy + Cookie Policy pages

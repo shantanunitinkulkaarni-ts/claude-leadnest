@@ -34,7 +34,7 @@ export async function sendHighPriorityAlert(
   }
 
   // 2) WhatsApp — to the agent's own phone, via Meta Cloud API direct.
-  // A session (free-text) message from the agent's own Convorian number; the
+  // A session (free-text) message from the agent's own TING number; the
   // 24h window applies. Out-of-window delivery will need an approved Meta alert
   // template (follow-up) — email above is the guaranteed channel meanwhile.
   try {

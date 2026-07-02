@@ -224,7 +224,7 @@ export default function LeadsScreen({ agentId }: Props) {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "leadnest_leads_template.csv");
+    link.setAttribute("download", "ting_leads_template.csv");
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -423,7 +423,7 @@ export default function LeadsScreen({ agentId }: Props) {
             <div style={{ padding: '22px 24px 16px', borderBottom: '1px solid rgba(26,25,22,0.08)' }}>
               <div style={{ fontSize: 17, fontWeight: 700, color: '#15161B' }}>Before outreach starts</div>
               <div style={{ fontSize: 12, color: '#6B6860', marginTop: 6, lineHeight: 1.55 }}>
-                Convorian will message these leads on your behalf. That uses your WhatsApp setup and may use your messaging credits when outreach triggers.
+                TING will message these leads on your behalf. That uses your WhatsApp setup and may use your messaging credits when outreach triggers.
               </div>
             </div>
             <div style={{ padding: 24 }}>
@@ -506,7 +506,7 @@ export default function LeadsScreen({ agentId }: Props) {
               </div>
               <div style={{ background: '#FFF8E6', border: '1px solid #F0D98C', borderRadius: 10, padding: '12px 14px' }}>
                 <div style={{ fontSize: 11.5, color: '#7A5200', lineHeight: 1.55, marginBottom: 10 }}>
-                  ⚠️ <strong>Important — please read.</strong> Only add a lead who has personally messaged you or clearly agreed to be contacted on WhatsApp. If you message someone without their consent and they report it, <strong>Meta can permanently block your WhatsApp number</strong> — this is enforced by Meta and is beyond Convorian&apos;s control. We cannot undo it.
+                  ⚠️ <strong>Important — please read.</strong> Only add a lead who has personally messaged you or clearly agreed to be contacted on WhatsApp. If you message someone without their consent and they report it, <strong>Meta can permanently block your WhatsApp number</strong> — this is enforced by Meta and is beyond TING&apos;s control. We cannot undo it.
                 </div>
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: '#3D3B34', lineHeight: 1.45, cursor: 'pointer' }}>
                   <input type="checkbox" required checked={leadConsent} onChange={e => setLeadConsent(e.target.checked)} style={{ marginTop: 2, flexShrink: 0 }} />

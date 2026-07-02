@@ -72,8 +72,8 @@ export default function BalanceScreen({ agentId }: Props) {
       const options = {
         key: data.keyId,
         subscription_id: data.subscription_id,
-        name: 'Convorian',
-        description: '₹999/month — Convorian AI assistant',
+        name: 'TING',
+        description: '₹999/month — TING AI assistant',
         theme: { color: '#4F46E5' },
         handler: async () => {
           // Activation is confirmed by webhook; refresh shortly after.
@@ -193,7 +193,7 @@ export default function BalanceScreen({ agentId }: Props) {
       <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: 24, marginBottom: 28 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#4F46E5', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Convorian Pro</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#4F46E5', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>TING Pro</div>
             <div style={{ fontFamily: "'DM Serif Display',serif", fontSize: 30, color: '#15161B', lineHeight: 1 }}>₹999<span style={{ fontSize: 15, color: '#9E9B92' }}>/month</span></div>
             <div style={{ fontSize: 12, color: '#9E9B92', marginTop: 4 }}>AI assistant · lead qualification · visit booking · 24/7 replies</div>
           </div>
@@ -249,7 +249,7 @@ export default function BalanceScreen({ agentId }: Props) {
             {invoices.map((inv, i) => (
               <div key={inv.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: i < invoices.length - 1 ? '1px solid rgba(26,25,22,0.06)' : 'none' }}>
                 <div>
-                  <div style={{ fontSize: 13, color: '#15161B', fontWeight: 500 }}>Convorian subscription</div>
+                  <div style={{ fontSize: 13, color: '#15161B', fontWeight: 500 }}>TING subscription</div>
                   <div style={{ fontSize: 12, color: '#9E9B92', marginTop: 2 }}>{fmtDate(inv.date)}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -282,13 +282,13 @@ export default function BalanceScreen({ agentId }: Props) {
           </>
         )}
         <div style={{ fontSize: 13, color: '#3D3B34', lineHeight: 1.7 }}>
-          Proactive WhatsApp messages — visit reminders, follow-ups and re-engagement templates — are billed <strong>directly by Meta</strong> to your own WhatsApp Business account. Convorian adds no markup and doesn’t hold your balance. Add a payment method and top up from your Meta account.
+          Proactive WhatsApp messages — visit reminders, follow-ups and re-engagement templates — are billed <strong>directly by Meta</strong> to your own WhatsApp Business account. TING adds no markup and doesn’t hold your balance. Add a payment method and top up from your Meta account.
         </div>
         <a href="https://business.facebook.com/billing_hub/accounts" target="_blank" rel="noopener noreferrer"
           style={{ display: 'inline-block', marginTop: 16, padding: '11px 20px', borderRadius: 9, background: '#4F46E5', color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>
           Recharge on Meta →
         </a>
-        <div style={{ fontSize: 11.5, color: '#9E9B92', marginTop: 14 }}>Your ₹999/month Convorian subscription (above) is separate and billed by us.</div>
+        <div style={{ fontSize: 11.5, color: '#9E9B92', marginTop: 14 }}>Your ₹999/month TING subscription (above) is separate and billed by us.</div>
       </div>
       <div style={{ background: '#fff', border: '1px solid rgba(26,25,22,0.08)', borderRadius: 14, padding: '18px 20px' }}>
         <div style={{ fontSize: 11, fontWeight: 500, color: '#6B6860', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>Transaction history</div>

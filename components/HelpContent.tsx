@@ -77,7 +77,7 @@ function TicketForm() {
 export default function HelpContent() {
   const [open, setOpen] = useState<string | null>(null)
   const [showTicket, setShowTicket] = useState(false)
-  const waLink = supportWhatsappLink('Hi Convorian team, I need help with my account.')
+  const waLink = supportWhatsappLink('Hi TING team, I need help with my account.')
 
   return (
     <div>

@@ -79,7 +79,7 @@ export function buildAlertContent(
     `<p>${spec.action}</p>` +
     `<p style="color:#666;font-size:13px">Lead: ${name} · ${phone}</p>`
   const whatsappText =
-    `${spec.emoji} Convorian alert\n\n${reasonLine}` +
+    `${spec.emoji} TING alert\n\n${reasonLine}` +
     (botReplyLine ? `\n\n${botReplyLine}` : '') +
     `\n\n👉 ${spec.action}`
 

@@ -60,8 +60,8 @@ test.describe('buildEnginePrompt — tone injection', () => {
   test('professional tone: mandatory directive injected up front', () => {
     const prompt = buildPrompt('professional')
     expect(prompt.indexOf('MANDATORY TONE RULE')).toBeGreaterThanOrEqual(0)
-    // Placed before the main "You are the Convorian Conversion Engine" body, like langDirective.
-    expect(prompt.indexOf('MANDATORY TONE RULE')).toBeLessThan(prompt.indexOf('You are the Convorian Conversion Engine'))
+    // Placed before the main "You are the TING Conversion Engine" body, like langDirective.
+    expect(prompt.indexOf('MANDATORY TONE RULE')).toBeLessThan(prompt.indexOf('You are the TING Conversion Engine'))
   })
 
   test('professional tone: property card format drops emojis', () => {

@@ -3,7 +3,7 @@
 _Last updated: 25 June 2026_
 
 This policy explains how billing, cancellations and refunds work for **TING**, the AI
-WhatsApp assistant for real-estate agents (operated by **Convorian** / Shantanu
+WhatsApp assistant for real-estate agents, TING (operated by **Convorian** / Shantanu
 Kulkaarni), available at https://convorian.in. By subscribing, you agree to this
 policy together with our [Terms of Service](/terms-of-service) and
 [Privacy Policy](/privacy-policy).

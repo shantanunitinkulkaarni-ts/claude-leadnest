@@ -6,7 +6,7 @@
 
 ## 1. Who We Are
 
-Convorian ("we", "us", "our") is an AI-powered sales nurturing and WhatsApp automation platform. Convorian is currently operated as a sole proprietorship by its founder in India (incorporation as a private limited company is planned). We help businesses automate lead nurturing and communication through WhatsApp and other channels.
+TING is an AI-powered sales nurturing and WhatsApp automation platform operated by Convorian ("we", "us", "our"), currently operated as a sole proprietorship by its founder in India (incorporation as a private limited company is planned). We help businesses automate lead nurturing and communication through WhatsApp and other channels.
 
 Contact: privacy@convorian.in
 
@@ -36,7 +36,7 @@ Contact: privacy@convorian.in
 ## 3. Why We Collect This Data
 
 We use your data to:
-- Provide and operate the Convorian platform
+- Provide and operate TING
 - Power the AI conversation engine
 - Send WhatsApp messages on behalf of agents to their leads
 - Generate analytics and ROI reports for agents
@@ -52,7 +52,7 @@ To make our AI assistants smarter and more helpful over time, we may use convers
 - **Purpose limitation:** This data is used only to improve the quality, accuracy and safety of our AI — never sold or shared with third parties for their own marketing.
 - **Your choice:** If you would prefer your account's conversations not be used to improve our AI, email us at privacy@convorian.in and we will exclude your account.
 
-By using Convorian you consent to this use of anonymised conversation data as described above.
+By using TING you consent to this use of anonymised conversation data as described above.
 
 ---
 
@@ -109,13 +109,13 @@ We will respond within 30 days.
 
 ## 8. Lead Data & Agent Responsibility
 
-Convorian is a platform. Agents are responsible for:
-- Obtaining proper consent from their leads before adding them to Convorian
+TING is a platform. Agents are responsible for:
+- Obtaining proper consent from their leads before adding them to TING
 - Ensuring leads have opted in to receive WhatsApp messages
 - Complying with applicable communication laws in their region
 - Not uploading data of minors
 
-By using Convorian, agents confirm they have obtained all necessary consents.
+By using TING, agents confirm they have obtained all necessary consents.
 
 ---
 
@@ -132,7 +132,7 @@ You can manage cookie preferences via the cookie banner on our website.
 
 ## 10. Children's Privacy
 
-Convorian is not directed at children under 18. We do not knowingly collect data from minors. If you believe we have collected data from a minor, contact us immediately.
+TING is not directed at children under 18. We do not knowingly collect data from minors. If you believe we have collected data from a minor, contact us immediately.
 
 ---
 

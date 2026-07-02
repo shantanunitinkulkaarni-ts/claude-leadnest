@@ -63,12 +63,12 @@ export default function InboxScreen({ agentId }: Props) {
     { caption: 'Start like a real buyer would — say hello.', suggestions: ['Hi'] },
     { caption: 'Tell the bot what you want — plain English works.', suggestions: ['I want to buy a 2 BHK in Wakad'] },
     { caption: 'It asks your name — reply naturally.', suggestions: ['My name is Rahul'] },
-    { caption: 'Now it asks your budget.', suggestions: ['Budget around ₹90 lakh'] },
+    { caption: 'Now it asks your budget.', suggestions: ['Budget around ?90 lakh'] },
     { caption: 'Keep going until it shows a matching property.', suggestions: ['Yes, show me the options'] },
     { caption: 'Now act interested — ask to visit the property.', suggestions: ["I'd like to visit this one"] },
     { caption: 'Give it a day and time for the site visit.', suggestions: ['Saturday at 11 AM'] },
     { caption: 'It needs an email to send the confirmation — give yours.', suggestions: [simEmail] },
-    { caption: '🎉 Done! The bot qualified the lead, booked a visit, and emailed the confirmation — exactly what it does 24/7 on real WhatsApp leads once you connect. Add your own leads & properties anytime.', suggestions: [] },
+    { caption: '?? Done! The bot qualified the lead, booked a visit, and emailed the confirmation — exactly what it does 24/7 on real WhatsApp leads once you connect. Add your own leads & properties anytime.', suggestions: [] },
   ]
 
   const openBookModal = () => {
@@ -222,13 +222,13 @@ export default function InboxScreen({ agentId }: Props) {
     if (appt) {
       const dt = new Date(appt.scheduled_at)
       const when = dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ', ' + dt.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })
-      return { text: `📅 Visit booked — ${when}`, bg: '#E7F6EC', c: '#1B7A43' }
+      return { text: `?? Visit booked — ${when}`, bg: '#E7F6EC', c: '#1B7A43' }
     }
-    if (lead.post_visit_result) return { text: '🏁 Visited — close the deal', bg: '#EEF0FE', c: '#4338CA' }
-    if (lead.timeline === 'immediately' || lead.timeline === 'urgent') return { text: '⚡ Urgent — wants to move now', bg: '#FDF0F0', c: '#8B1A1A' }
-    if ((lead.ai_score || 0) >= 8) return { text: '🔥 Hot lead — push for a visit', bg: '#FDF0F0', c: '#8B1A1A' }
-    if (lead.status === 'qualified') return { text: `✓ Qualified${lead.budget_max ? ` — up to ₹${Number(lead.budget_max).toLocaleString('en-IN')}` : ''}`, bg: '#FEF9E7', c: '#7A5200' }
-    if (lead.bot_paused) return { text: '👤 Manual mode — you\'re handling this', bg: '#FEF9E7', c: '#7A5200' }
+    if (lead.post_visit_result) return { text: '?? Visited — close the deal', bg: '#EEF0FE', c: '#4338CA' }
+    if (lead.timeline === 'immediately' || lead.timeline === 'urgent') return { text: '? Urgent — wants to move now', bg: '#FDF0F0', c: '#8B1A1A' }
+    if ((lead.ai_score || 0) >= 8) return { text: '?? Hot lead — push for a visit', bg: '#FDF0F0', c: '#8B1A1A' }
+    if (lead.status === 'qualified') return { text: `? Qualified${lead.budget_max ? ` — up to ?${Number(lead.budget_max).toLocaleString('en-IN')}` : ''}`, bg: '#FEF9E7', c: '#7A5200' }
+    if (lead.bot_paused) return { text: '?? Manual mode — you\'re handling this', bg: '#FEF9E7', c: '#7A5200' }
     return null
   }
 
@@ -293,7 +293,7 @@ export default function InboxScreen({ agentId }: Props) {
     }
   }, [leads, selected])
 
-  // Global search → open a specific lead in the inbox.
+  // Global search ? open a specific lead in the inbox.
   useEffect(() => {
     const handler = (e: Event) => {
       const id = (e as CustomEvent).detail
@@ -375,7 +375,7 @@ export default function InboxScreen({ agentId }: Props) {
     setSimStep(s => s + 1) // advance the guided walkthrough
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('leadnest:tour-action', { detail: 'sim-sent' }))
-      // Fired once, only when the full demo (hello → qualify → match → book) is
+      // Fired once, only when the full demo (hello ? qualify ? match ? book) is
       // done — the spotlight tutorial waits on this single event instead of
       // trying to keep its own step count in sync with every chip tapped here.
       if (isFinalScriptStep) {
@@ -526,7 +526,7 @@ export default function InboxScreen({ agentId }: Props) {
                   <div style={{ fontSize: 12, color: '#9E9B92', marginTop: 1 }}>{selected.phone}</div>
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 500, background: tc.bg, color: tc.c }}>⭐ {selected.ai_score || 0}/10</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 500, background: tc.bg, color: tc.c }}>? {selected.ai_score || 0}/10</span>
                   {(agent?.wa_verified || agent?.wa_phone_number_id) ? (
                     <span style={{ fontSize: 11, padding: '6px 12px', borderRadius: 7, fontWeight: 600, background: '#E7F6EC', color: '#1B7A43', border: '1px solid rgba(27,122,67,0.16)' }}>
                       WhatsApp connected
@@ -545,7 +545,7 @@ export default function InboxScreen({ agentId }: Props) {
               {/* Manual banner */}
               {isManual && (
                 <div style={{ background: '#FEF9E7', borderBottom: '1px solid rgba(183,119,13,0.2)', padding: '7px 22px', fontSize: 12, color: '#7A5200', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  👤 You are in manual mode — bot is paused on this conversation. Messages sent here will go to their WhatsApp.
+                  ?? You are in manual mode — bot is paused on this conversation. Messages sent here will go to their WhatsApp.
                   {resumeCountdown && (
                     <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 999, background: resumeCountdown.state === 'resuming' ? '#EEF0FE' : '#fff7dc', color: resumeCountdown.state === 'resuming' ? '#4338CA' : '#7A5200', border: `1px solid ${resumeCountdown.state === 'resuming' ? 'rgba(79,70,229,0.2)' : 'rgba(183,119,13,0.2)'}` }}>
                       {resumeCountdown.text}
@@ -556,7 +556,7 @@ export default function InboxScreen({ agentId }: Props) {
               )}
               {isSimulating && (
                 <div style={{ background: '#EEF4FC', borderBottom: '1px solid rgba(26,95,165,0.2)', padding: '7px 22px', fontSize: 12, color: '#1A5FA5', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  🧑‍💻 You are Simulating the Lead. Messages sent here will instantly trigger the AI bot.
+                  ????? You are Simulating the Lead. Messages sent here will instantly trigger the AI bot.
                   <button className="inbox-btn" onClick={() => setIsSimulating(false)} style={{ marginLeft: 'auto', fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer', border: '1px solid rgba(26,95,165,0.25)', background: '#fff', color: '#1A5FA5', fontFamily: 'inherit', transition: 'all 0.15s' }}>Stop simulating</button>
                 </div>
               )}
@@ -578,7 +578,7 @@ export default function InboxScreen({ agentId }: Props) {
                       {messages.length === 0 && <div style={{ textAlign: 'center', color: '#9E9B92', fontSize: 13, marginTop: 20 }}>No messages yet.</div>}
                       {messages.map(msg => (
                         <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.direction === 'outbound' ? 'flex-end' : 'flex-start' }}>
-                          {msg.direction === 'outbound' && <div style={{ fontSize: 10, color: '#9E9B92', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>{msg.sent_by === 'bot' ? '🤖 Convorian bot' : '👤 You'}</div>}
+                          {msg.direction === 'outbound' && <div style={{ fontSize: 10, color: '#9E9B92', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>{msg.sent_by === 'bot' ? '?? TING bot' : '?? You'}</div>}
                           <div style={{ padding: '9px 13px', fontSize: 13, lineHeight: 1.5, maxWidth: '72%', background: msg.direction === 'outbound' ? (msg.sent_by === 'bot' ? '#15161B' : '#4F46E5') : '#fff', color: msg.direction === 'outbound' ? '#fff' : '#15161B', borderRadius: msg.direction === 'outbound' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', border: msg.direction === 'inbound' ? '1px solid rgba(26,25,22,0.08)' : 'none' }}>{msg.content}</div>
                           <div style={{ fontSize: 10, color: '#C8C5BC', marginTop: 3 }}>{formatTime(msg.created_at)}</div>
                         </div>
@@ -593,13 +593,13 @@ export default function InboxScreen({ agentId }: Props) {
                       return (
                         <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(26,95,165,0.18)', background: '#F4F8FD' }}>
                           <div style={{ fontSize: 11.5, marginBottom: cur.suggestions.length ? 8 : 0, display: 'flex', gap: 6, lineHeight: 1.5 }}>
-                            <strong style={{ color: '#1A5FA5', whiteSpace: 'nowrap' }}>{isDone ? '✅' : `Step ${stepIdx + 1}/${totalRealSteps}`}</strong>
+                            <strong style={{ color: '#1A5FA5', whiteSpace: 'nowrap' }}>{isDone ? '?' : `Step ${stepIdx + 1}/${totalRealSteps}`}</strong>
                             <span style={{ color: '#3D5A80' }}>{cur.caption}</span>
                           </div>
                           {cur.suggestions.length > 0 && (
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                               {cur.suggestions.map((s, i) => (
-                                <button key={i} onClick={() => handleSimulateLeadMessage(s)} className="sim-chip-pulse" style={{ fontSize: 12, padding: '6px 12px', borderRadius: 16, border: '1px solid rgba(26,95,165,0.3)', background: '#fff', color: '#1A5FA5', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>💬 {s}</button>
+                                <button key={i} onClick={() => handleSimulateLeadMessage(s)} className="sim-chip-pulse" style={{ fontSize: 12, padding: '6px 12px', borderRadius: 16, border: '1px solid rgba(26,95,165,0.3)', background: '#fff', color: '#1A5FA5', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>?? {s}</button>
                               ))}
                             </div>
                           )}
@@ -627,7 +627,7 @@ export default function InboxScreen({ agentId }: Props) {
                         }} 
                         className={(isManual || isSimulating) ? "inbox-btn-dark" : ""} 
                         disabled={!isManual && !isSimulating} 
-                        style={{ width: 36, height: 36, borderRadius: '50%', background: (isManual || isSimulating) ? '#15161B' : '#ECEAE0', color: (isManual || isSimulating) ? '#fff' : '#15161B', border: 'none', cursor: (isManual || isSimulating) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0, transition: 'all 0.15s' }}>➤</button>
+                        style={{ width: 36, height: 36, borderRadius: '50%', background: (isManual || isSimulating) ? '#15161B' : '#ECEAE0', color: (isManual || isSimulating) ? '#fff' : '#15161B', border: 'none', cursor: (isManual || isSimulating) ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0, transition: 'all 0.15s' }}>?</button>
                     </div>
                   </div>
                 )}
@@ -637,7 +637,7 @@ export default function InboxScreen({ agentId }: Props) {
                     {[
                       { k: 'Looking for', v: (selected.intent || 'Unknown') + ' — ' + (selected.property_category || 'Any') },
                       { k: 'Areas preferred', v: (selected.preferred_areas || []).join(', ') || 'Not specified' },
-                      { k: 'Budget', v: selected.budget_max ? `Up to ₹${Number(selected.budget_max).toLocaleString('en-IN')}${selected.intent === 'rent' ? '/mo' : ''}` : 'Not specified' },
+                      { k: 'Budget', v: selected.budget_max ? `Up to ?${Number(selected.budget_max).toLocaleString('en-IN')}${selected.intent === 'rent' ? '/mo' : ''}` : 'Not specified' },
                       { k: 'Timeline', v: selected.timeline || 'Not specified' },
                       { k: 'Lead source', v: selected.source === 'whatsapp_inbound' ? 'WhatsApp inbound' : selected.source },
                       { k: 'First contact', v: new Date(selected.created_at).toLocaleDateString() },
@@ -675,7 +675,7 @@ export default function InboxScreen({ agentId }: Props) {
                           <div style={{ fontSize: 13, fontWeight: 500, color: '#15161B' }}>{p.title}</div>
                           <div style={{ fontSize: 11, color: '#9E9B92', marginTop: 2 }}>{p.location}, {p.city}</div>
                           <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-                            <span style={{ fontSize: 13, fontWeight: 500, color: '#1A5FA5' }}>₹{(p.price || p.rent_per_month || 0).toLocaleString('en-IN')}{p.type === 'rental' ? '/mo' : ''}</span>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: '#1A5FA5' }}>?{(p.price || p.rent_per_month || 0).toLocaleString('en-IN')}{p.type === 'rental' ? '/mo' : ''}</span>
                             {p.bhk && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: '#F4F3EE', color: '#6B6860' }}>{p.bhk}</span>}
                             <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 6, background: p.type === 'sale' ? '#EEF4FC' : '#FEF9E7', color: p.type === 'sale' ? '#1A5FA5' : '#B7770D', textTransform: 'capitalize' }}>{p.type}</span>
                           </div>
@@ -712,7 +712,7 @@ export default function InboxScreen({ agentId }: Props) {
           <form onSubmit={handleBookVisit} style={{ background: '#fff', borderRadius: 16, width: 'min(420px, calc(100vw - 32px))', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(26,25,22,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: 16, fontWeight: 500, color: '#15161B' }}>Book Site Visit</div>
-              <button type="button" onClick={() => setShowBookModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, color: '#9E9B92' }}>✕</button>
+              <button type="button" onClick={() => setShowBookModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, color: '#9E9B92' }}>?</button>
             </div>
 
             <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -722,7 +722,7 @@ export default function InboxScreen({ agentId }: Props) {
 
               {bookError && (
                 <div style={{ background: '#FDF0F0', color: '#8B1A1A', padding: '10px 14px', borderRadius: 8, fontSize: 13 }}>
-                  ⚠️ {bookError}
+                  ?? {bookError}
                 </div>
               )}
 

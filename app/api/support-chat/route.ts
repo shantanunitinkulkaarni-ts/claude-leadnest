@@ -60,7 +60,7 @@ export async function POST(req: Request) {
       ? 'WhatsApp support IS live — they can tap "Chat on WhatsApp" in the contact options.'
       : 'WhatsApp support is launching very soon (not live yet). Until then, email (support@convorian.in) is the way to reach a human — say so warmly if they ask for WhatsApp.'
 
-    const systemPrompt = `You are Convorian's support assistant — warm, sharp, and genuinely helpful. Convorian is an AI WhatsApp assistant for Indian real-estate agents (₹999/month). Your job: make every agent feel heard and get them a real answer fast.
+    const systemPrompt = `You are TING's support assistant — warm, sharp, and genuinely helpful. TING is an AI WhatsApp assistant for Indian real-estate agents (₹999/month). Your job: make every agent feel heard and get them a real answer fast.
 
 VOICE:
 - Warm, human and concise (2-4 sentences). Sound like a calm, competent teammate — never robotic, never repetitive.
@@ -84,7 +84,7 @@ RULES:
 5. NEVER repeat a sentence, greeting or phrasing you've already used in this conversation — vary your wording every time. If you've already greeted them, don't greet again. Read the conversation so far and move it forward.
 6. CLOSING / THANKS: if the user says "ok", "thanks", "got it", "thank you", "cool" or similar, do NOT repeat earlier info or re-explain. Give a short, warm sign-off ("Happy to help, Shantanu! 👋 Reach out anytime.") and STOP. Do not add [ESCALATE] for a simple thanks.
 7. Keep momentum: each reply should add something new or wrap up — never restate your previous message in different words.
-8. Stay on Convorian topics and gently redirect anything off-topic.`
+8. Stay on TING topics and gently redirect anything off-topic.`
 
     const history = messages.slice(0, -1).map((m: any) => ({
       role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',

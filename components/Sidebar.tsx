@@ -11,22 +11,19 @@ interface Props {
 }
 
 const navItems: { screen: Screen; label: string; icon: string }[] = [
-  { screen: 'overview', label: 'Overview', icon: '▦' },
-  { screen: 'inbox', label: 'Inbox', icon: '💬' },
-  { screen: 'leads', label: 'Leads', icon: '👥' },
-  { screen: 'properties', label: 'Properties', icon: '🏠' },
-  { screen: 'appointments', label: 'Appointments', icon: '📅' },
-  { screen: 'analytics', label: 'ROI Dashboard', icon: '📊' },
-  { screen: 'knowledge_gaps', label: 'Train Your Bot', icon: '🎓' },
-  { screen: 'balance', label: 'Billing & Credits', icon: '💳' },
-  { screen: 'settings', label: 'Settings', icon: '⚙️' },
+  { screen: 'overview', label: 'Overview', icon: '□' },
+  { screen: 'inbox', label: 'Inbox', icon: 'Msg' },
+  { screen: 'leads', label: 'Leads', icon: 'Ld' },
+  { screen: 'properties', label: 'Properties', icon: 'Pr' },
+  { screen: 'appointments', label: 'Appointments', icon: 'Ap' },
+  { screen: 'analytics', label: 'ROI Dashboard', icon: 'ROI' },
+  { screen: 'knowledge_gaps', label: 'Train Your Bot', icon: 'Bot' },
+  { screen: 'balance', label: 'Billing & Credits', icon: 'Rs' },
+  { screen: 'settings', label: 'Settings', icon: 'Set' },
 ]
 
 export default function Sidebar({ activeScreen, onNavigate, agent, isOpen = false, onClose }: Props) {
   const [botActive, setBotActive] = useState(agent?.bot_active ?? true)
-  const [showPin, setShowPin] = useState(false)
-  const [pin, setPin] = useState('')
-  const [pinErr, setPinErr] = useState('')
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
@@ -40,30 +37,10 @@ export default function Sidebar({ activeScreen, onNavigate, agent, isOpen = fals
     if (agent && typeof agent.bot_active === 'boolean') setBotActive(agent.bot_active)
   }, [agent])
 
-  const persistBot = async (newVal: boolean) => {
-    if (!agent?.id) return
-    setBotActive(newVal)
-    try {
-      await fetch(`/api/agent?id=${agent.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bot_active: newVal })
-      })
-    } catch {
-      setBotActive(!newVal)
-    }
-  }
-
-  const toggleBot = () => {
-    if (!agent?.id) return
-    if (botActive) { setPin(''); setPinErr(''); setShowPin(true); return }
-    persistBot(true)
-  }
-
-  const confirmPause = () => {
-    if (pin !== '1234') { setPinErr('Incorrect PIN. Default is 1234.'); return }
-    setShowPin(false); setPin(''); setPinErr('')
-    persistBot(false)
+  const showBotControls = () => {
+    onNavigate('settings')
+    if (isMobile) onClose?.()
+    setTimeout(() => window.dispatchEvent(new Event('leadnest:show-bot-controls')), 80)
   }
 
   const handleNav = (s: Screen) => {
@@ -77,13 +54,10 @@ export default function Sidebar({ activeScreen, onNavigate, agent, isOpen = fals
   const msgUsed = agent?.messages_used || 0
   const msgLimit = agent?.messages_limit || 5000
   const balancePct = Math.min((msgUsed / msgLimit) * 100, 100)
-
-  // On desktop: always visible. On mobile: overlay, shown when isOpen.
   const visible = !isMobile || isOpen
 
   return (
     <>
-      {/* Mobile backdrop */}
       {isMobile && isOpen && (
         <div
           onClick={onClose}
@@ -104,17 +78,16 @@ export default function Sidebar({ activeScreen, onNavigate, agent, isOpen = fals
         <div style={{ position: 'absolute', width: 280, height: 280, background: 'radial-gradient(circle,rgba(79,70,229,0.16) 0%,transparent 70%)', top: -60, right: -100, pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', width: 200, height: 200, background: 'radial-gradient(circle,rgba(124,58,237,0.10) 0%,transparent 70%)', bottom: 40, left: -60, pointerEvents: 'none' }} />
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
-          {/* Logo */}
           <div style={{ padding: '22px 20px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <img src="/icon.webp" alt="Convorian" style={{ width: 26, height: 26, borderRadius: 8, objectFit: 'cover' }} />
-              <span style={{ fontSize: 15, fontWeight: 500, color: '#fff', letterSpacing: '-0.01em' }}>Convorian</span>
+              <img src="/icon.webp" alt="TING" style={{ width: 26, height: 26, borderRadius: 8, objectFit: 'cover' }} />
+              <span style={{ fontSize: 15, fontWeight: 500, color: '#fff', letterSpacing: '-0.01em' }}>TING</span>
             </div>
             {isMobile && (
-              <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 18, cursor: 'pointer', padding: 0, lineHeight: 1 }}>✕</button>
+              <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 18, cursor: 'pointer', padding: 0, lineHeight: 1 }}>x</button>
             )}
           </div>
-          {/* Agent */}
+
           <div data-tour="agent-card" style={{ padding: '14px 20px 12px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#4F46E5,#4338CA)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 500, color: '#fff', flexShrink: 0 }}>{initials}</div>
@@ -123,10 +96,10 @@ export default function Sidebar({ activeScreen, onNavigate, agent, isOpen = fals
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>{agencyName}</div>
               </div>
             </div>
-            {/* AI Bot toggle — full-width row with a proper switch */}
+
             <div
-              onClick={toggleBot}
-              title={botActive ? 'AI bot is replying to leads. Click to pause.' : 'AI bot is paused. Click to activate.'}
+              onClick={showBotControls}
+              title="Manage bot status in Settings"
               style={{
                 marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 gap: 8, padding: '8px 12px', borderRadius: 10, cursor: 'pointer',
@@ -145,7 +118,6 @@ export default function Sidebar({ activeScreen, onNavigate, agent, isOpen = fals
                   {botActive ? 'AI Bot active' : 'AI Bot paused'}
                 </span>
               </div>
-              {/* Switch track + knob */}
               <div style={{
                 width: 34, height: 19, borderRadius: 20, flexShrink: 0, position: 'relative',
                 background: botActive ? 'linear-gradient(135deg,#6366F1,#4F46E5)' : 'rgba(255,255,255,0.18)',
@@ -159,7 +131,7 @@ export default function Sidebar({ activeScreen, onNavigate, agent, isOpen = fals
               </div>
             </div>
           </div>
-          {/* Nav */}
+
           <div style={{ flex: 1, padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
             <div style={{ fontSize: 9, fontWeight: 500, color: 'rgba(255,255,255,0.25)', letterSpacing: '0.08em', padding: '8px 10px 4px', textTransform: 'uppercase' }}>Main</div>
             {navItems.slice(0, 5).map(item => (
@@ -172,7 +144,7 @@ export default function Sidebar({ activeScreen, onNavigate, agent, isOpen = fals
               <NavItem key={item.screen} item={item} active={activeScreen === item.screen} onClick={() => handleNav(item.screen)} />
             ))}
           </div>
-          {/* AI message usage (WhatsApp messaging itself is billed by Meta) */}
+
           <div style={{ padding: '14px 20px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>AI messages</span>
@@ -183,21 +155,6 @@ export default function Sidebar({ activeScreen, onNavigate, agent, isOpen = fals
             </div>
           </div>
         </div>
-
-        {showPin && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26,25,22,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, backdropFilter: 'blur(3px)' }}>
-            <div style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', width: 320, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
-              <div style={{ fontSize: 16, fontWeight: 600, color: '#15161B', marginBottom: 6 }}>Pause AI Bot?</div>
-              <div style={{ fontSize: 12, color: '#9E9B92', marginBottom: 16 }}>Pausing stops the bot from replying to all leads on WhatsApp. Enter the master PIN to confirm. Default: 1234.</div>
-              {pinErr && <div style={{ background: '#FDF0F0', color: '#8B1A1A', padding: '8px 12px', borderRadius: 8, fontSize: 12, marginBottom: 12 }}>⚠️ {pinErr}</div>}
-              <input type="password" value={pin} onChange={e => setPin(e.target.value)} placeholder="Enter PIN" autoFocus onKeyDown={e => e.key === 'Enter' && confirmPause()} style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(26,25,22,0.18)', fontSize: 14, fontFamily: 'inherit', marginBottom: 16, outline: 'none', boxSizing: 'border-box' }} />
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button onClick={() => { setShowPin(false); setPin(''); setPinErr('') }} style={{ padding: '8px 16px', borderRadius: 8, background: '#F4F3EE', color: '#6B6860', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>Cancel</button>
-                <button onClick={confirmPause} style={{ padding: '8px 16px', borderRadius: 8, background: '#C0392B', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: 'inherit' }}>Pause Bot</button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </>
   )
@@ -206,7 +163,7 @@ export default function Sidebar({ activeScreen, onNavigate, agent, isOpen = fals
 function NavItem({ item, active, onClick }: { item: any; active: boolean; onClick: () => void }) {
   return (
     <div data-tour={`nav-${item.screen}`} onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', color: active ? '#fff' : 'rgba(255,255,255,0.45)', background: active ? 'rgba(255,255,255,0.10)' : 'transparent', fontSize: 12, transition: 'all 0.15s', userSelect: 'none' }}>
-      <span style={{ fontSize: 14 }}>{item.icon}</span>
+      <span style={{ fontSize: 11, minWidth: 20 }}>{item.icon}</span>
       <span style={{ flex: 1 }}>{item.label}</span>
     </div>
   )

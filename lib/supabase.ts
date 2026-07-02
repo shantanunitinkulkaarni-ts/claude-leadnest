@@ -16,14 +16,14 @@ type Database = {
   }
 }
 
-type ConvorianSupabaseClient = SupabaseClient<Database>
+type TINGSupabaseClient = SupabaseClient<Database>
 
 // Lazy initialisation — only creates client when first called
 // This prevents build-time errors when env vars are not available
-let _supabaseAdmin: ConvorianSupabaseClient | null = null
-let _supabase: ConvorianSupabaseClient | null = null
+let _supabaseAdmin: TINGSupabaseClient | null = null
+let _supabase: TINGSupabaseClient | null = null
 
-export function getSupabaseAdmin(): ConvorianSupabaseClient {
+export function getSupabaseAdmin(): TINGSupabaseClient {
   if (!_supabaseAdmin) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -35,7 +35,7 @@ export function getSupabaseAdmin(): ConvorianSupabaseClient {
   return _supabaseAdmin!
 }
 
-export function getSupabase(): ConvorianSupabaseClient {
+export function getSupabase(): TINGSupabaseClient {
   if (!_supabase) {
     // Fail-closed: no hardcoded URL / publishable-key fallback. If env is
     // missing in production, surface the misconfig loudly. (CLAUDE.md rule:
@@ -53,13 +53,13 @@ export function getSupabase(): ConvorianSupabaseClient {
 }
 
 // Keep backwards compat — these are now getters not instances
-export const supabaseAdmin = new Proxy({} as ConvorianSupabaseClient, {
+export const supabaseAdmin = new Proxy({} as TINGSupabaseClient, {
   get(_target, prop) {
     return (getSupabaseAdmin() as any)[prop]
   }
 })
 
-export const supabase = new Proxy({} as ConvorianSupabaseClient, {
+export const supabase = new Proxy({} as TINGSupabaseClient, {
   get(_target, prop) {
     return (getSupabase() as any)[prop]
   }

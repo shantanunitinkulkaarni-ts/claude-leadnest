@@ -8,7 +8,7 @@ type Rect = { top: number; left: number; width: number; height: number }
 interface Step {
   title: string
   text: string
-  tip?: string             // optional 💡 tip line in the card
+  tip?: string             // optional ?? tip line in the card
   voice?: string           // spoken narration (falls back to text, emoji-stripped)
   target?: string          // CSS selector to spotlight; omit for a centered card
   navigate?: Screen        // screen to switch to before showing this step
@@ -18,12 +18,12 @@ interface Step {
 
 const STEPS: Step[] = [
   {
-    title: 'Welcome to Convorian 👋',
+    title: 'Welcome to TING ??',
     text: "Let's take a quick hands-on tour. First you'll watch the AI handle a sample lead live, then add your own — by the end you'll know how to run the whole app.",
-    voice: "Welcome to Convorian. Let's take a quick hands-on tour. First you'll watch the AI handle a sample lead, then add your own.",
+    voice: "Welcome to TING. Let's take a quick hands-on tour. First you'll watch the AI handle a sample lead, then add your own.",
   },
   {
-    title: 'Try the bot — right now 🤖',
+    title: 'Try the bot — right now ??',
     text: 'We added "Priya (Sample Lead)" + sample properties so you can see the bot work before connecting WhatsApp. Click Next — we\'ll open her chat for you, and you just tap the suggested replies. Nothing goes to WhatsApp; it\'s a safe practice run.',
     voice: "We added a sample lead called Priya so you can see the bot work before connecting WhatsApp. Click Next, and just tap the suggested replies. Nothing goes out over WhatsApp — it's a safe practice run.",
     tip: 'This whole conversation is a simulation — totally safe to experiment.',
@@ -31,16 +31,16 @@ const STEPS: Step[] = [
     target: '[data-tour="nav-inbox"]',
   },
   {
-    title: 'Try the full demo below 👇',
+    title: 'Try the full demo below ??',
     text: 'Follow the numbered steps in the chat panel — tap each suggested reply to send it as the lead. Watch the bot greet them, understand what they want, qualify them, match a property, and book a site visit — completely on its own.',
     voice: 'Follow the numbered steps in the chat panel. Watch the bot greet the lead, qualify them, match a property, and book a site visit on its own.',
     navigate: 'inbox',
     target: '[data-tour="sim-panel"]',
     doneEvent: 'visit-booked',
-    actionHint: '👉 Work through the numbered steps in the chat below — tap each suggested reply.',
+    actionHint: '?? Work through the numbered steps in the chat below — tap each suggested reply.',
   },
   {
-    title: 'The visit is booked 🎉',
+    title: 'The visit is booked ??',
     text: 'The bot just qualified the lead and booked a site visit — completely on its own. Here it is on your Appointments page.',
     voice: 'The bot just qualified the lead and booked a site visit, completely on its own. Here it is on your Appointments page.',
     navigate: 'appointments',
@@ -68,7 +68,7 @@ const STEPS: Step[] = [
     navigate: 'leads',
     target: '[data-tour="add-lead"]',
     doneEvent: 'lead-added',
-    actionHint: '👉 Add a lead using the highlighted button to continue.',
+    actionHint: '?? Add a lead using the highlighted button to continue.',
   },
   {
     title: 'Add your own Property',
@@ -77,12 +77,12 @@ const STEPS: Step[] = [
     navigate: 'properties',
     target: '[data-tour="add-property"]',
     doneEvent: 'property-added',
-    actionHint: '👉 Add a property using the highlighted button to continue.',
+    actionHint: '?? Add a property using the highlighted button to continue.',
   },
   {
     title: 'Track your ROI',
-    text: 'See pipeline value, conversion rates, and estimated commission — split across rentals and purchases — so you always know what Convorian earns you.',
-    voice: 'Track your ROI here — pipeline value, conversion rates, and estimated commission, so you always know what Convorian earns you.',
+    text: 'See pipeline value, conversion rates, and estimated commission — split across rentals and purchases — so you always know what TING earns you.',
+    voice: 'Track your ROI here — pipeline value, conversion rates, and estimated commission, so you always know what TING earns you.',
     navigate: 'analytics',
     target: '[data-tour="nav-analytics"]',
   },
@@ -95,8 +95,8 @@ const STEPS: Step[] = [
     target: '[data-tour="wa-topup"]',
   },
   {
-    title: "You're all set! 🎉",
-    text: "That's the whole flow: experience the bot → add leads & properties → let it convert them → log visit feedback to close. Replay this tour anytime from the profile menu (top-right).",
+    title: "You're all set! ??",
+    text: "That's the whole flow: experience the bot ? add leads & properties ? let it convert them ? log visit feedback to close. Replay this tour anytime from the profile menu (top-right).",
     voice: "That's it — you're all set. Experience the bot, add your leads and properties, and let it convert them. You can replay this tour anytime from the profile menu.",
   },
 ]
@@ -233,7 +233,7 @@ export default function TutorialWalkthrough({ onNavigate }: { onNavigate?: (s: S
   const goBack = step > 0 ? () => setStep(step - 1) : undefined
 
   // Spotlight geometry: the padded target rect, or a zero-size point when there's
-  // no target (→ a single full-screen dim+blur panel, no hole).
+  // no target (? a single full-screen dim+blur panel, no hole).
   const sp = hasTarget && rect
     ? { top: rect.top - PAD, left: rect.left - PAD, w: rect.width + PAD * 2, h: rect.height + PAD * 2 }
     : { top: vh / 2, left: vw / 2, w: 0, h: 0 }
@@ -376,14 +376,14 @@ function TourCard({ step, current, isLast, centered, nextLocked, completed, onSk
 
       {current.tip && (
         <div style={{ background: '#F6F5FF', border: '1px solid #E7E4FF', borderRadius: 10, padding: '9px 12px', fontSize: 12.5, color: '#4338CA', lineHeight: 1.5, marginBottom: 16, display: 'flex', gap: 7 }}>
-          <span>💡</span><span>{current.tip}</span>
+          <span>??</span><span>{current.tip}</span>
         </div>
       )}
 
       {current.doneEvent && (
         completed ? (
           <div style={{ background: '#E7F6EC', color: '#1B7A43', padding: '10px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500, marginBottom: 16 }}>
-            ✓ Done! Click Next to continue.
+            ? Done! Click Next to continue.
           </div>
         ) : (
           <div style={{ background: '#FEF9E7', color: '#7A5200', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
@@ -414,7 +414,7 @@ function TourCard({ step, current, isLast, centered, nextLocked, completed, onSk
               // Pulse to draw the eye to the next action when it's unlocked.
               animation: nextLocked ? 'none' : 'tourNextPulse 1.4s ease-in-out infinite',
             }}>
-            {isLast ? 'Get Started' : 'Next'} {!nextLocked && !isLast ? '→' : ''}
+            {isLast ? 'Get Started' : 'Next'} {!nextLocked && !isLast ? '?' : ''}
           </button>
         </div>
       </div>

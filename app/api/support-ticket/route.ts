@@ -54,8 +54,8 @@ export async function POST(request: NextRequest) {
       if (email) {
         await sendEmail({
           to: email,
-          subject: 'We received your request — Convorian Support',
-          html: `<p>Hi ${escapeHtml(name || 'there')},</p><p>Thanks for reaching out. We've logged your request and our team will get back to you soon.</p><p><strong>Your message:</strong><br/>${escapeHtml(message).replace(/\n/g, '<br/>')}</p><p>— Team Convorian</p>`,
+          subject: 'We received your request — TING Support',
+          html: `<p>Hi ${escapeHtml(name || 'there')},</p><p>Thanks for reaching out. We've logged your request and our team will get back to you soon.</p><p><strong>Your message:</strong><br/>${escapeHtml(message).replace(/\n/g, '<br/>')}</p><p>— Team TING</p>`,
         })
       }
     } catch (mailErr: any) {

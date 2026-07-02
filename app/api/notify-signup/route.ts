@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail, escapeHtml } from '@/lib/email'
 import { checkRateLimit } from '@/lib/rateLimit'
 
-// Alerts the Convorian team that a new agent signed up and needs their WhatsApp
+// Alerts the TING team that a new agent signed up and needs their WhatsApp
 // number activated on Meta (concierge onboarding, pre-self-serve). Public —
 // called from the onboarding flow; only sends a team email, no data exposure.
 const ALERT_TO = process.env.FOUNDER_ALERT_EMAIL || 'support@convorian.in'
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     await sendEmail({
       to: ALERT_TO,
-      subject: `🆕 New Convorian signup — activate WhatsApp for ${agency}`,
+      subject: `🆕 New TING signup — activate WhatsApp for ${agency}`,
       html: `<p>A new agent just signed up and is waiting for WhatsApp activation.</p>
         <table style="font-size:14px;line-height:1.8">
           <tr><td><strong>Agency</strong></td><td>&nbsp;${agency}</td></tr>

@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
 
   if (format === 'md') {
     const lines: string[] = []
-    lines.push(`# Convorian training corpus — ${corpus.agency}`)
+    lines.push(`# TING training corpus — ${corpus.agency}`)
     lines.push(`_Generated ${corpus.generated_at} · ${answered.length} answered, ${pending.length} pending_`, '')
     lines.push('## Confirmed answers (use these to answer leads)')
     for (const a of answered) lines.push(`\n**Q:** ${a.question}\n\n**A:** ${a.answer}`)

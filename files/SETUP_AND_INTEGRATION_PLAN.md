@@ -5,7 +5,7 @@
 
 This covers four linked questions:
 1. The client setup/onboarding flow (what we collect + the steps we run).
-2. **How do we connect Convorian's AI to each client's WhatsApp number?** (the critical one)
+2. **How do we connect TING's AI to each client's WhatsApp number?** (the critical one)
 3. How the client's WhatsApp (MSG91) charges get paid + where our profit comes from.
 4. The standard "is it working?" test checklist.
 

@@ -309,7 +309,7 @@ export default function PropertiesScreen({ agentId }: Props) {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "leadnest_properties_template.csv");
+    link.setAttribute("download", "ting_properties_template.csv");
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -737,7 +737,7 @@ export default function PropertiesScreen({ agentId }: Props) {
                   <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10, cursor: 'pointer', background: '#F4F8FD', border: '1px solid rgba(26,95,165,0.15)', borderRadius: 8, padding: '10px 12px' }}>
                     <input type="checkbox" checked={websiteAiConsent} onChange={e => setWebsiteAiConsent(e.target.checked)} style={{ marginTop: 2, transform: 'scale(1.1)' }} />
                     <span style={{ fontSize: 11.5, color: '#3D3B34', lineHeight: 1.5 }}>
-                      I allow Convorian&apos;s AI to read this website and use its public information (amenities, possession, floor plans, photos) when answering leads about this property. I understand suggestions may be based on details published on that site.
+                      I allow TING&apos;s AI to read this website and use its public information (amenities, possession, floor plans, photos) when answering leads about this property. I understand suggestions may be based on details published on that site.
                     </span>
                   </label>
                 )}

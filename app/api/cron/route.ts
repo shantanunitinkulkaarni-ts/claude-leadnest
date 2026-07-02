@@ -262,7 +262,7 @@ export async function GET(request: NextRequest) {
         if (!ag) continue
         // Notify the AGENT their visit happened (dashboard FeedbackGate is the
         // primary capture; this WhatsApp ping is a best-effort nudge).
-        const msg = `Site visit with ${visit.leads?.name || visit.leads?.phone} was today. How did it go? Log the outcome in your Convorian dashboard so the AI can follow up and close.`
+        const msg = `Site visit with ${visit.leads?.name || visit.leads?.phone} was today. How did it go? Log the outcome in your TING dashboard so the AI can follow up and close.`
         const agentAsRecipient = { phone: ag.phone }
         if (ag.wa_phone_number_id) {
           await sendToLead(ag, agentAsRecipient, msg)

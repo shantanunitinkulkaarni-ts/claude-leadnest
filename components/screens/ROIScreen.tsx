@@ -355,7 +355,7 @@ export function ROIScreen({ agentId }: { agentId: string }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 600, color: G.text }}>Your Investment vs Return</div>
-            <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>Convorian {agent?.plan} plan</div>
+            <div style={{ fontSize: 12, color: G.muted, marginTop: 2 }}>TING {agent?.plan} plan</div>
           </div>
           <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
             <div style={{ textAlign: 'center' }}>

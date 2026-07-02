@@ -11,7 +11,7 @@ test.describe('Public pages render', () => {
   test('landing page loads with brand + CTA', async ({ page }) => {
     await page.goto('/')
     // Brand name appears somewhere on the page.
-    await expect(page.locator('body')).toContainText('Convorian')
+    await expect(page.locator('body')).toContainText('TING')
     // Page didn't error-boundary out.
     await expect(page.locator('body')).not.toContainText('Application error')
   })

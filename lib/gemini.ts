@@ -32,7 +32,7 @@ export async function callEngineLLM(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Convorian Conversion Engine v1
+// TING Conversion Engine v1
 // 
 // This is not a simple chatbot. It is a sales engine built on proven real
 // estate sales psychology and conversion principles.
@@ -315,7 +315,7 @@ If lost — be gracious, offer to help in future, ask for referrals.`
     return ''
   })()
 
-  return `${toneDirective}${langDirective}You are the Convorian Conversion Engine — a highly sophisticated AI sales assistant for ${agent.agency_name}, a real estate agency in India.
+  return `${toneDirective}${langDirective}You are the TING Conversion Engine — a highly sophisticated AI sales assistant for ${agent.agency_name}, a real estate agency in India.
 
 You are NOT a generic chatbot. You are trained in real estate sales psychology and your goal is to convert leads into site visits and ultimately into transactions. Every message should move the lead one step closer — but a great salesperson knows that sometimes the right move is to slow down, listen, or give space. You play the long game.
 

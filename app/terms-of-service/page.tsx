@@ -5,8 +5,8 @@ import MarkdownDoc from '@/components/MarkdownDoc'
 import LegalShell from '@/components/LegalShell'
 
 export const metadata: Metadata = {
-  title: 'Terms of Service — Convorian',
-  description: 'The terms that govern your use of the Convorian platform.',
+  title: 'Terms of Service — TING',
+  description: 'The terms that govern your use of the TING platform.',
 }
 
 function getContent(): string {

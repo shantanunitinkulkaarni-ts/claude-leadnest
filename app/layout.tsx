@@ -1,15 +1,15 @@
 import type { Metadata } from 'next'
 
 const SITE_URL = 'https://convorian.in'
-const TITLE = 'Convorian — AI WhatsApp Sales Engine for Real Estate'
-const DESCRIPTION = 'Convorian is an AI-powered WhatsApp automation platform that helps real estate agents in India answer, qualify, and nurture leads 24/7 — booking site visits and closing deals on autopilot.'
+const TITLE = 'TING — AI WhatsApp Sales Engine for Real Estate'
+const DESCRIPTION = 'TING is an AI-powered WhatsApp automation platform that helps real estate agents in India answer, qualify, and nurture leads 24/7 — booking site visits and closing deals on autopilot.'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: TITLE, template: '%s | Convorian' },
+  title: { default: TITLE, template: '%s | TING' },
   description: DESCRIPTION,
-  keywords: ['WhatsApp CRM India', 'real estate AI assistant', 'lead nurturing WhatsApp', 'AI sales assistant real estate', 'India real estate software', 'Convorian', 'WhatsApp bot real estate', 'site visit booking AI'],
-  authors: [{ name: 'Convorian', url: SITE_URL }],
+  keywords: ['WhatsApp CRM India', 'real estate AI assistant', 'lead nurturing WhatsApp', 'AI sales assistant real estate', 'India real estate software', 'TING', 'WhatsApp bot real estate', 'site visit booking AI'],
+  authors: [{ name: 'TING', url: SITE_URL }],
   creator: 'Convorian',
   publisher: 'Convorian',
   category: 'Technology',
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     title: TITLE,
     description: 'Answer, qualify, and nurture every WhatsApp lead 24/7. Book site visits and close deals on autopilot.',
     url: SITE_URL,
-    siteName: 'Convorian',
+    siteName: 'TING',
     type: 'website',
     locale: 'en_IN',
   },
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
-  name: 'Convorian',
+  name: 'TING',
   url: 'https://convorian.in',
   description: 'AI-powered WhatsApp automation platform for real estate agents in India. Answers, qualifies, and nurtures leads 24/7, booking site visits on autopilot.',
   applicationCategory: 'BusinessApplication',
