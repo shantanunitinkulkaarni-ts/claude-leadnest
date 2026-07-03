@@ -9,6 +9,7 @@ export type AlertContent = {
   subject: string
   html: string
   whatsappText: string
+  templateValues: string[]
 }
 
 const esc = (s: string) => String(s || '').replace(/[<>]/g, '')
@@ -83,7 +84,9 @@ export function buildAlertContent(
     (botReplyLine ? `\n\n${botReplyLine}` : '') +
     `\n\n👉 ${spec.action}`
 
-  return { subject, html, whatsappText }
+  const templateValues = [name, phone, (bot || msg || spec.action).slice(0, 200)]
+
+  return { subject, html, whatsappText, templateValues }
 }
 
 function labelShort(sig: PrioritySignal): string {

@@ -255,12 +255,12 @@ export function parseTimeString(timeStr: string): string | null {
   let month = istNow.getUTCMonth() // 0-based
   let day = istNow.getUTCDate()
 
-  if (t.includes('tomorrow') || t.includes('next day')) {
+  if (t.match(/day\s+after\s+tomorrow|in\s+2\s+days?/)) {
+    day += 2
+  } else if (t.includes('tomorrow') || t.includes('next day')) {
     day += 1
   } else if (t.match(/today|this\s+morning|this\s+afternoon/)) {
     // keep today's IST date
-  } else if (t.match(/day\s+after\s+tomorrow|in\s+2\s+days?/)) {
-    day += 2
   } else if (t.match(/next\s+week/)) {
     day += 7
   } else if (t.match(/\b(\d{1,2})[-/](\d{1,2})\b/)) {
