@@ -9,6 +9,7 @@ import { createLogger } from '@/lib/logger'
 import { checkRateLimit } from '@/lib/rateLimit'
 import { handleAiBotMessage } from '@/lib/ai-bot'
 import { agentEntitlement } from '@/lib/entitlement'
+import { newInboundLeadDefaults } from '@/lib/bot/newLeadDefaults'
 import { randomUUID } from 'crypto'
 import * as Sentry from '@sentry/nextjs'
 
@@ -151,10 +152,8 @@ export async function POST(request: NextRequest) {
     if (!lead) {
       // Omit conversation_stage from insert — it may not exist yet (pre-migration safety).
       const { data: nl } = await supabaseAdmin.from('leads').insert({
-        agent_id: agent.id, phone: fromPhone, last_message_at: now,
-        window_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        status: 'new',
-        opted_in: true, opt_in_at: now, opt_in_source: 'whatsapp_inbound'
+        agent_id: agent.id,
+        ...newInboundLeadDefaults(fromPhone, now),
       }).select().single()
       if (!nl) return NextResponse.json({ status: 'lead_create_failed' })
       lead = nl
