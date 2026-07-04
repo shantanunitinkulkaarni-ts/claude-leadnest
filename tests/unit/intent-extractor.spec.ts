@@ -74,6 +74,11 @@ test.describe('parseExtractedIntent — validates whatever the model returns', (
     expect(r.budget_min).toBe(20_000)
     expect(r.budget_max).toBe(30_000)
   })
+
+  test('email from AI output is carried through for visit confirmation', () => {
+    const r = parseExtractedIntent('{"message_type":"qualifying_answer","email":"me@example.com"}')
+    expect(r.email).toBe('me@example.com')
+  })
 })
 
 test.describe('extractIntent — model call wrapper (mocked)', () => {

@@ -13,7 +13,7 @@ export async function handlePhotoAction(propertyId: string | null): Promise<Phot
   return {
     photosToSend,
     fallbackReply: photosToSend.length === 0
-      ? "Photos haven't been uploaded for this property yet. I'll let the agent know to add them! Meanwhile, would you like to schedule a site visit? 😊"
+      ? 'Photos are not uploaded for this property yet. I can arrange a site visit instead. What date and time would you prefer?'
       : null,
   }
 }

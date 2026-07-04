@@ -51,6 +51,7 @@ import {
   leadToFlowLead,
   shouldUseConversationFlow,
 } from './bot/flowDecisionAdapter'
+import { buildPostPropertyDecision } from './bot/postPropertyDecision'
 
 // Re-export BotStage for backward compatibility (other files import it from here)
 export type { BotStage } from './bot/types'
@@ -233,6 +234,11 @@ export async function handleAiBotMessage(opts: {
         existingAppointment,
       })) {
         decision = flowDecisionToAiDecision(flow.decision)
+      } else if (leadForFlow.matched_property_id || leadForFlow.pending_appointment_time) {
+        decision = buildPostPropertyDecision({
+          decoded: flow.extracted,
+          lead: leadForFlow,
+        })
       }
     } catch (err) {
       console.error('[ai-bot] conversation flow error:', err)
@@ -301,6 +307,7 @@ export async function handleAiBotMessage(opts: {
   })
   finalReply = cleanBookingAction({
     decision,
+    lead,
     leadUpdates,
     existingAppointment,
     newTime,

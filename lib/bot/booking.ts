@@ -6,7 +6,7 @@
 
 import { supabaseAdmin } from '../supabase'
 import { formatIST, bookingTimeIssue } from '../timeParser'
-import { sendCustomerConfirmation, sendAgentNotification, emailSuperadmin, notifyAgentOfTrollHalt } from './emails'
+import { sendCustomerConfirmation, sendAgentNotification, sendSuperadminBookingCopy, emailSuperadmin, notifyAgentOfTrollHalt } from './emails'
 import {
   buildCancelReply,
   buildReschedulePrompt,
@@ -75,8 +75,9 @@ export async function createAppointment(
   }).eq('id', lead.id)
   const { data: prop } = await supabaseAdmin.from('properties').select('title').eq('id', propertyId).single()
   const propertyTitle = prop?.title || 'Selected Property'
-  if (customerEmail) await sendCustomerConfirmation(customerEmail, leadName, propertyTitle, visitTime)
+  if (customerEmail) await sendCustomerConfirmation(customerEmail, leadName, propertyTitle, visitTime, agent)
   if (agent!.email) await sendAgentNotification(agent!.email, leadName, phone, customerEmail || 'Not provided', propertyTitle, visitTime)
+  await sendSuperadminBookingCopy(leadName, phone, customerEmail || 'Not provided', propertyTitle, visitTime, agent)
 
   return buildSuccessReply(visitTime, customerEmail, leadName)
 }
@@ -118,9 +119,13 @@ export async function executeBookingAction(
 
   // action === 'book_visit'
   const { visitTime, propertyId } = resolveBookingData(newTime, bookingLeadState, lead, resolvedMatchedPropertyId, existingAppointment)
+  const customerEmail = leadUpdates.email || bookingLeadState?.email || lead.email
 
   if (existingAppointment) {
     return buildDoubleBookReply(existingAppointment)
+  }
+  if (!customerEmail) {
+    return 'Please share your email address so I can send the visit confirmation.'
   }
   if (!visitTime || !propertyId) {
     const leadName = leadUpdates.name || lead.name || phone

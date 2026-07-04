@@ -34,6 +34,7 @@ export async function sendCustomerConfirmation(
   leadName: string,
   propertyTitle: string,
   visitTime: string,
+  agent?: any,
 ): Promise<void> {
   const visitDate = new Date(visitTime).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })
   const visitTimeStr = new Date(visitTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
@@ -47,6 +48,9 @@ Your site visit has been confirmed! ✅
 🕐 Time: ${visitTimeStr} IST
 
 Our team will reach out to you shortly with more details and directions.
+
+Agent contact:
+${agent?.name || agent?.agency_name ? `Name: ${agent?.name || agent?.agency_name}\n` : ''}${agent?.phone ? `Phone: ${agent.phone}\n` : ''}${agent?.email ? `Email: ${agent.email}\n` : ''}
 
 Thank you for choosing us!
 
@@ -83,6 +87,39 @@ Please confirm if you can accommodate this visit.
 This is an automated message from TING Bot`
 
   await sendEmailViaResend(agentEmail, '🔔 New Site Visit Request', body)
+}
+
+/** Send a booking copy to superadmins, including agent contact details. */
+export async function sendSuperadminBookingCopy(
+  leadName: string,
+  leadPhone: string,
+  leadEmail: string,
+  propertyTitle: string,
+  visitTime: string,
+  agent: any,
+): Promise<void> {
+  const visitDate = new Date(visitTime).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })
+  const visitTimeStr = new Date(visitTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
+
+  const body = `Site visit booked
+
+Lead: ${leadName}
+Phone: ${leadPhone}
+Email: ${leadEmail}
+
+Property: ${propertyTitle}
+Scheduled: ${visitDate} at ${visitTimeStr} IST
+
+Agent:
+Name: ${agent?.name || 'Not provided'}
+Agency: ${agent?.agency_name || 'Not provided'}
+Phone: ${agent?.phone || 'Not provided'}
+Email: ${agent?.email || 'Not provided'}
+Agent ID: ${agent?.id || 'Not provided'}
+
+This is an automated copy from TING Bot.`
+
+  await emailSuperadmin('Site visit booked', body)
 }
 
 /** Send an error alert to superadmin (support@convorian.in + gmail fallback). */

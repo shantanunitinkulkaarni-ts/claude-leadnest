@@ -30,6 +30,7 @@ export type ExtractedIntent = {
   message_type: MessageType
   visit_time_text: string | null
   language: 'english' | 'hindi' | 'marathi' | null
+  email?: string | null
 }
 
 const MESSAGE_TYPES: MessageType[] = [
@@ -41,7 +42,7 @@ export function defaultIntent(): ExtractedIntent {
   return {
     name: null, intent: null, property_category: null, areas: [], bhk: null,
     budget_min: null, budget_max: null, message_type: 'other',
-    visit_time_text: null, language: null,
+    visit_time_text: null, language: null, email: null,
   }
 }
 
@@ -94,6 +95,13 @@ function normalizeLanguage(v: any): ExtractedIntent['language'] {
   return null
 }
 
+function normalizeEmail(v: any): string | null {
+  const s = asString(v)
+  if (!s) return null
+  const m = s.match(/[^\s@]+@[^\s@]+\.[^\s@]+/)
+  return m ? m[0] : null
+}
+
 // Turn the model's structured output into a validated ExtractedIntent. Pure.
 export function parseExtractedIntent(raw: string): ExtractedIntent {
   const obj = extractJsonObject(raw)
@@ -122,6 +130,7 @@ export function parseExtractedIntent(raw: string): ExtractedIntent {
     message_type,
     visit_time_text: asString(obj.visit_time_text),
     language: normalizeLanguage(obj.language),
+    email: normalizeEmail(obj.email),
   }
 }
 
@@ -138,7 +147,8 @@ JSON shape:
   "budget": string | null,
   "message_type": "greeting" | "property_request" | "qualifying_answer" | "booking_request" | "wants_photos" | "wants_human" | "objection" | "other",
   "visit_time_text": string | null,
-  "language": "english" | "hindi" | "marathi" | null
+  "language": "english" | "hindi" | "marathi" | null,
+  "email": string | null
 }
 Rules: "budget" = exactly as the customer expressed it ("50 lakh", "20k", "1.2 cr"). "areas" = localities mentioned. "visit_time_text" = the raw time phrase only if they want to visit. Output JSON only.`
 

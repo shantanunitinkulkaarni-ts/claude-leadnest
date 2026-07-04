@@ -2,6 +2,7 @@ import type { AIDecision } from './types'
 
 export function cleanBookingAction(args: {
   decision: AIDecision
+  lead: any
   leadUpdates: Record<string, any>
   existingAppointment: any
   newTime?: string
@@ -11,6 +12,7 @@ export function cleanBookingAction(args: {
 }) {
   const {
     decision,
+    lead,
     leadUpdates,
     existingAppointment,
     newTime,
@@ -22,7 +24,7 @@ export function cleanBookingAction(args: {
   if (!decision.action) {
     if (existingAppointment && newTime) {
       decision.action = 'reschedule_visit'
-    } else if (leadUpdates.email && newTime && emailIsValid) {
+    } else if (leadUpdates.email && (newTime || lead.pending_appointment_time) && emailIsValid) {
       decision.action = 'book_visit'
     }
   }
