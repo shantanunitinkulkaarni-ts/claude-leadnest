@@ -35,7 +35,7 @@ test.describe('conversation flow runner', () => {
       },
       message: '30 k',
     }, {
-      extractor: async () => ({ ...emptyIntent, budget_max: 30000, message_type: 'qualifying_answer' }),
+      decoder: async () => ({ ...emptyIntent, raw_message: '30 k', budget_max: 30000, message_type: 'qualifying_answer' }),
     })
 
     expect(result.extracted.budget_max).toBe(30000)
@@ -57,9 +57,9 @@ test.describe('conversation flow runner', () => {
       message: '2BHK',
       recent: [{ role: 'assistant', content: 'How many bedrooms are you looking for?' }],
     }, {
-      extractor: async (_message, opts) => {
+      decoder: async (_message, opts) => {
         seen = opts
-        return { ...emptyIntent, bhk: '2BHK', message_type: 'qualifying_answer' }
+        return { ...emptyIntent, raw_message: '2BHK', bhk: '2BHK', message_type: 'qualifying_answer' }
       },
     })
 
@@ -86,7 +86,7 @@ test.describe('conversation flow runner', () => {
       },
       message: 'English please',
     }, {
-      extractor: async () => ({ ...emptyIntent, message_type: 'qualifying_answer' }),
+      decoder: async () => ({ ...emptyIntent, raw_message: 'English please', message_type: 'qualifying_answer' }),
     })
 
     expect(result.decision.updates.language).toBe('en')
@@ -99,8 +99,9 @@ test.describe('conversation flow runner', () => {
       lead: {},
       message: 'Hindi. Rahul. 2BHK apartment rent in Baner under 30k',
     }, {
-      extractor: async () => ({
+      decoder: async () => ({
         ...emptyIntent,
+        raw_message: 'Hindi. Rahul. 2BHK apartment rent in Baner under 30k',
         name: 'Rahul',
         language: 'hindi',
         property_category: 'apartment',
@@ -121,5 +122,23 @@ test.describe('conversation flow runner', () => {
       bhk: '2BHK',
       budget_max: 30000,
     })
+  })
+
+  test('plain hi starts with language question', async () => {
+    const result = await runConversationFlowStep({
+      agent,
+      lead: {},
+      message: 'hi',
+    }, {
+      decoder: async () => ({
+        ...emptyIntent,
+        raw_message: 'hi',
+        message_type: 'greeting',
+        language: null,
+      }),
+    })
+
+    expect(result.decision.nextStep).toBe('ask_language')
+    expect(result.decision.reply).toContain('Which language')
   })
 })

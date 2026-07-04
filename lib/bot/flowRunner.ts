@@ -1,5 +1,6 @@
-import { extractIntent, type ExtractedIntent } from '../intentExtractor'
+import type { ExtractedIntent } from '../intentExtractor'
 import { detectLanguageSwitchRequest } from '../timeParser'
+import { aiDecoder } from './aiDecoder'
 import {
   decideConversationFlow,
   type FlowAgentSettings,
@@ -21,11 +22,11 @@ export async function runConversationFlowStep(
     recent?: { role: 'user' | 'assistant'; content: string }[]
   },
   deps: {
-    extractor?: typeof extractIntent
+    decoder?: typeof aiDecoder
   } = {},
 ): Promise<FlowRunnerResult> {
-  const extractor = deps.extractor || extractIntent
-  const extracted = await extractor(args.message, {
+  const decoder = deps.decoder || aiDecoder
+  const extracted = await decoder(args.message, {
     recent: args.recent,
     known: {
       intent: args.lead.intent || null,
