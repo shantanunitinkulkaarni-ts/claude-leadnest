@@ -105,8 +105,8 @@ export function parseExtractedIntent(raw: string): ExtractedIntent {
     ? obj.areas.filter((x: any) => typeof x === 'string' && x.trim()).map((x: string) => x.trim()).slice(0, 5)
     : (asString(obj.areas) ? [asString(obj.areas)!] : [])
 
-  // Budget can come as a number, "50 lakh", "20k/month", or a {min,max}.
-  const budget_max = parseBudgetText(obj.budget ?? obj.budget_max ?? null)
+  // Budget can come as clean INR min/max numbers, or as older text like "50 lakh".
+  const budget_max = parseBudgetText(obj.budget_max ?? obj.budget ?? null)
   const budget_min = parseBudgetText(obj.budget_min ?? null)
 
   const message_type: MessageType = MESSAGE_TYPES.includes(obj.message_type) ? obj.message_type : 'other'

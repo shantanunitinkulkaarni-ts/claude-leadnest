@@ -27,7 +27,8 @@ test.describe('aiDecoder', () => {
       property_category: 'apartment',
       areas: ['Baner'],
       bhk: '2BHK',
-      budget: '30k',
+      budget_min: null,
+      budget_max: 30000,
       message_type: 'property_request',
       visit_time_text: null,
       language: 'english',
@@ -44,6 +45,29 @@ test.describe('aiDecoder', () => {
       message_type: 'property_request',
       language: 'english',
     })
+  })
+
+  test('rent range after budget question is decoded into INR min and max', async () => {
+    const fakeLLM = async () => JSON.stringify({
+      name: null,
+      intent: null,
+      property_category: null,
+      areas: [],
+      bhk: null,
+      budget_min: 20000,
+      budget_max: 30000,
+      message_type: 'qualifying_answer',
+      visit_time_text: null,
+      language: null,
+    })
+
+    const decoded = await aiDecoder('20-30k', {
+      recent: [{ role: 'assistant', content: 'What monthly rent range are you comfortable with?' }],
+      known: { intent: 'rent' },
+    }, { llm: fakeLLM as any })
+
+    expect(decoded.budget_min).toBe(20000)
+    expect(decoded.budget_max).toBe(30000)
   })
 
   test('AI failure returns safe parsed shape', async () => {

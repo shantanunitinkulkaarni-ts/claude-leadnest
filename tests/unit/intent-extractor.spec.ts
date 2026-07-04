@@ -68,6 +68,12 @@ test.describe('parseExtractedIntent — validates whatever the model returns', (
     const r = parseExtractedIntent('{"intent":"rent","areas":["Baner"],"bhk":"2BHK","budget":"20k","message_type":"property_request","language":"hindi"}')
     expect(r).toMatchObject({ intent: 'rent', bhk: '2BHK', budget_max: 20_000, language: 'hindi' })
   })
+
+  test('AI-provided budget_min and budget_max are trusted before older budget text', () => {
+    const r = parseExtractedIntent('{"budget":"20-30k","budget_min":20000,"budget_max":30000,"message_type":"qualifying_answer"}')
+    expect(r.budget_min).toBe(20_000)
+    expect(r.budget_max).toBe(30_000)
+  })
 })
 
 test.describe('extractIntent — model call wrapper (mocked)', () => {

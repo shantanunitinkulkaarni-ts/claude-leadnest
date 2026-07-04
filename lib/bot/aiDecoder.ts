@@ -21,7 +21,8 @@ Fields:
   "property_category": string | null,
   "areas": string[],
   "bhk": string | null,
-  "budget": string | null,
+  "budget_min": number | null,
+  "budget_max": number | null,
   "message_type": "greeting" | "property_request" | "qualifying_answer" | "booking_request" | "wants_photos" | "wants_human" | "objection" | "other",
   "visit_time_text": string | null,
   "language": "english" | "hindi" | "marathi" | null
@@ -30,6 +31,9 @@ Fields:
 Important:
 - "hi", "hello", "hey", "namaste", "namaskar" are greetings, not language choices.
 - Only set language when the customer clearly asks for a language or writes meaningful content in that language.
+- Assume INR for budgets unless the customer clearly says another currency.
+- If the latest or previous assistant message asks about budget and the customer replies with a number, range, shorthand, or Indian amount, decode it into rupees.
+- Examples: "20-30k" => budget_min 20000 and budget_max 30000; "30k" => budget_max 30000; "80 lakh" => budget_max 8000000; "1.2 cr" => budget_max 12000000.
 - Do not guess missing values.
 - Do not write the customer reply.`
 

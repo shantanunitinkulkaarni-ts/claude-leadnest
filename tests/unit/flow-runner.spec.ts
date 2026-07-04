@@ -43,6 +43,34 @@ test.describe('conversation flow runner', () => {
     expect(result.decision.reply.toLowerCase()).not.toContain('budget')
   })
 
+  test('uses extracted budget range and does not repeat the budget question', async () => {
+    const result = await runConversationFlowStep({
+      agent,
+      lead: {
+        language: 'English',
+        name: 'Shantanu',
+        property_category: 'apartment',
+        intent: 'rent',
+        preferred_areas: ['Baner'],
+      },
+      message: '20-30k',
+      recent: [{ role: 'assistant', content: 'What monthly rent range are you comfortable with?' }],
+    }, {
+      decoder: async () => ({
+        ...emptyIntent,
+        raw_message: '20-30k',
+        budget_min: 20000,
+        budget_max: 30000,
+        message_type: 'qualifying_answer',
+      }),
+    })
+
+    expect(result.extracted.budget_min).toBe(20000)
+    expect(result.extracted.budget_max).toBe(30000)
+    expect(result.decision.nextStep).toBe('ask_size')
+    expect(result.decision.reply.toLowerCase()).not.toContain('budget')
+  })
+
   test('passes recent context and known lead facts to extractor', async () => {
     let seen: any = null
     await runConversationFlowStep({
