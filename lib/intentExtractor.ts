@@ -20,6 +20,7 @@ export type MessageType =
   | 'wants_photos' | 'wants_human' | 'objection' | 'other'
 
 export type ExtractedIntent = {
+  name: string | null
   intent: 'buy' | 'rent' | null
   property_category: string | null
   areas: string[]
@@ -38,7 +39,7 @@ const MESSAGE_TYPES: MessageType[] = [
 
 export function defaultIntent(): ExtractedIntent {
   return {
-    intent: null, property_category: null, areas: [], bhk: null,
+    name: null, intent: null, property_category: null, areas: [], bhk: null,
     budget_min: null, budget_max: null, message_type: 'other',
     visit_time_text: null, language: null,
   }
@@ -111,6 +112,7 @@ export function parseExtractedIntent(raw: string): ExtractedIntent {
   const message_type: MessageType = MESSAGE_TYPES.includes(obj.message_type) ? obj.message_type : 'other'
 
   return {
+    name: asString(obj.name),
     intent,
     property_category: asString(obj.property_category),
     areas,
@@ -129,6 +131,7 @@ Read the customer's latest message (with the recent context) and output ONLY a J
 JSON shape:
 {
   "intent": "buy" | "rent" | null,
+  "name": string | null,
   "property_category": string | null,
   "areas": string[],
   "bhk": string | null,

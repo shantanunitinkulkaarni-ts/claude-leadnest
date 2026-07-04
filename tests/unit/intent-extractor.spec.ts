@@ -20,7 +20,8 @@ test.describe('parseBudgetText — robust budgets (sale + rental)', () => {
 
 test.describe('parseExtractedIntent — validates whatever the model returns', () => {
   test('clean JSON', () => {
-    const r = parseExtractedIntent('{"intent":"rent","areas":["Baner"],"bhk":"2","budget":"20k","message_type":"property_request","language":"english"}')
+    const r = parseExtractedIntent('{"name":"Rahul","intent":"rent","areas":["Baner"],"bhk":"2","budget":"20k","message_type":"property_request","language":"english"}')
+    expect(r.name).toBe('Rahul')
     expect(r.intent).toBe('rent')
     expect(r.areas).toEqual(['Baner'])
     expect(r.bhk).toBe('2BHK')
