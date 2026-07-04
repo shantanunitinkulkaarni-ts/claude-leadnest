@@ -20,7 +20,9 @@ export function prepareLeadUpdates(args: {
   if (decision.updates?.language) leadUpdates.language = decision.updates.language
   if (forcedLang) leadUpdates.language = forcedLang
   if (decision.updates?.intent) leadUpdates.intent = decision.updates.intent
+  if (decision.updates?.property_category) leadUpdates.property_category = decision.updates.property_category
   if (decision.updates?.preferred_areas?.length) leadUpdates.preferred_areas = decision.updates.preferred_areas
+  if (decision.updates?.budget_min) leadUpdates.budget_min = decision.updates.budget_min
   if (decision.updates?.budget_max) leadUpdates.budget_max = decision.updates.budget_max
   if (decision.updates?.bhk) leadUpdates.bhk = decision.updates.bhk
   if (decision.updates?.sqft_preference) leadUpdates.sqft_preference = decision.updates.sqft_preference

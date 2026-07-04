@@ -43,6 +43,14 @@ import { prepareLeadUpdates } from './bot/leadUpdates'
 import { cleanBookingAction } from './bot/actionCleanup'
 import { prepareBookingSupport } from './bot/bookingSupport'
 import { deliverReplies } from './bot/replyDelivery'
+import { runConversationFlowStep } from './bot/flowRunner'
+import {
+  agentToFlowSettings,
+  flowDecisionToAiDecision,
+  historyToFlowRecent,
+  leadToFlowLead,
+  shouldUseConversationFlow,
+} from './bot/flowDecisionAdapter'
 
 // Re-export BotStage for backward compatibility (other files import it from here)
 export type { BotStage } from './bot/types'
@@ -63,7 +71,7 @@ export async function handleAiBotMessage(opts: {
   // 1. Load agent
   const { data: agent } = await supabaseAdmin
     .from('agents')
-    .select('id, name, agency_name, phone, email, office_open, office_close, weekly_off')
+    .select('id, name, agency_name, phone, email, office_open, office_close, weekly_off, plan, languages, property_types')
     .eq('id', agentId)
     .single()
 
@@ -209,6 +217,25 @@ export async function handleAiBotMessage(opts: {
         action: tutorialDecision.action || null,
         updates: tutorialDecision.updates || {},
       }
+    }
+  }
+  if (!decision) {
+    try {
+      const flow = await runConversationFlowStep({
+        agent: agentToFlowSettings(agent),
+        lead: leadToFlowLead(leadForFlow),
+        message,
+        recent: historyToFlowRecent(history),
+      })
+      if (shouldUseConversationFlow({
+        lead: leadForFlow,
+        extractedMessageType: flow.extracted.message_type,
+        existingAppointment,
+      })) {
+        decision = flowDecisionToAiDecision(flow.decision)
+      }
+    } catch (err) {
+      console.error('[ai-bot] conversation flow error:', err)
     }
   }
   if (!decision) {

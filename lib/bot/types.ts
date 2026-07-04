@@ -38,7 +38,9 @@ export type AIDecision = {
     name?: string
     language?: string
     intent?: 'rent' | 'buy'
+    property_category?: string
     preferred_areas?: string[]
+    budget_min?: number
     budget_max?: number
     bhk?: string
     sqft_preference?: number

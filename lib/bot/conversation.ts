@@ -18,7 +18,7 @@ export async function loadOrCreateLead(agentId: string, phone: string) {
         phone,
         bot_stage: 'greeting',
         chat_history: [],
-        language: 'en',
+        language: null,
         source: 'whatsapp_inbound',
         last_message_at: new Date().toISOString(),
         window_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
