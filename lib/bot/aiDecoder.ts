@@ -39,6 +39,7 @@ Important:
 - If the customer wants a site visit, set message_type to "booking_request".
 - If the customer gives a date/time for a visit, put the raw Indian date/time phrase in visit_time_text.
 - If the customer gives an email address, put it in email.
+- If the customer says no preference for bedrooms or size, set bhk to "no_preference".
 - Do not guess missing values.
 - Do not write the customer reply.`
 
@@ -68,9 +69,9 @@ export async function aiDecoder(
       temperature: 0,
       deadlineMs: 15000,
     }))
-    return { ...normalizePlainGreeting(raw_message, decoded), raw_message }
+    return { ...normalizeNoPreference(raw_message, normalizePlainGreeting(raw_message, decoded)), raw_message }
   } catch {
-    return { ...normalizePlainGreeting(raw_message, defaultIntent()), raw_message }
+    return { ...normalizeNoPreference(raw_message, normalizePlainGreeting(raw_message, defaultIntent())), raw_message }
   }
 }
 
@@ -94,5 +95,15 @@ function normalizePlainGreeting(message: string, decoded: ExtractedIntent): Extr
 
 function isPlainGreeting(message: string): boolean {
   const text = (message || '').trim().toLowerCase().replace(/[!.?]+$/g, '')
-  return /^(hi|hello|hey|hii+|heyy+|namaste|namaskar|नमस्ते|नमस्कार)$/.test(text)
+  return /^(hi|hello|hey|hii+|heyy+|namaste|namaskar|\u0928\u092e\u0938\u094d\u0924\u0947|\u0928\u092e\u0938\u094d\u0915\u093e\u0930)$/.test(text)
+}
+
+function normalizeNoPreference(message: string, decoded: ExtractedIntent): ExtractedIntent {
+  const text = (message || '').trim().toLowerCase().replace(/[!.?]+$/g, '')
+  if (!/^(no\s*pref(?:erence)?|no\s*preference|any|anything|koi bhi)$/.test(text)) return decoded
+  return {
+    ...decoded,
+    bhk: 'no_preference',
+    message_type: decoded.message_type === 'other' ? 'qualifying_answer' : decoded.message_type,
+  }
 }

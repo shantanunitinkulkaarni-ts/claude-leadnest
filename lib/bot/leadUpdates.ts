@@ -39,7 +39,6 @@ export function prepareLeadUpdates(args: {
   if (bookingResolution.ok) {
     leadUpdates.pending_appointment_time = bookingResolution.iso
     leadUpdates.pending_appointment_set_at = new Date().toISOString()
-    leadUpdates.confirmation_followup_sent_at = null
   }
 
   const nowMs = Date.now()

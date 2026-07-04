@@ -66,6 +66,7 @@ function asString(v: any): string | null {
 function normalizeBhk(v: any): string | null {
   const s = asString(v)
   if (!s) return null
+  if (/^(no\s*pref(?:erence)?|no\s*preference|any|anything|koi bhi)$/i.test(s)) return 'no_preference'
   const m = /(\d+(?:\.\d+)?)\s*(?:bhk|rk|bed)?/i.exec(s)
   if (m) return `${m[1]}BHK`
   return s.slice(0, 20)

@@ -66,7 +66,6 @@ export async function createAppointment(
     bot_stage: 'visit_confirmed',
     pending_appointment_time: null,
     pending_appointment_set_at: null,
-    confirmation_followup_sent_at: null,
     nurture_state: 'paused',
     window_nudge_count: 0,
     last_nudge_at: null,

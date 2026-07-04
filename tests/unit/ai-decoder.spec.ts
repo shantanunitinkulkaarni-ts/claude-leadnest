@@ -70,6 +70,20 @@ test.describe('aiDecoder', () => {
     expect(decoded.budget_max).toBe(30000)
   })
 
+  test('no pref is decoded as no bedroom preference', async () => {
+    const fakeLLM = async () => JSON.stringify({
+      message_type: 'qualifying_answer',
+      bhk: null,
+    })
+
+    const decoded = await aiDecoder('no pref.', {
+      recent: [{ role: 'assistant', content: 'How many bedrooms are you looking for? You can also say no preference.' }],
+    }, { llm: fakeLLM as any })
+
+    expect(decoded.bhk).toBe('no_preference')
+    expect(decoded.message_type).toBe('qualifying_answer')
+  })
+
   test('AI failure returns safe parsed shape', async () => {
     const boom = async () => { throw new Error('down') }
     const decoded = await aiDecoder('hi', {}, { llm: boom as any })

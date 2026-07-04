@@ -186,7 +186,6 @@ export async function handleAiBotMessage(opts: {
       plan_d_touches: 0,
       pending_appointment_time: null,
       pending_appointment_set_at: null,
-      confirmation_followup_sent_at: null,
       chat_history: [
         ...history,
         { role: 'bot', text: confirmReply, ts: confirmedAt },

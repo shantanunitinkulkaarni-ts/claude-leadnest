@@ -25,8 +25,8 @@ export async function handlePropertySearchAction(args: {
     budget_max: budgetMax,
   })
 
-  const wantBhk = (decision.updates?.bhk || lead.bhk || '').toLowerCase().replace(/\s+/g, '')
-  if (wantBhk) {
+  const wantBhk = (decision.updates?.bhk || lead.bhk || '').toLowerCase().replace(/[\s_-]+/g, '')
+  if (wantBhk && !['nopreference', 'any', 'anything'].includes(wantBhk)) {
     const bhkMatches = result.properties.filter(
       (p: any) => (p.bhk || '').toLowerCase().replace(/\s+/g, '') === wantBhk
     )

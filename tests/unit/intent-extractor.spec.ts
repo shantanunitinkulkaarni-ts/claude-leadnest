@@ -58,6 +58,10 @@ test.describe('parseExtractedIntent — validates whatever the model returns', (
     expect(parseExtractedIntent('{"property_category":"null","bhk":"none"}').property_category).toBeNull()
   })
 
+  test('no bedroom preference is normalized', () => {
+    expect(parseExtractedIntent('{"bhk":"no preference"}').bhk).toBe('no_preference')
+  })
+
   test('language normalized from partial words', () => {
     expect(parseExtractedIntent('{"language":"Marathi"}').language).toBe('marathi')
     expect(parseExtractedIntent('{"language":"hin"}').language).toBe('hindi')
