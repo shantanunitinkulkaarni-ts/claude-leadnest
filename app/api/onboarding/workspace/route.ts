@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getAuthContext, pickFields } from '@/lib/apiAuth'
+import { refreshAgentBookingRagSnapshot } from '@/lib/bookingRagRefresh'
 
 // Server-side workspace creation. Replaces the old CLIENT-side inserts that
 // relied on permissive RLS — under which any authenticated user could insert a
@@ -18,7 +19,7 @@ import { getAuthContext, pickFields } from '@/lib/apiAuth'
 
 const AGENT_FIELDS = [
   'name', 'phone', 'agency_name', 'city', 'state', 'areas', 'property_types',
-  'bot_tone', 'languages', 'office_open', 'office_close', 'weekly_off',
+  'bot_tone', 'languages', 'office_open', 'office_close', 'weekly_off', 'holidays',
 ]
 
 export async function POST(request: NextRequest) {
@@ -72,6 +73,8 @@ export async function POST(request: NextRequest) {
     await supabaseAdmin.from('agents').delete().eq('id', agentId)
     return NextResponse.json({ error: tmErr.message }, { status: 500 })
   }
+
+  await refreshAgentBookingRagSnapshot(agentId).catch(() => null)
 
   return NextResponse.json({ agent })
 }

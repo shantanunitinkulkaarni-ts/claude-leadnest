@@ -1,0 +1,974 @@
+Full flow transcript
+Scenarios: 205
+
+### ask_language :: Hi
+Customer: Hi
+Assistant: Hi, welcome to Rakesh Builders. Which language do you prefer: English, Hindi, or Marathi?
+
+### ask_language :: hello
+Customer: hello
+Assistant: Hi, welcome to Rakesh Builders. Which language do you prefer: English, Hindi, or Marathi?
+
+### ask_language :: namaste
+Customer: namaste
+Assistant: Hi, welcome to Rakesh Builders. Which language do you prefer: English, Hindi, or Marathi?
+
+### ask_language :: hii
+Customer: hii
+Assistant: Hi, welcome to Rakesh Builders. Which language do you prefer: English, Hindi, or Marathi?
+
+### ask_language :: hey there
+Customer: hey there
+Assistant: Great, I will continue in your preferred language. May I know your name?
+
+### ask_language :: नमस्ते
+Customer: नमस्ते
+Assistant: Hi, welcome to Rakesh Builders. Which language do you prefer: English, Hindi, or Marathi?
+
+### ask_language :: marathi me bolo
+Customer: marathi me bolo
+Assistant: Great, I will continue in your preferred language. May I know your name?
+
+### ask_language :: English please
+Customer: English please
+Assistant: Great, I will continue in your preferred language. May I know your name?
+
+### ask_name :: English please
+Customer: English please
+Assistant: Great, I will continue in your preferred language. May I know your name?
+
+### ask_name :: Hindi me bolo
+Customer: Hindi me bolo
+Assistant: Great, I will continue in your preferred language. May I know your name?
+
+### ask_name :: Marathi
+Customer: Marathi
+Assistant: Great, I will continue in your preferred language. May I know your name?
+
+### ask_name :: continue in English
+Customer: continue in English
+Assistant: Great, I will continue in your preferred language. May I know your name?
+
+### ask_name :: hindi
+Customer: hindi
+Assistant: Great, I will continue in your preferred language. May I know your name?
+
+### ask_name :: marathi please
+Customer: marathi please
+Assistant: Great, I will continue in your preferred language. May I know your name?
+
+### ask_name :: eng
+Customer: eng
+Assistant: Great, I will continue in your preferred language. May I know your name?
+
+### ask_name :: mr
+Customer: mr
+Assistant: Great, I will continue in your preferred language. May I know your name?
+
+### ask_property_type :: 2BHK
+Customer: 2BHK
+Assistant: What type of property are you looking for: apartment, independent house, row house, office, shop, or plot?
+
+### ask_property_type :: flat
+Customer: flat
+Assistant: What type of property are you looking for: apartment, independent house, row house, office, shop, or plot?
+
+### ask_property_type :: apartment
+Customer: apartment
+Assistant: What type of property are you looking for: apartment, independent house, row house, office, shop, or plot?
+
+### ask_property_type :: house
+Customer: house
+Assistant: What type of property are you looking for: apartment, independent house, row house, office, shop, or plot?
+
+### ask_property_type :: row house
+Customer: row house
+Assistant: What type of property are you looking for: apartment, independent house, row house, office, shop, or plot?
+
+### ask_property_type :: shop
+Customer: shop
+Assistant: What type of property are you looking for: apartment, independent house, row house, office, shop, or plot?
+
+### ask_property_type :: plot
+Customer: plot
+Assistant: What type of property are you looking for: apartment, independent house, row house, office, shop, or plot?
+
+### ask_property_type :: office
+Customer: office
+Assistant: What type of property are you looking for: apartment, independent house, row house, office, shop, or plot?
+
+### ask_intent :: rent
+Customer: rent
+Assistant: Are you looking to buy or rent?
+
+### ask_intent :: buy
+Customer: buy
+Assistant: Are you looking to buy or rent?
+
+### ask_intent :: for rent
+Customer: for rent
+Assistant: Are you looking to buy or rent?
+
+### ask_intent :: for sale
+Customer: for sale
+Assistant: Are you looking to buy or rent?
+
+### ask_intent :: buy karna hai
+Customer: buy karna hai
+Assistant: Are you looking to buy or rent?
+
+### ask_intent :: rental chahiye
+Customer: rental chahiye
+Assistant: Are you looking to buy or rent?
+
+### ask_intent :: lease
+Customer: lease
+Assistant: Are you looking to buy or rent?
+
+### ask_intent :: purchase
+Customer: purchase
+Assistant: Are you looking to buy or rent?
+
+### ask_area :: Baner
+Customer: Baner
+Assistant: Which area are you looking in?
+
+### ask_area :: bnaer
+Customer: bnaer
+Assistant: Which area are you looking in?
+
+### ask_area :: Wakad
+Customer: Wakad
+Assistant: Which area are you looking in?
+
+### ask_area :: Hinjewadi
+Customer: Hinjewadi
+Assistant: Which area are you looking in?
+
+### ask_area :: Kothrud
+Customer: Kothrud
+Assistant: Which area are you looking in?
+
+### ask_area :: banr
+Customer: banr
+Assistant: Which area are you looking in?
+
+### ask_area :: west pune
+Customer: west pune
+Assistant: Which area are you looking in?
+
+### ask_area :: near Baner
+Customer: near Baner
+Assistant: Which area are you looking in?
+
+### ask_budget :: 30k
+Customer: 30k
+Assistant: What monthly rent range are you comfortable with?
+
+### ask_budget :: 20-30k
+Customer: 20-30k
+Assistant: What monthly rent range are you comfortable with?
+
+### ask_budget :: 80 lakh
+Customer: 80 lakh
+Assistant: What monthly rent range are you comfortable with?
+
+### ask_budget :: 1 crore
+Customer: 1 crore
+Assistant: What monthly rent range are you comfortable with?
+
+### ask_budget :: 45k
+Customer: 45k
+Assistant: What monthly rent range are you comfortable with?
+
+### ask_budget :: 18k
+Customer: 18k
+Assistant: What monthly rent range are you comfortable with?
+
+### ask_budget :: 90L
+Customer: 90L
+Assistant: What monthly rent range are you comfortable with?
+
+### ask_budget :: 1.2 cr
+Customer: 1.2 cr
+Assistant: What monthly rent range are you comfortable with?
+
+### ask_size :: 2BHK
+Customer: 2BHK
+Assistant: How many bedrooms are you looking for? You can also say no preference.
+
+### ask_size :: 3BHK
+Customer: 3BHK
+Assistant: How many bedrooms are you looking for? You can also say no preference.
+
+### ask_size :: no pref
+Customer: no pref
+Assistant: Here’s a property matching your search:
+
+Property - Green Valley (2BHK)
+Location - Wakad
+Price - ₹18,000/month (deposit ₹50,000)
+Area - 1050 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as lift, rera registered
+
+### ask_size :: anything
+Customer: anything
+Assistant: Here’s a property matching your search:
+
+Property - Green Valley (2BHK)
+Location - Wakad
+Price - ₹18,000/month (deposit ₹50,000)
+Area - 1050 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as lift, rera registered
+
+### ask_size :: 1 bhk
+Customer: 1 bhk
+Assistant: How many bedrooms are you looking for? You can also say no preference.
+
+### ask_size :: 4BHK
+Customer: 4BHK
+Assistant: How many bedrooms are you looking for? You can also say no preference.
+
+### ask_size :: no preference
+Customer: no preference
+Assistant: Here’s a property matching your search:
+
+Property - Green Valley (2BHK)
+Location - Wakad
+Price - ₹18,000/month (deposit ₹50,000)
+Area - 1050 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as lift, rera registered
+
+### ask_size :: any size
+Customer: any size
+Assistant: How many bedrooms are you looking for? You can also say no preference.
+
+### ready_to_search :: Baner 2BHK under 80L
+Customer: Baner 2BHK under 80L
+Assistant: Here are 2 properties matching your search:
+
+Property - Skyline Residency (3BHK)
+Location - Baner
+Price - ₹95L
+Area - 1450 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, pool, 2 covered parking
+
+Property - Sunrise Park (2BHK)
+Location - Baner
+Price - ₹79L
+Area - 1080 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, clubhouse
+
+### ready_to_search :: Baner 3BHK under 1cr
+Customer: Baner 3BHK under 1cr
+Assistant: Here are 2 properties matching your search:
+
+Property - Skyline Residency (3BHK)
+Location - Baner
+Price - ₹95L
+Area - 1450 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, pool, 2 covered parking
+
+Property - Sunrise Park (2BHK)
+Location - Baner
+Price - ₹79L
+Area - 1080 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, clubhouse
+
+### ready_to_search :: Wakad 2BHK rent 18k
+Customer: Wakad 2BHK rent 18k
+Assistant: Here are 2 properties matching your search:
+
+Property - Skyline Residency (3BHK)
+Location - Baner
+Price - ₹95L
+Area - 1450 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, pool, 2 covered parking
+
+Property - Sunrise Park (2BHK)
+Location - Baner
+Price - ₹79L
+Area - 1080 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, clubhouse
+
+### ready_to_search :: Wakad 2BHK under 80L
+Customer: Wakad 2BHK under 80L
+Assistant: Here are 2 properties matching your search:
+
+Property - Skyline Residency (3BHK)
+Location - Baner
+Price - ₹95L
+Area - 1450 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, pool, 2 covered parking
+
+Property - Sunrise Park (2BHK)
+Location - Baner
+Price - ₹79L
+Area - 1080 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, clubhouse
+
+### ready_to_search :: Pashan 2BHK under 80L
+Customer: Pashan 2BHK under 80L
+Assistant: Here are 2 properties matching your search:
+
+Property - Skyline Residency (3BHK)
+Location - Baner
+Price - ₹95L
+Area - 1450 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, pool, 2 covered parking
+
+Property - Sunrise Park (2BHK)
+Location - Baner
+Price - ₹79L
+Area - 1080 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, clubhouse
+
+### ready_to_search :: Baner flat ready to move
+Customer: Baner flat ready to move
+Assistant: Here are 2 properties matching your search:
+
+Property - Skyline Residency (3BHK)
+Location - Baner
+Price - ₹95L
+Area - 1450 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, pool, 2 covered parking
+
+Property - Sunrise Park (2BHK)
+Location - Baner
+Price - ₹79L
+Area - 1080 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, clubhouse
+
+### ready_to_search :: Baner no pref under 1cr
+Customer: Baner no pref under 1cr
+Assistant: Here are 2 properties matching your search:
+
+Property - Skyline Residency (3BHK)
+Location - Baner
+Price - ₹95L
+Area - 1450 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, pool, 2 covered parking
+
+Property - Sunrise Park (2BHK)
+Location - Baner
+Price - ₹79L
+Area - 1080 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, clubhouse
+
+### ready_to_search :: Balewadi 2BHK under 1cr
+Customer: Balewadi 2BHK under 1cr
+Assistant: Here are 2 properties matching your search:
+
+Property - Skyline Residency (3BHK)
+Location - Baner
+Price - ₹95L
+Area - 1450 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, pool, 2 covered parking
+
+Property - Sunrise Park (2BHK)
+Location - Baner
+Price - ₹79L
+Area - 1080 sqft
+Possession - Ready to move
+Status - Ready to move
+Amenities - This property has amenities such as east-facing, gym, clubhouse
+
+### book now :: kal 2 baje :: email in message
+Customer: kal 2 baje rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book later :: kal 2 baje :: ask email
+Customer: kal 2 baje
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: kal 2 baje :: email follow-up
+Customer: rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book duplicate :: kal 2 baje
+Customer: kal 2 baje rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: kal subah 10 baje :: email in message
+Customer: kal subah 10 baje rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book later :: kal subah 10 baje :: ask email
+Customer: kal subah 10 baje
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: kal subah 10 baje :: email follow-up
+Customer: rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book duplicate :: kal subah 10 baje
+Customer: kal subah 10 baje rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: kal shaam 5 baje :: email in message
+Customer: kal shaam 5 baje rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book later :: kal shaam 5 baje :: ask email
+Customer: kal shaam 5 baje
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: kal shaam 5 baje :: email follow-up
+Customer: rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book duplicate :: kal shaam 5 baje
+Customer: kal shaam 5 baje rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: parson 11 baje :: email in message
+Customer: parson 11 baje rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book later :: parson 11 baje :: ask email
+Customer: parson 11 baje
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: parson 11 baje :: email follow-up
+Customer: rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book duplicate :: parson 11 baje
+Customer: parson 11 baje rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: agale hafte somvar 2 baje :: email in message
+Customer: agale hafte somvar 2 baje rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book later :: agale hafte somvar 2 baje :: ask email
+Customer: agale hafte somvar 2 baje
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: agale hafte somvar 2 baje :: email follow-up
+Customer: rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book duplicate :: agale hafte somvar 2 baje
+Customer: agale hafte somvar 2 baje rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: tomorrow 5 pm :: email in message
+Customer: tomorrow 5 pm rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book later :: tomorrow 5 pm :: ask email
+Customer: tomorrow 5 pm
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: tomorrow 5 pm :: email follow-up
+Customer: rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book duplicate :: tomorrow 5 pm
+Customer: tomorrow 5 pm rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: Sunday 11 AM :: email in message
+Customer: Sunday 11 AM rahul@example.com
+Assistant: Our site visits are between 9 AM and 7 PM. Could you pick a time within those hours? 😊
+
+### book later :: Sunday 11 AM :: ask email
+Customer: Sunday 11 AM
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: Sunday 11 AM :: email follow-up
+Customer: rahul@example.com
+Assistant: Our site visits are between 9 AM and 7 PM. Could you pick a time within those hours? 😊
+
+### book duplicate :: Sunday 11 AM
+Customer: Sunday 11 AM rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: next week monday 3 pm :: email in message
+Customer: next week monday 3 pm rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book later :: next week monday 3 pm :: ask email
+Customer: next week monday 3 pm
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: next week monday 3 pm :: email follow-up
+Customer: rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book duplicate :: next week monday 3 pm
+Customer: next week monday 3 pm rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: somwar 2 baje :: email in message
+Customer: somwar 2 baje rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book later :: somwar 2 baje :: ask email
+Customer: somwar 2 baje
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: somwar 2 baje :: email follow-up
+Customer: rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book duplicate :: somwar 2 baje
+Customer: somwar 2 baje rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: som 2 baje :: email in message
+Customer: som 2 baje rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book later :: som 2 baje :: ask email
+Customer: som 2 baje
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: som 2 baje :: email follow-up
+Customer: rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book duplicate :: som 2 baje
+Customer: som 2 baje rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: monday 2 pm :: email in message
+Customer: monday 2 pm rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book later :: monday 2 pm :: ask email
+Customer: monday 2 pm
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: monday 2 pm :: email follow-up
+Customer: rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book duplicate :: monday 2 pm
+Customer: monday 2 pm rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: udya sakali 9 :: email in message
+Customer: udya sakali 9 rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book later :: udya sakali 9 :: ask email
+Customer: udya sakali 9
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: udya sakali 9 :: email follow-up
+Customer: rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book duplicate :: udya sakali 9
+Customer: udya sakali 9 rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: parva sakali 10 :: email in message
+Customer: parva sakali 10 rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book later :: parva sakali 10 :: ask email
+Customer: parva sakali 10
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: parva sakali 10 :: email follow-up
+Customer: rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book duplicate :: parva sakali 10
+Customer: parva sakali 10 rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: ratri 7 baje :: email in message
+Customer: ratri 7 baje rahul@example.com
+Assistant: Our site visits are between 9 AM and 7 PM. Could you pick a time within those hours? 😊
+
+### book later :: ratri 7 baje :: ask email
+Customer: ratri 7 baje
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: ratri 7 baje :: email follow-up
+Customer: rahul@example.com
+Assistant: Our site visits are between 9 AM and 7 PM. Could you pick a time within those hours? 😊
+
+### book duplicate :: ratri 7 baje
+Customer: ratri 7 baje rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: aaj 7 baje :: email in message
+Customer: aaj 7 baje rahul@example.com
+Assistant: Our site visits are between 9 AM and 7 PM. Could you pick a time within those hours? 😊
+
+### book later :: aaj 7 baje :: ask email
+Customer: aaj 7 baje
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: aaj 7 baje :: email follow-up
+Customer: rahul@example.com
+Assistant: Our site visits are between 9 AM and 7 PM. Could you pick a time within those hours? 😊
+
+### book duplicate :: aaj 7 baje
+Customer: aaj 7 baje rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: eve 5 pm :: email in message
+Customer: eve 5 pm rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book later :: eve 5 pm :: ask email
+Customer: eve 5 pm
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: eve 5 pm :: email follow-up
+Customer: rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book duplicate :: eve 5 pm
+Customer: eve 5 pm rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: evnining 5 pm :: email in message
+Customer: evnining 5 pm rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book later :: evnining 5 pm :: ask email
+Customer: evnining 5 pm
+Assistant: Please share your email address so I can send the visit confirmation.
+
+### book from pending :: evnining 5 pm :: email follow-up
+Customer: rahul@example.com
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### book duplicate :: evnining 5 pm
+Customer: evnining 5 pm rahul@example.com
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: kabhi bhi :: email in message
+Customer: kabhi bhi
+Assistant: Please share the preferred date and time again so I can lock the visit.
+
+### book later :: kabhi bhi :: ask email
+Customer: kabhi bhi
+Assistant: Please share the preferred date and time again so I can lock the visit.
+
+### book duplicate :: kabhi bhi
+Customer: kabhi bhi
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: kab aa sakte hai? :: email in message
+Customer: kab aa sakte hai?
+Assistant: Please share the preferred date and time again so I can lock the visit.
+
+### book later :: kab aa sakte hai? :: ask email
+Customer: kab aa sakte hai?
+Assistant: Please share the preferred date and time again so I can lock the visit.
+
+### book duplicate :: kab aa sakte hai?
+Customer: kab aa sakte hai?
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### book now :: next week :: email in message
+Customer: next week
+Assistant: Please share the preferred date and time again so I can lock the visit.
+
+### book later :: next week :: ask email
+Customer: next week
+Assistant: Please share the preferred date and time again so I can lock the visit.
+
+### book duplicate :: next week
+Customer: next week
+Assistant: You already have a site visit booked for Mon, 6 Jul, 2026, 11:00 am. Would you like to reschedule it to a new time, or cancel it? 😊
+
+### confirm fresh :: yes
+Customer: yes
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: yes
+Customer: yes
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: confirm
+Customer: confirm
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: confirm
+Customer: confirm
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: pakka
+Customer: pakka
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: pakka
+Customer: pakka
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: bilkul
+Customer: bilkul
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: bilkul
+Customer: bilkul
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: haan
+Customer: haan
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: haan
+Customer: haan
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: haan ji
+Customer: haan ji
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: haan ji
+Customer: haan ji
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: ok
+Customer: ok
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: ok
+Customer: ok
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: sure
+Customer: sure
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: sure
+Customer: sure
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: theek hai
+Customer: theek hai
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: theek hai
+Customer: theek hai
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: barobar
+Customer: barobar
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: barobar
+Customer: barobar
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: done
+Customer: done
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: done
+Customer: done
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: chalega
+Customer: chalega
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: chalega
+Customer: chalega
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: हो
+Customer: हो
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: हो
+Customer: हो
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: हाँ
+Customer: हाँ
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: हाँ
+Customer: हाँ
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: ठीक है
+Customer: ठीक है
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: ठीक है
+Customer: ठीक है
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### confirm fresh :: बरोबर
+Customer: बरोबर
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### confirm expired :: बरोबर
+Customer: बरोबर
+Assistant: The pending visit is stale, so the app falls back to the normal booking flow.
+
+### reschedule :: tomorrow 3 pm :: allowed
+Customer: tomorrow 3 pm
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### cancel :: tomorrow 3 pm :: with appointment
+Customer: tomorrow 3 pm
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: kal 11 baje :: allowed
+Customer: kal 11 baje
+Assistant: I see you've changed your visit time a few times already. To make sure we get it right, our team will personally connect with you to finalise a slot. 🙏
+
+### cancel :: kal 11 baje :: with appointment
+Customer: kal 11 baje
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: parson 2 baje :: allowed
+Customer: parson 2 baje
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### cancel :: parson 2 baje :: with appointment
+Customer: parson 2 baje
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: Sunday 11 AM :: allowed
+Customer: Sunday 11 AM
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### cancel :: Sunday 11 AM :: with appointment
+Customer: Sunday 11 AM
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: next week monday 4 pm :: allowed
+Customer: next week monday 4 pm
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### cancel :: next week monday 4 pm :: with appointment
+Customer: next week monday 4 pm
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: kal subah 7 baje :: allowed
+Customer: kal subah 7 baje
+Assistant: I see you've changed your visit time a few times already. To make sure we get it right, our team will personally connect with you to finalise a slot. 🙏
+
+### cancel :: kal subah 7 baje :: with appointment
+Customer: kal subah 7 baje
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: now :: allowed
+Customer: now
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### cancel :: now :: with appointment
+Customer: now
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: please reschedule :: allowed
+Customer: please reschedule
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### cancel :: please reschedule :: with appointment
+Customer: please reschedule
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: cancel it :: allowed
+Customer: cancel it
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### cancel :: cancel it :: with appointment
+Customer: cancel it
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: please cancel :: allowed
+Customer: please cancel
+Assistant: I see you've changed your visit time a few times already. To make sure we get it right, our team will personally connect with you to finalise a slot. 🙏
+
+### cancel :: please cancel :: with appointment
+Customer: please cancel
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: nako cancel :: allowed
+Customer: nako cancel
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### cancel :: nako cancel :: with appointment
+Customer: nako cancel
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: radd karo :: allowed
+Customer: radd karo
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### cancel :: radd karo :: with appointment
+Customer: radd karo
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: theek hai, cancel :: allowed
+Customer: theek hai, cancel
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### cancel :: theek hai, cancel :: with appointment
+Customer: theek hai, cancel
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: lets shift it :: allowed
+Customer: lets shift it
+Assistant: I see you've changed your visit time a few times already. To make sure we get it right, our team will personally connect with you to finalise a slot. 🙏
+
+### cancel :: lets shift it :: with appointment
+Customer: lets shift it
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: change to next week :: allowed
+Customer: change to next week
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### cancel :: change to next week :: with appointment
+Customer: change to next week
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊
+
+### reschedule :: not coming :: allowed
+Customer: not coming
+Assistant: ✅ Your site visit is confirmed for Mon, 6 Jul, 2026, 02:00 pm. A confirmation email is on its way to rahul@example.com. See you then, Rahul! 😊
+
+### cancel :: not coming :: with appointment
+Customer: not coming
+Assistant: Done — your site visit for Mon, 6 Jul, 2026, 11:00 am has been cancelled. Would you like to book a new time? 😊

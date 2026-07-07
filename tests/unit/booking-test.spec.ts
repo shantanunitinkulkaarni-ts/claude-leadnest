@@ -5,6 +5,7 @@ import {
   buildTrollHaltReply,
   buildDoubleBookReply,
   buildMissingDataAlert,
+  buildBookingReviewAlert,
   buildSuccessReply,
   shouldAllowReschedule,
   resolveBookingData,
@@ -63,6 +64,22 @@ test.describe('buildMissingDataAlert', () => {
     const { alertBody } = buildMissingDataAlert('Asha', '+9188888', 'asha@test.com', '2026-07-05T11:00', 'prop-1')
     expect(alertBody).toContain('asha@test.com')
     expect(alertBody).toContain('prop-1')
+  })
+})
+
+test.describe('buildBookingReviewAlert', () => {
+  test('uses the generic review reply for blocked bookings', () => {
+    const { reply, alertBody } = buildBookingReviewAlert({
+      leadName: 'Rahul',
+      phone: '+9199999',
+      email: 'rahul@test.com',
+      visitTime: '2026-07-05T11:00',
+      propertyTitle: 'Lodha One',
+      reason: 'selected property is sold out',
+    })
+    expect(reply).toContain('received your request')
+    expect(alertBody).toContain('sold out')
+    expect(alertBody).toContain('Lodha One')
   })
 })
 

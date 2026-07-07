@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { pickFields, requireAgentAccess, requirePropertyAccess } from '@/lib/apiAuth'
 import { isFreePlan, FREE_PROPERTY_CAP } from '@/lib/planLimits'
 import { refreshPropertyRagSnapshot } from '@/lib/propertyRagRefresh'
+import { refreshAgentBookingRagSnapshot } from '@/lib/bookingRagRefresh'
 import { purgeExpiredSampleData } from '@/lib/sampleCleanup'
 
 const EXTRA = [
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
 
   // Keep the property RAG snapshot fresh whenever inventory changes.
   await refreshPropertyRagSnapshot(body.agent_id).catch(() => null)
+  await refreshAgentBookingRagSnapshot(body.agent_id).catch(() => null)
 
   return NextResponse.json({ data })
 }
@@ -97,6 +99,7 @@ export async function PATCH(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   await refreshPropertyRagSnapshot(access.agentId).catch(() => null)
+  await refreshAgentBookingRagSnapshot(access.agentId).catch(() => null)
   return NextResponse.json({ data })
 }
 
@@ -111,6 +114,7 @@ export async function DELETE(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   await refreshPropertyRagSnapshot(access.agentId).catch(() => null)
+  await refreshAgentBookingRagSnapshot(access.agentId).catch(() => null)
 
   return NextResponse.json({ ok: true })
 }

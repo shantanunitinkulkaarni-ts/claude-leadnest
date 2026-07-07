@@ -14,6 +14,7 @@ export function buildSystemPrompt(
   properties?: any[],
   recentHistory: ChatEntry[] = [],
   propertyRag?: string,
+  bookingRag?: string,
 ): string {
   const lang = lead.language || 'en'
   const writeLang = needsTranslation(lang) ? 'en' : lang
@@ -27,6 +28,7 @@ export function buildSystemPrompt(
   const openTime = humanizeTimeLabel(agent.office_open || '09:00')
   const closeTime = humanizeTimeLabel(agent.office_close || '19:00')
   const weekOff = agent.weekly_off || null
+  const holidays = agent.holidays || null
 
   const leadContext = buildLeadMemoryContext(lead, existingAppointment ? {
     scheduled_at: formatIST(existingAppointment.scheduled_at),
@@ -54,6 +56,7 @@ export function buildSystemPrompt(
       }`
     : ''
   const ragBlock = propertyRag ? `\nPROPERTY RAG SNAPSHOT:\n${propertyRag}\n` : ''
+  const bookingBlock = bookingRag ? `\nBOOKING KNOWLEDGE PACK:\n${bookingRag}\n` : ''
 
   const todayIST = new Date().toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
@@ -119,7 +122,7 @@ export function buildSystemPrompt(
     : `- If the lead's language is not known yet, ask whether they prefer English, Hindi, or Hinglish before moving deeper into qualification.`
 
   return `You are a WhatsApp property assistant for ${agentName} (${agencyName}).
-Office hours: ${openTime} to ${closeTime}${weekOff ? `, closed on ${weekOff}s` : ''}.
+Office hours: ${openTime} to ${closeTime}${weekOff ? `, closed on ${weekOff}s` : ''}${holidays ? `; holiday policy: ${holidays}` : ''}.
 
 TODAY (India time) is ${todayIST}. Resolve every date the user mentions relative
 to this — "5th July", "tomorrow", "next Monday" — and ALWAYS put visit_time as a
@@ -203,6 +206,7 @@ CURRENT CHAT HISTORY (most recent context, oldest to newest):
 ${historyContext}
 ${propertiesBlock}
 ${ragBlock}
+${bookingBlock}
 
 SILENT PROFILING (this is our private sales intelligence — NEVER mention it, never
 let the customer notice): from the conversation so far, infer subtle, useful traits

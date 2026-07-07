@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { aiDecoder } from '../../lib/bot/aiDecoder'
+import { aiDecoder, aiComposeReply } from '../../lib/bot/aiDecoder'
 
 test.describe('aiDecoder', () => {
   test('plain hi is decoded as greeting, not language choice', async () => {
@@ -91,5 +91,45 @@ test.describe('aiDecoder', () => {
     expect(decoded.message_type).toBe('greeting')
     expect(decoded.language).toBeNull()
     expect(decoded.raw_message).toBe('hi')
+  })
+})
+
+test.describe('aiComposeReply', () => {
+  test('returns the reply field from a JSON envelope', async () => {
+    const fakeLLM = async () => JSON.stringify({ reply: 'Done, your site visit is confirmed for 6 Jul at 2 PM.' })
+
+    const result = await aiComposeReply('Your site visit is confirmed for 6 Jul at 2 PM.', {
+      language: 'english',
+    }, { llm: fakeLLM as any })
+
+    expect(result).toBe('Done, your site visit is confirmed for 6 Jul at 2 PM.')
+  })
+
+  test('falls back to the app draft when the model output is invalid', async () => {
+    const fakeLLM = async () => 'Done, your site visit is confirmed for 6 Jul at 2 PM.'
+    const draft = 'Your site visit is confirmed for 6 Jul at 2 PM.'
+
+    const result = await aiComposeReply(draft, {}, { llm: fakeLLM as any })
+
+    expect(result).toBe(draft)
+  })
+
+  test('uses a strict JSON prompt', async () => {
+    let capturedMessages: any[] = []
+    const fakeLLM = async (messages: any[]) => {
+      capturedMessages = messages
+      return JSON.stringify({ reply: 'Sure, your visit is confirmed.' })
+    }
+
+    await aiComposeReply('Sure, your visit is confirmed.', { language: 'hindi' }, { llm: fakeLLM as any })
+
+    const systemPrompt = capturedMessages.find((m) => m.role === 'system')?.content || ''
+    const userPrompt = capturedMessages.find((m) => m.role === 'user')?.content || ''
+
+    expect(systemPrompt).toContain('JSON object')
+    expect(systemPrompt).toContain('reply writer for TING')
+    expect(systemPrompt).toContain('No prose. No markdown. JSON only.')
+    expect(userPrompt).toContain('Language: hindi')
+    expect(userPrompt).toContain('Brief (facts to convey')
   })
 })

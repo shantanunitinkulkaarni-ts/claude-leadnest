@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { resolveAppointmentTime, formatIST } from '../../lib/appointment'
+import { resolveAppointmentTime, resolveAppointmentTimeWithAI, formatIST } from '../../lib/appointment'
 
 // Read the IST wall-clock (hour/min/day) of a stored UTC ISO instant —
 // timezone-independent (works regardless of the machine running the test).
@@ -107,6 +107,47 @@ test.describe('resolveAppointmentTime', () => {
     expect(resolveAppointmentTime({ nowMs: NOW }).ok).toBe(false)
     expect(resolveAppointmentTime({ llmTime: '', replyText: '', nowMs: NOW }).ok).toBe(false)
     expect(resolveAppointmentTime({ llmTime: '!!!', replyText: '???', nowMs: NOW }).ok).toBe(false)
+  })
+
+  test('AI-first resolver turns Hindi into a UTC appointment time', async () => {
+    const fakeLLM = async () => '{"ok":true,"iso":"2026-06-15T14:00:00+05:30","language":"hi"}'
+    const r = await resolveAppointmentTimeWithAI({
+      customerText: 'कल 2 बजे',
+      nowMs: NOW,
+    }, { llm: fakeLLM as any })
+
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.source).toBe('ai-iso')
+    expect(r.iso).toBe('2026-06-15T08:30:00.000Z')
+  })
+
+  test('AI-first resolver falls back when the AI fails', async () => {
+    const boom = async () => { throw new Error('down') }
+    const r = await resolveAppointmentTimeWithAI({
+      customerText: 'tomorrow at 5 pm',
+      nowMs: NOW,
+    }, { llm: boom as any })
+
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.source).toBe('chrono-llm')
+    const w = ist(r.iso)
+    expect(w).toMatchObject({ h: 17, mi: 0, d: 15 })
+  })
+
+  test('AI-first resolver respects a not-bookable decode', async () => {
+    const fakeLLM = async () => '{"ok":false,"reason":"property_unavailable","bookable":false,"language":"hi"}'
+    const r = await resolveAppointmentTimeWithAI({
+      customerText: 'tomorrow at 5 pm',
+      nowMs: NOW,
+      bookingKnowledge: 'Selected property is sold out.',
+    }, { llm: fakeLLM as any })
+
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.reason).toBe('property_unavailable')
+    }
   })
 })
 

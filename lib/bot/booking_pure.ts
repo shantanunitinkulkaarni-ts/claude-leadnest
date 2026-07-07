@@ -44,6 +44,22 @@ export function buildMissingDataAlert(
   }
 }
 
+/** Build the generic fallback when booking cannot be confirmed automatically. */
+export function buildBookingReviewAlert(args: {
+  leadName: string
+  phone: string
+  email?: string | null
+  visitTime?: string | null
+  propertyTitle?: string | null
+  reason: string
+}): { reply: string; alertSubject: string; alertBody: string } {
+  return {
+    reply: `Thanks, we received your request and our team will connect with you shortly.`,
+    alertSubject: '⚠️ Site visit request needs review',
+    alertBody: `A site visit request could not be confirmed automatically.\n\nLead: ${args.leadName}\nPhone: ${args.phone}\nEmail: ${args.email || 'MISSING'}\nVisit time: ${args.visitTime || 'MISSING'}\nProperty: ${args.propertyTitle || 'MISSING'}\nReason: ${args.reason}`,
+  }
+}
+
 /** Build the success reply after appointment creation. */
 export function buildSuccessReply(
   visitTime: string,

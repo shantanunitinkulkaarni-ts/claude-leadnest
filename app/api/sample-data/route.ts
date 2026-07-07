@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { requireAgentAccess } from '@/lib/apiAuth'
 import { purgeExpiredSampleData } from '@/lib/sampleCleanup'
+import { refreshAgentBookingRagSnapshot } from '@/lib/bookingRagRefresh'
 
 // Seeds a Sample Lead + sample Properties for the onboarding simulation, so a
 // brand-new agent can experience the bot before connecting WhatsApp. Sample
@@ -87,6 +88,7 @@ export async function POST(request: NextRequest) {
       description: 'Sample property - spacious 3 BHK in Baner with a balcony view and strong premium-locality positioning.',
     }),
   ])
+  await refreshAgentBookingRagSnapshot(agentId).catch(() => null)
 
   // Sample lead. Email = the agent's own, so the demo's confirmation + alert
   // emails both land in the agent's inbox (they see that feature work too).

@@ -1,4 +1,5 @@
 import * as chrono from 'chrono-node'
+import { decodeVisitTimeWithAI } from './timeParser'
 
 // ─── Robust appointment-time resolution ──────────────────────────────────────
 // The engine returns an `appointment_booked_time`, but free-tier LLMs are not
@@ -22,7 +23,7 @@ const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 
 export type ApptResolution =
-  | { ok: true; iso: string; source: 'llm-iso' | 'chrono-llm' | 'chrono-reply' }
+  | { ok: true; iso: string; source: 'llm-iso' | 'chrono-llm' | 'chrono-reply' | 'ai-iso' }
   | { ok: false; reason: string }
 
 type Parts = { y: number; mo: number; d: number; h: number; mi: number } // mo = 1-based
@@ -114,6 +115,38 @@ export function resolveAppointmentTime(args: {
     ok: false,
     reason: candidates.length ? 'time(s) parsed but failed sanity (past or >90d)' : 'no explicit time found',
   }
+}
+
+// AI-first booking helper: try the LLM to turn human wording into a clean IST
+// wall-clock, then run the normal safety checks and storage conversion.
+export async function resolveAppointmentTimeWithAI(args: {
+  customerText?: string | null
+  replyText?: string | null
+  nowMs: number
+  bookingKnowledge?: string
+}, deps: { llm?: any } = {}): Promise<ApptResolution> {
+  const text = String(args.customerText || args.replyText || '').trim()
+  if (text) {
+    const ai = await decodeVisitTimeWithAI(text, {
+      llm: deps.llm,
+      now: new Date(args.nowMs),
+      bookingKnowledge: args.bookingKnowledge,
+    })
+    if (ai.ok) {
+      const resolved = resolveAppointmentTime({ llmTime: ai.iso, replyText: '', nowMs: args.nowMs })
+      if (resolved.ok) return { ...resolved, source: 'ai-iso' }
+    } else if (ai.bookable === false) {
+      return {
+        ok: false,
+        reason: ai.reason || 'not_bookable',
+      }
+    }
+  }
+  return resolveAppointmentTime({
+    llmTime: args.customerText || null,
+    replyText: args.replyText || null,
+    nowMs: args.nowMs,
+  })
 }
 
 // Format a stored UTC ISO instant as an IST wall-clock string for agent-facing

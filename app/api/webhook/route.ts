@@ -78,15 +78,22 @@ export async function POST(request: NextRequest) {
     const contentType = request.headers.get('content-type') || ''
     let fromPhone = '', messageText = '', waMessageId = '', forcedAgentId = '', metaPhoneNumberId = ''
     let isNonTextMedia = false
+    const inboundMessages: Array<{
+      fromPhone: string
+      messageText: string
+      waMessageId: string
+      isNonTextMedia: boolean
+    }> = []
 
     if (contentType.includes('application/x-www-form-urlencoded')) {
       const params = new URLSearchParams(rawBody)
-      fromPhone = (params.get('From') || '').replace('whatsapp:', '').trim()
+      let fromPhone = (params.get('From') || '').replace('whatsapp:', '').trim()
       if (fromPhone && !fromPhone.startsWith('+')) fromPhone = '+' + fromPhone
-      messageText = params.get('Body') || ''
-      waMessageId = params.get('MessageSid') || ''
+      const messageText = params.get('Body') || ''
+      const waMessageId = params.get('MessageSid') || ''
       forcedAgentId = params.get('AgentId') || ''
       if (!messageText || !fromPhone) return NextResponse.json({ status: 'no_text' })
+      inboundMessages.push({ fromPhone, messageText, waMessageId, isNonTextMedia: false })
     } else {
       let body: any = {}
       try { body = JSON.parse(rawBody) } catch {}
@@ -108,12 +115,65 @@ export async function POST(request: NextRequest) {
           ''
         waMessageId = msg.id || ''
         if (!messageText && msg.type && msg.type !== 'text') isNonTextMedia = true
-        if (!messageText && !isNonTextMedia) return NextResponse.json({ status: 'no_text' })
+        if (messageText || isNonTextMedia) {
+          inboundMessages.push({ fromPhone, messageText, waMessageId, isNonTextMedia })
+        }
+
+        for (const extraMsg of value.messages.slice(1)) {
+          const extraText =
+            extraMsg.text?.body ||
+            extraMsg.button?.text ||
+            extraMsg.button?.payload ||
+            extraMsg.interactive?.button_reply?.title ||
+            extraMsg.interactive?.list_reply?.title ||
+            ''
+          const extraIsNonTextMedia = !extraText && !!extraMsg.type && extraMsg.type !== 'text'
+          if (!extraText && !extraIsNonTextMedia) continue
+          inboundMessages.push({
+            fromPhone: extraMsg.from || '',
+            messageText: extraText,
+            waMessageId: extraMsg.id || '',
+            isNonTextMedia: extraIsNonTextMedia,
+          })
+        }
+        for (const entry of body.entry || []) {
+          for (const change of entry.changes || []) {
+            const extraValue = change.value
+            if (!extraValue?.messages?.length || extraValue === value) continue
+            const phoneNumberId = extraValue.metadata?.phone_number_id || ''
+            if (phoneNumberId) {
+              if (metaPhoneNumberId && metaPhoneNumberId !== phoneNumberId) {
+                logError('mixed_agent_batch', { first: metaPhoneNumberId, next: phoneNumberId })
+                return NextResponse.json({ status: 'mixed_agent_batch' }, { status: 400 })
+              }
+              metaPhoneNumberId = phoneNumberId
+            }
+            for (const extraMsg of extraValue.messages) {
+              const extraText =
+                extraMsg.text?.body ||
+                extraMsg.button?.text ||
+                extraMsg.button?.payload ||
+                extraMsg.interactive?.button_reply?.title ||
+                extraMsg.interactive?.list_reply?.title ||
+                ''
+              const extraIsNonTextMedia = !extraText && !!extraMsg.type && extraMsg.type !== 'text'
+              if (!extraText && !extraIsNonTextMedia) continue
+              inboundMessages.push({
+                fromPhone: extraMsg.from || '',
+                messageText: extraText,
+                waMessageId: extraMsg.id || '',
+                isNonTextMedia: extraIsNonTextMedia,
+              })
+            }
+          }
+        }
       } else return NextResponse.json({ status: 'ignored' })
     }
 
     // ── Agent lookup ─────────────────────────────────────────────────────
     // Meta: identify the agent by the business phone number that received it.
+    if (!inboundMessages.length) return NextResponse.json({ status: 'no_messages' })
+
     let agent: any = null
     if (metaPhoneNumberId) {
       const { data } = await supabaseAdmin.from('agents').select('*').eq('wa_phone_number_id', metaPhoneNumberId).maybeSingle()
@@ -142,6 +202,14 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Lead lookup / create ──────────────────────────────────────────────
+    const results: any[] = []
+    for (const inbound of inboundMessages) {
+      fromPhone = inbound.fromPhone
+      messageText = inbound.messageText
+      waMessageId = inbound.waMessageId
+      isNonTextMedia = inbound.isNonTextMedia
+      try {
+
     const now = new Date().toISOString()
     let { data: leads } = await supabaseAdmin.from('leads')
       .select('*').eq('agent_id', agent.id)
@@ -155,7 +223,10 @@ export async function POST(request: NextRequest) {
         agent_id: agent.id,
         ...newInboundLeadDefaults(fromPhone, now),
       }).select().single()
-      if (!nl) return NextResponse.json({ status: 'lead_create_failed' })
+      if (!nl) {
+        results.push({ phone: fromPhone, status: 'lead_create_failed' })
+        continue
+      }
       lead = nl
       try { await supabaseAdmin.from('activity_log').insert({
         agent_id: agent.id, lead_id: lead.id, type: 'lead_created',
@@ -172,13 +243,17 @@ export async function POST(request: NextRequest) {
       await supabaseAdmin.from('leads').update({ opted_in: false }).eq('id', lead.id)
       const bye = "You're all set — I won't message you again. 🙏"
       try { await waSendText(channel, fromPhone, bye) } catch {}
-      return NextResponse.json({ status: 'opted_out' })
+      results.push({ phone: fromPhone, status: 'opted_out' })
+      continue
     }
 
     // ── Dedup ────────────────────────────────────────────────────────────
     if (waMessageId) {
       const { data: dup } = await supabaseAdmin.from('messages').select('id').eq('wa_message_id', waMessageId).eq('direction', 'inbound').limit(1)
-      if (dup?.length) return NextResponse.json({ status: 'duplicate' })
+      if (dup?.length) {
+        results.push({ phone: fromPhone, status: 'duplicate' })
+        continue
+      }
     }
 
     // ── Save inbound message ──────────────────────────────────────────────
@@ -187,14 +262,17 @@ export async function POST(request: NextRequest) {
       content: messageText, wa_message_id: waMessageId || null, sent_by: 'lead'
     })
     if (msgErr) {
-      if (msgErr.code === '23505') return NextResponse.json({ status: 'duplicate' })
-      return NextResponse.json({ status: 'msg_insert_failed' })
+      results.push({ phone: fromPhone, status: msgErr.code === '23505' ? 'duplicate' : 'msg_insert_failed' })
+      continue
     }
 
     // Manual mode = agent is handling this conversation: the bot stays SILENT and
     // never replies. Resuming happens only in the background (cron auto-resumes a
     // lead after 5 min of silence), so the bot only speaks again once resumed.
-    if (lead.bot_paused) return NextResponse.json({ status: 'manual_mode' })
+    if (lead.bot_paused) {
+      results.push({ phone: fromPhone, status: 'manual_mode' })
+      continue
+    }
 
     // ── Guardrails: NSFW / spam / prompt injection ──────────────────────
     // Simple pattern-based check (no AI)
@@ -203,6 +281,7 @@ export async function POST(request: NextRequest) {
       { pattern: /(\b\d{5,}\b.*\b(otp|password|login)\b)|(\b(otp|password)\b.*\b\d{5,}\b)/i, label: 'phishing' },
       { pattern: /(ignore|disregard).*(instruction|prompt|previous)|(you are|act as).*(human|bypass|system)/i, label: 'injection' },
     ]
+    let blockedByGuard = false
     for (const g of guardrailPatterns) {
       if (g.pattern.test(messageText)) {
         const safeReply = "I'm here to help with property inquiries. Could you please ask something related to real estate? 🙏"
@@ -211,9 +290,12 @@ export async function POST(request: NextRequest) {
         }).select('id').single()
         await sendWithRetry(() => waSendText(channel, fromPhone, safeReply))
         if (gOut?.id) await supabaseAdmin.from('messages').update({ status: 'sent' }).eq('id', gOut.id)
-        return NextResponse.json({ status: 'guardrail', kind: g.label })
+        results.push({ phone: fromPhone, status: 'guardrail', kind: g.label })
+        blockedByGuard = true
+        break
       }
     }
+    if (blockedByGuard) continue
 
     // ═════════════════════════════════════════════════════════════════════
     // ── NEW AI-FIRST BOT ENGINE ──────────────────────────────────────────
@@ -233,7 +315,13 @@ export async function POST(request: NextRequest) {
     try { await supabaseAdmin.rpc('increment_messages_used', { p_agent_id: agent.id, p_amount: 2 }) } catch {}
 
     log('ai_bot_complete', { phone: fromPhone })
-    return NextResponse.json({ status: 'ok' })
+    results.push({ phone: fromPhone, status: 'ok' })
+      } catch (messageErr: any) {
+        logError('message_process_failed', { phone: fromPhone, error: messageErr?.message || String(messageErr) })
+        results.push({ phone: fromPhone, status: 'error' })
+      }
+    }
+    return NextResponse.json({ status: 'ok', processed: results.length, results })
 
   } catch (err: any) {
     logError('webhook_error', { error: err.message })

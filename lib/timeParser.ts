@@ -4,6 +4,8 @@
 // Supports Indian time expressions (IST), Hindi/Marathi time words,
 // and common Indian date formats (dd-mm, "kal", "kal subah", etc.)
 
+import { callLLM, type ChatMessage } from './llm'
+
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000 // India is UTC+5:30
 
 // ─── IST Formatting ──────────────────────────────────────────────────────────
@@ -24,10 +26,21 @@ export function formatIST(isoTime: string): string {
   }
 }
 
-// The IST hour (0-23) of a visit time built by parseTimeString (always +05:30).
+// The IST hour (0-23) of a visit time. Appointment times may be stored as UTC
+// instants, so always convert through Date instead of reading the text hour.
 export function visitHourIST(isoTime: string): number {
-  const m = (isoTime || '').match(/T(\d{2}):/)
-  return m ? parseInt(m[1]) : -1
+  const d = new Date(isoTime)
+  if (isNaN(d.getTime())) return -1
+  try {
+    const hour = d.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      hour12: false,
+    })
+    return parseInt(hour, 10)
+  } catch {
+    return -1
+  }
 }
 
 // Parse an hours label like "09:00", "9:00 AM", "7 PM" → hour 0-23.
@@ -76,6 +89,8 @@ export function bookingTimeIssue(visitTime: string, agent: any): string | null {
       return `We're closed on ${agent.weekly_off}s. Could you pick another day? 😊`
     }
   }
+  const holidayIssue = bookingHolidayIssue(visitTime, agent?.holidays)
+  if (holidayIssue) return holidayIssue
   // Office hours.
   const openLabel = humanizeTimeLabel(agent.office_open || '09:00')
   const closeLabel = humanizeTimeLabel(agent.office_close || '19:00')
@@ -86,6 +101,99 @@ export function bookingTimeIssue(visitTime: string, agent: any): string | null {
     return `Our site visits are between ${openLabel} and ${closeLabel}. Could you pick a time within those hours? 😊`
   }
   return null
+}
+
+function bookingHolidayIssue(visitTime: string, holidays?: string | null): string | null {
+  const policy = String(holidays || '').trim()
+  if (!policy) return null
+
+  const date = new Date(visitTime)
+  if (isNaN(date.getTime())) return null
+
+  const istDate = date.toLocaleDateString('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+
+  const parsedHolidayDates = parseHolidayDateHints(policy)
+  if (parsedHolidayDates.some(h => h === istDate)) {
+    return `We're closed on ${prettyHolidayDate(istDate)}. Could you pick another day? 😊`
+  }
+
+  if (/public holiday/i.test(policy) && isCommonIndianPublicHoliday(istDate)) {
+    return `We're closed on public holidays. Could you pick another day? 😊`
+  }
+
+  return null
+}
+
+function parseHolidayDateHints(text: string): string[] {
+  const values = new Set<string>()
+  const input = String(text || '')
+
+  const isoLike = input.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/g) || []
+  for (const token of isoLike) {
+    const m = token.match(/(\d{4})-(\d{1,2})-(\d{1,2})/)
+    if (!m) continue
+    values.add(`${m[1]}-${String(Number(m[2])).padStart(2, '0')}-${String(Number(m[3])).padStart(2, '0')}`)
+  }
+
+  const slashLike = input.match(/\b(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{4}))?\b/g) || []
+  for (const token of slashLike) {
+    const m = token.match(/(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{4}))?/)
+    if (!m) continue
+    const day = String(Number(m[1])).padStart(2, '0')
+    const month = String(Number(m[2])).padStart(2, '0')
+    const year = m[3] ? String(Number(m[3])) : ''
+    if (year) values.add(`${year}-${month}-${day}`)
+  }
+
+  const monthNames: Record<string, number> = {
+    jan: 1, january: 1,
+    feb: 2, february: 2,
+    mar: 3, march: 3,
+    apr: 4, april: 4,
+    may: 5,
+    jun: 6, june: 6,
+    jul: 7, july: 7,
+    aug: 8, august: 8,
+    sep: 9, sept: 9, september: 9,
+    oct: 10, october: 10,
+    nov: 11, november: 11,
+    dec: 12, december: 12,
+  }
+  const textTokens = input.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)(?:\s+(\d{4}))?\b/g) || []
+  for (const token of textTokens) {
+    const m = token.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)(?:\s+(\d{4}))?\b/)
+    if (!m) continue
+    const day = Number(m[1])
+    const month = monthNames[m[2].slice(0, 3).toLowerCase()] || monthNames[m[2].toLowerCase()]
+    const year = m[3] ? Number(m[3]) : null
+    if (!month || !day) continue
+    if (year) {
+      values.add(`${String(year)}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`)
+    }
+  }
+
+  return Array.from(values)
+}
+
+function prettyHolidayDate(istDate: string): string {
+  const d = new Date(`${istDate}T00:00:00+05:30`)
+  if (isNaN(d.getTime())) return istDate
+  return d.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function isCommonIndianPublicHoliday(istDate: string): boolean {
+  const mmdd = istDate.slice(5)
+  return ['01-01', '01-26', '08-15', '10-02', '12-25'].includes(mmdd)
 }
 
 export function isValidEmail(email: string): boolean {
@@ -306,6 +414,198 @@ export function parseTimeString(timeStr: string): string | null {
 // Detect an explicit request to switch chat language (e.g. "english please",
 // "talk in hindi", "मराठीत बोला"). The LLM over-sticks to the stored language and
 // refuses to switch, so we honor the request deterministically in code instead.
+// AI-assisted time decoder. The AI only translates customer wording into the
+// app's timestamp format. The app still validates and books the visit.
+export type AITimeDecodeResult =
+  | {
+      ok: true
+      iso: string
+      language?: string
+      originalText: string
+      bookable?: boolean
+      reason?: string | null
+      property_id?: string | null
+      property_name?: string | null
+      property_status?: string | null
+    }
+  | {
+      ok: false
+      reason: string
+      language?: string
+      originalText: string
+      bookable?: boolean
+      property_id?: string | null
+      property_name?: string | null
+      property_status?: string | null
+    }
+
+function extractJsonObject(raw: string): any | null {
+  const text = (raw || '').trim()
+  if (!text) return null
+  try { return JSON.parse(text) } catch {}
+  const match = text.match(/\{[\s\S]*\}/)
+  if (!match) return null
+  try { return JSON.parse(match[0]) } catch { return null }
+}
+
+function isISTIso(iso: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00\+05:30$/.test(iso || '')
+}
+
+const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
+  english: 'English',
+  hindi: 'Hindi',
+  marathi: 'Marathi',
+  hinglish: 'Hinglish',
+  en: 'English',
+  hi: 'Hindi',
+  mr: 'Marathi',
+  ta: 'Tamil',
+  te: 'Telugu',
+  kn: 'Kannada',
+  ml: 'Malayalam',
+  bn: 'Bengali',
+  gu: 'Gujarati',
+  pa: 'Punjabi',
+  or: 'Odia',
+  ur: 'Urdu',
+  as: 'Assamese',
+}
+
+function displayLanguageName(language?: string): string {
+  const key = (language || '').trim().toLowerCase()
+  return LANGUAGE_DISPLAY_NAMES[key] || (language || 'same as customer')
+}
+
+export async function decodeVisitTimeWithAI(
+  customerText: string,
+  deps: {
+    llm?: typeof callLLM
+    now?: Date
+    bookingKnowledge?: string
+  } = {}
+): Promise<AITimeDecodeResult> {
+  const originalText = customerText || ''
+  if (!originalText.trim()) return { ok: false, reason: 'empty_text', originalText }
+
+  const llm = deps.llm ?? callLLM
+  const now = deps.now ?? new Date()
+  const nowIST = now.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'long',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+
+  const messages: ChatMessage[] = [
+    {
+      role: 'system',
+      content:
+        'You are a tiny time decoder for an Indian real-estate appointment app. ' +
+        'Decode the customer message into exactly one India time appointment. ' +
+        'Understand Indian languages, Hinglish, and regional wording such as "kal 2 baje". ' +
+        'Return ONLY JSON. No prose. Schema: {"ok":true,"iso":"YYYY-MM-DDTHH:mm:00+05:30","bookable":true,"reason":null,"language":"hi","property_id":"...","property_name":"...","property_status":"active"} or {"ok":false,"reason":"missing_time","bookable":false,"language":"hi"}. ' +
+        'Use Asia/Kolkata / IST only. If date or time is missing or ambiguous, return ok:false.',
+    },
+    ...(deps.bookingKnowledge
+      ? [{
+          role: 'system' as const,
+          content:
+            'Current booking knowledge pack (treat it as source of truth for availability):\n' +
+            deps.bookingKnowledge +
+            '\n\nUse this pack to decide whether the slot is bookable. If the slot is outside office hours, on the weekly off, on a blocked holiday, or the selected property is unavailable, mark the request as not bookable and explain why in one short phrase.',
+        }]
+      : []),
+    {
+      role: 'user',
+      content: `Current India time: ${nowIST}\nCustomer message: ${originalText}`,
+    },
+  ]
+
+  try {
+    const raw = await llm(messages, { maxTokens: 120, temperature: 0, deadlineMs: 10000 })
+    const decoded = extractJsonObject(raw)
+    const language = typeof decoded?.language === 'string' ? decoded.language : undefined
+    if (decoded?.ok === true && typeof decoded.iso === 'string' && isISTIso(decoded.iso) && decoded?.bookable !== false) {
+      return {
+        ok: true,
+        iso: decoded.iso,
+        language,
+        originalText,
+        bookable: true,
+        reason: typeof decoded?.reason === 'string' ? decoded.reason : null,
+        property_id: typeof decoded?.property_id === 'string' ? decoded.property_id : null,
+        property_name: typeof decoded?.property_name === 'string' ? decoded.property_name : null,
+        property_status: typeof decoded?.property_status === 'string' ? decoded.property_status : null,
+      }
+    }
+    return {
+      ok: false,
+      reason: typeof decoded?.reason === 'string' ? decoded.reason : 'invalid_ai_time',
+      language,
+      originalText,
+      bookable: false,
+      property_id: typeof decoded?.property_id === 'string' ? decoded.property_id : null,
+      property_name: typeof decoded?.property_name === 'string' ? decoded.property_name : null,
+      property_status: typeof decoded?.property_status === 'string' ? decoded.property_status : null,
+    }
+  } catch {
+    return { ok: false, reason: 'ai_failed', originalText }
+  }
+}
+
+export async function formatVisitConfirmationWithAI(
+  args: {
+    scheduledIso: string
+    customerText?: string
+    language?: string
+    leadName?: string
+    customerEmail?: string
+  },
+  deps: { llm?: typeof callLLM } = {}
+): Promise<string> {
+  const fallback = `Your site visit is scheduled for ${formatIST(args.scheduledIso)}.`
+  if (!isISTIso(args.scheduledIso) && isNaN(new Date(args.scheduledIso).getTime())) return fallback
+
+  const llm = deps.llm ?? callLLM
+  const requestedLanguage = displayLanguageName(args.language)
+  const messages: ChatMessage[] = [
+    {
+      role: 'system',
+      content:
+        'You write WhatsApp confirmations for Indian real-estate site visits. ' +
+        'Always write a full natural sentence, never a fragment, never a bare time, and never echo the customer text by itself. ' +
+        'If the requested language is Hindi, Marathi, Hinglish, Tamil, Telugu, Kannada, Malayalam, Bengali, Gujarati, Punjabi, Odia, Urdu, Assamese, or English, write the entire confirmation in that language. ' +
+        'Mention only the confirmed date and time supplied by the app. ' +
+        (args.customerEmail ? 'If the confirmation email is provided, mention that it has been sent or is on the way. ' : '') +
+        (args.leadName ? 'If the customer name is provided, use it naturally once. ' : '') +
+        'Do not invent property, agent, price, address, or promises. Keep it neat and under 35 words.',
+    },
+    {
+      role: 'user',
+      content:
+        `Confirmed visit time in India: ${formatIST(args.scheduledIso)}\n` +
+        `Requested language: ${requestedLanguage}\n` +
+        `${args.leadName ? `Lead name: ${args.leadName}\n` : ''}` +
+        `${args.customerEmail ? `Confirmation email: ${args.customerEmail}\n` : ''}` +
+        `Customer message: ${args.customerText || ''}`,
+    },
+  ]
+
+  try {
+    const out = (await llm(messages, { maxTokens: 100, temperature: 0, deadlineMs: 10000 }) || '').trim()
+    return out || fallback
+  } catch {
+    return fallback
+  }
+}
+
+// Detect an explicit request to switch chat language. The LLM over-sticks to the
+// stored language, so we honor clear switch requests deterministically in code.
 export function detectLanguageSwitchRequest(text: string): string | null {
   const t = (text || '').toLowerCase()
   if (/\bhinglish\b/.test(t)) return 'hinglish'

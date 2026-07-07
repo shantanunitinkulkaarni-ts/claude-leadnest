@@ -69,6 +69,7 @@ test.describe('E2E: full lead conversation → confirmed appointment', () => {
       expect(staged, 'lead should exist after first inbound message').toBeTruthy()
       expect(staged!.pending_appointment_time, 'bot should stage a pending time, not book immediately').toBeTruthy()
 
+      await send('shantanunitinkulkaarni@gmail.com')
       await send('Yes confirm')
 
       const { data: lead } = await db

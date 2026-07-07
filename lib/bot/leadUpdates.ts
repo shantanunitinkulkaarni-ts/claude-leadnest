@@ -1,19 +1,24 @@
-import { resolveAppointmentTime } from '../appointment'
+import { resolveAppointmentTimeWithAI } from '../appointment'
 import { isValidEmail } from '../timeParser'
 import type { AIDecision } from './types'
 
-export function prepareLeadUpdates(args: {
+export async function prepareLeadUpdates(args: {
   decision: AIDecision
   lead: any
   message: string
   currentStage: string
   forcedLang: string | null
-}) {
-  const { decision, lead, message, currentStage, forcedLang } = args
+  bookingKnowledge?: string
+}, deps: {
+  llm?: any
+  now?: Date
+} = {}) {
+  const { decision, lead, message, currentStage, forcedLang, bookingKnowledge } = args
+  const nowMs = deps.now?.getTime() ?? Date.now()
   const leadUpdates: Record<string, any> = {
-    last_message_at: new Date().toISOString(),
+    last_message_at: new Date(nowMs).toISOString(),
     bot_stage: decision.stage || currentStage,
-    window_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    window_expires_at: new Date(nowMs + 24 * 60 * 60 * 1000).toISOString(),
   }
 
   if (decision.updates?.name) leadUpdates.name = decision.updates.name
@@ -31,17 +36,17 @@ export function prepareLeadUpdates(args: {
   const emailIsValid = !proposedEmail || isValidEmail(proposedEmail)
   if (proposedEmail && emailIsValid) leadUpdates.email = proposedEmail
 
-  const bookingResolution = resolveAppointmentTime({
-    llmTime: decision.updates?.visit_time,
+  const bookingResolution = await resolveAppointmentTimeWithAI({
+    customerText: decision.updates?.visit_time || null,
     replyText: message,
-    nowMs: Date.now(),
-  })
+    nowMs,
+    bookingKnowledge,
+  }, { llm: deps.llm })
   if (bookingResolution.ok) {
     leadUpdates.pending_appointment_time = bookingResolution.iso
-    leadUpdates.pending_appointment_set_at = new Date().toISOString()
+    leadUpdates.pending_appointment_set_at = new Date(nowMs).toISOString()
   }
 
-  const nowMs = Date.now()
   const prevOutMs = lead.last_outbound_at ? new Date(lead.last_outbound_at).getTime() : null
   const responseSecs = prevOutMs ? Math.max(0, Math.round((nowMs - prevOutMs) / 1000)) : null
   const replyWords = (message || '').trim().split(/\s+/).filter(Boolean).length

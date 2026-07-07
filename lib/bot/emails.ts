@@ -89,6 +89,41 @@ This is an automated message from TING Bot`
   await sendEmailViaResend(agentEmail, '🔔 New Site Visit Request', body)
 }
 
+/** Tell the agent a site visit request needs human review instead of auto-booking. */
+export async function notifyAgentOfBookingIssue(
+  agentEmail: string,
+  leadName: string,
+  leadPhone: string,
+  leadEmail: string,
+  propertyTitle: string,
+  visitTime: string | null | undefined,
+  reason: string,
+): Promise<void> {
+  const visitDate = visitTime
+    ? new Date(visitTime).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })
+    : 'Not provided'
+  const visitTimeStr = visitTime
+    ? new Date(visitTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
+    : 'Not provided'
+
+  const body = `Site visit request needs review
+
+Lead: ${leadName}
+Phone: ${leadPhone}
+Email: ${leadEmail || 'Not provided'}
+
+Property: ${propertyTitle || 'Not provided'}
+Requested: ${visitDate} at ${visitTimeStr} IST
+Reason: ${reason}
+
+Please review and connect with the lead directly if needed.
+
+---
+This is an automated message from TING Bot`
+
+  await sendEmailViaResend(agentEmail, '⚠️ Site visit request needs review', body)
+}
+
 /** Send a booking copy to superadmins, including agent contact details. */
 export async function sendSuperadminBookingCopy(
   leadName: string,

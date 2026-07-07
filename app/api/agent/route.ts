@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { pickFields, requireAgentAccess } from '@/lib/apiAuth'
 import { verifyAgentPin } from '@/lib/agentPin'
+import { refreshAgentBookingRagSnapshot } from '@/lib/bookingRagRefresh'
 import {
   SUPERADMIN_EDITABLE_FIELDS,
   USER_EDITABLE_FIELDS,
@@ -59,6 +60,7 @@ export async function PATCH(request: NextRequest) {
       .single()
 
     if (error) throw error
+    await refreshAgentBookingRagSnapshot(agentId).catch(() => null)
     return NextResponse.json({
       data: pickAgentResponseFields(data as Record<string, any>, access.isSuperadmin),
       ...(mustSetPin ? { mustSetPin: true } : {}),

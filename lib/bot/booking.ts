@@ -5,14 +5,22 @@
 // Phase 3: extracted pure helpers to booking_pure.ts for unit testing.
 
 import { supabaseAdmin } from '../supabase'
-import { formatIST, bookingTimeIssue } from '../timeParser'
-import { sendCustomerConfirmation, sendAgentNotification, sendSuperadminBookingCopy, emailSuperadmin, notifyAgentOfTrollHalt } from './emails'
+import { formatIST, bookingTimeIssue, formatVisitConfirmationWithAI } from '../timeParser'
+import {
+  sendCustomerConfirmation,
+  sendAgentNotification,
+  sendSuperadminBookingCopy,
+  emailSuperadmin,
+  notifyAgentOfTrollHalt,
+  notifyAgentOfBookingIssue,
+} from './emails'
 import {
   buildCancelReply,
   buildReschedulePrompt,
   buildTrollHaltReply,
   buildDoubleBookReply,
   buildMissingDataAlert,
+  buildBookingReviewAlert,
   buildSuccessReply,
   shouldAllowReschedule,
   resolveBookingData,
@@ -30,6 +38,21 @@ export type BookingContext = {
   existingAppointment: any
   resolvedMatchedPropertyId: string | null
   tutorialMode?: boolean
+}
+
+async function loadBookingProperty(agentId: string, propertyId: string | undefined | null) {
+  if (!propertyId) return null
+  const { data } = await supabaseAdmin
+    .from('properties')
+    .select('id, title, status, location')
+    .eq('agent_id', agentId)
+    .eq('id', propertyId)
+    .maybeSingle()
+  return data || null
+}
+
+function isPropertyBookable(property: any): boolean {
+  return String(property?.status || 'active').trim().toLowerCase() === 'active'
 }
 
 export async function createAppointment(
@@ -78,6 +101,13 @@ export async function createAppointment(
   if (agent!.email) await sendAgentNotification(agent!.email, leadName, phone, customerEmail || 'Not provided', propertyTitle, visitTime)
   await sendSuperadminBookingCopy(leadName, phone, customerEmail || 'Not provided', propertyTitle, visitTime, agent)
 
+  const confirmationReply = await formatVisitConfirmationWithAI({
+    scheduledIso: visitTime,
+    language: leadUpdates.language || bookingLeadState?.language || lead.language || null,
+    leadName,
+    customerEmail: customerEmail || undefined,
+  })
+  if (confirmationReply && confirmationReply.trim().length >= 8) return confirmationReply
   return buildSuccessReply(visitTime, customerEmail, leadName)
 }
 
@@ -108,17 +138,64 @@ export async function executeBookingAction(
     if (!newTime) {
       return buildReschedulePrompt()
     }
-    if (bookingTimeIssue(newTime, agent)) {
-      return bookingTimeIssue(newTime, agent)!
+    const propertyId = resolvedMatchedPropertyId || existingAppointment!.property_id
+    const property = await loadBookingProperty(agent.id, propertyId)
+    const rescheduleIssue = bookingTimeIssue(newTime, agent)
+    if (rescheduleIssue) {
+      const alert = buildBookingReviewAlert({
+        leadName: lead.name || phone,
+        phone,
+        email: leadUpdates.email || bookingLeadState?.email || lead.email,
+        visitTime: newTime,
+        propertyTitle: property?.title || existingAppointment?.property_id || null,
+        reason: rescheduleIssue,
+      })
+      if (agent?.email) {
+        await notifyAgentOfBookingIssue(
+          agent.email,
+          lead.name || phone,
+          phone,
+          leadUpdates.email || bookingLeadState?.email || lead.email || '',
+          property?.title || existingAppointment?.property_id || 'Selected property',
+          newTime,
+          rescheduleIssue,
+        )
+      }
+      return alert.reply
+    }
+    if (!property || !isPropertyBookable(property)) {
+      const reason = !property
+        ? 'selected property could not be found'
+        : `selected property is ${String(property.status || 'inactive').replace(/_/g, ' ')}`
+      const alert = buildBookingReviewAlert({
+        leadName: lead.name || phone,
+        phone,
+        email: leadUpdates.email || bookingLeadState?.email || lead.email,
+        visitTime: newTime,
+        propertyTitle: property?.title || existingAppointment?.property_id || null,
+        reason,
+      })
+      if (agent?.email) {
+        await notifyAgentOfBookingIssue(
+          agent.email,
+          lead.name || phone,
+          phone,
+          leadUpdates.email || bookingLeadState?.email || lead.email || '',
+          property?.title || existingAppointment?.property_id || 'Selected property',
+          newTime,
+          reason,
+        )
+      }
+      return alert.reply
     }
     await supabaseAdmin.from('appointments').update({ status: 'cancelled' }).eq('id', existingAppointment!.id)
-    const propertyId = resolvedMatchedPropertyId || existingAppointment!.property_id
     return await createAppointment(ctx, newTime, propertyId)
   }
 
   // action === 'book_visit'
   const { visitTime, propertyId } = resolveBookingData(newTime, bookingLeadState, lead, resolvedMatchedPropertyId, existingAppointment)
   const customerEmail = leadUpdates.email || bookingLeadState?.email || lead.email
+  const leadName = leadUpdates.name || lead.name || phone
 
   if (existingAppointment) {
     return buildDoubleBookReply(existingAppointment)
@@ -127,7 +204,6 @@ export async function executeBookingAction(
     return 'Please share your email address so I can send the visit confirmation.'
   }
   if (!visitTime || !propertyId) {
-    const leadName = leadUpdates.name || lead.name || phone
     console.error('[ai-bot] booking missing data', {
       lead_id: lead.id,
       visitTime: visitTime || null,
@@ -141,7 +217,9 @@ export async function executeBookingAction(
     await emailSuperadmin(alert.alertSubject, alert.alertBody)
     return alert.reply
   }
+  const property = await loadBookingProperty(agent.id, propertyId)
   if (bookingTimeIssue(visitTime, agent)) {
+    const issue = bookingTimeIssue(visitTime, agent)!
     console.error('[ai-bot] booking blocked by schedule', {
       lead_id: lead.id,
       visitTime,
@@ -149,7 +227,48 @@ export async function executeBookingAction(
       office_open: agent.office_open || null,
       office_close: agent.office_close || null,
     })
-    return bookingTimeIssue(visitTime, agent)!
+    const alert = buildBookingReviewAlert({
+      leadName,
+      phone,
+      email: customerEmail,
+      visitTime,
+      propertyTitle: property?.title || propertyId,
+      reason: issue,
+    })
+    if (agent?.email) {
+      await notifyAgentOfBookingIssue(agent.email, leadName, phone, customerEmail || '', property?.title || propertyId, visitTime, issue)
+    }
+    return alert.reply
+  }
+  if (!property || !isPropertyBookable(property)) {
+    const reason = !property
+      ? 'selected property could not be found'
+      : `selected property is ${String(property.status || 'inactive').replace(/_/g, ' ')}`
+    console.error('[ai-bot] booking blocked by property status', {
+      lead_id: lead.id,
+      propertyId,
+      propertyStatus: property?.status || null,
+    })
+    const alert = buildBookingReviewAlert({
+      leadName,
+      phone,
+      email: customerEmail,
+      visitTime,
+      propertyTitle: property?.title || propertyId,
+      reason,
+    })
+    if (agent?.email) {
+      await notifyAgentOfBookingIssue(
+        agent.email,
+        leadName,
+        phone,
+        customerEmail || '',
+        property?.title || propertyId || 'Selected property',
+        visitTime,
+        reason,
+      )
+    }
+    return alert.reply
   }
   return await createAppointment(ctx, visitTime, propertyId)
 }

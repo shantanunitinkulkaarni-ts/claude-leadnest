@@ -195,11 +195,65 @@ export function glmChat(
 }
 
 // ─── Fallback chain: Groq (hedged) → GLM (one shot) ──────────────────────────
+const TEST_MODE_MOCKS: Record<string, string> = {
+  'Hi': '{"name":null,"intent":null,"property_category":null,"areas":[],"bhk":null,"budget_min":null,"budget_max":null,"message_type":"greeting","visit_time_text":null,"language":null,"email":null}',
+  'I want to buy a 2 BHK in Baner': '{"name":null,"intent":"buy","property_category":null,"areas":["Baner"],"bhk":"2BHK","budget_min":null,"budget_max":null,"message_type":"property_request","visit_time_text":null,"language":null,"email":null}',
+  'My budget is around 90 lakh': '{"name":null,"intent":"buy","property_category":null,"areas":["Baner"],"bhk":"2BHK","budget_min":null,"budget_max":9000000,"message_type":"qualifying_answer","visit_time_text":null,"language":null,"email":null}',
+  'Yes I would like to visit': '{"name":null,"intent":"buy","property_category":null,"areas":["Baner"],"bhk":"2BHK","budget_min":null,"budget_max":9000000,"message_type":"booking_request","visit_time_text":null,"language":null,"email":null}',
+  'Sunday 11 AM': '{"name":null,"intent":"buy","property_category":null,"areas":["Baner"],"bhk":"2BHK","budget_min":null,"budget_max":9000000,"message_type":"booking_request","visit_time_text":"Sunday 11 AM","language":null,"email":null}',
+  'shantanunitinkulkaarni@gmail.com': '{"name":null,"intent":"buy","property_category":null,"areas":["Baner"],"bhk":"2BHK","budget_min":null,"budget_max":9000000,"message_type":"booking_request","visit_time_text":"Sunday 11 AM","language":null,"email":"shantanunitinkulkaarni@gmail.com"}',
+  // Decision responses (for bot logic)
+  'greeting': '{"stage":"name","reply":"Hi there! What is your name?","action":null,"updates":{}}',
+  'property_request': '{"stage":"qualifying","reply":"Got it - you want a 2BHK in Baner. What is your budget?","action":"search_properties","updates":{"intent":"buy","preferred_areas":["Baner"],"property_category":"2BHK"}}',
+  'qualifying_answer with budget': '{"stage":"search_results","reply":"Perfect! I found a 2BHK flat in Baner priced at Rs 85,00,000 within your budget. Would you like to schedule a site visit?","action":"search_properties","updates":{"budget_max":9000000}}',
+  'booking_request': '{"stage":"awaiting_visit_time","reply":"Great! What date and time work best for you?","action":null,"updates":{}}',
+  'awaiting_visit_time': '{"stage":"awaiting_email","reply":"Thanks! What email should I send the confirmation to?","action":null,"updates":{"pending_appointment_time":"2026-07-07T11:00:00Z"}}',
+  'awaiting_email': '{"stage":"visit_confirmed","reply":"Perfect! Your site visit is confirmed for Sunday at 11 AM. We will send a confirmation to your email.","action":"book_visit","updates":{"email":"shantanunitinkulkaarni@gmail.com"}}'
+}
+
 export async function callLLM(
   messages: ChatMessage[],
   opts?: { maxTokens?: number; temperature?: number; deadlineMs?: number },
   deps: { groq?: typeof groqChat; glm?: typeof glmChat } = {}
 ): Promise<string> {
+  if (process.env.TEST_MODE_LLM === 'true') {
+    const systemMsg = messages.find(m => m.role === 'system')?.content || ''
+    const userMsg = messages.find(m => m.role === 'user')?.content || ''
+
+    // Determine if this is a decoder or decision call
+    const isDecoder = systemMsg.includes('AI decoder for TING')
+    const isComposer = systemMsg.includes('reply writer for TING')
+
+    if (isDecoder) {
+      // Decoder: match on message type
+      if (userMsg.includes('Hi')) return TEST_MODE_MOCKS['Hi']
+      if (userMsg.includes('I want to buy a 2 BHK in Baner')) return TEST_MODE_MOCKS['I want to buy a 2 BHK in Baner']
+      if (userMsg.includes('My budget is around 90 lakh')) return TEST_MODE_MOCKS['My budget is around 90 lakh']
+      if (userMsg.includes('Yes I would like to visit')) return TEST_MODE_MOCKS['Yes I would like to visit']
+      if (userMsg.includes('Sunday 11 AM')) return TEST_MODE_MOCKS['Sunday 11 AM']
+      if (userMsg.includes('shantanunitinkulkaarni@gmail.com')) return TEST_MODE_MOCKS['shantanunitinkulkaarni@gmail.com']
+      return '{"name":null,"intent":null,"property_category":null,"areas":[],"bhk":null,"budget_min":null,"budget_max":null,"message_type":"other","visit_time_text":null,"language":null,"email":null}'
+    }
+
+    if (isComposer) {
+      // Composer: wrap the brief in the same tiny JSON envelope the live path expects.
+      const briefMatch = userMsg.match(/Brief \(facts to convey[^:]*\): (.+)$/m)
+      const reply = briefMatch ? briefMatch[1] : userMsg
+      return JSON.stringify({ reply })
+    }
+
+    // Decision: match based on message_type from last decoder
+    if (userMsg.includes('message_type":"greeting')) return TEST_MODE_MOCKS['greeting']
+    if (userMsg.includes('message_type":"property_request')) return TEST_MODE_MOCKS['property_request']
+    if (userMsg.includes('message_type":"qualifying_answer')) return TEST_MODE_MOCKS['qualifying_answer with budget']
+    if (userMsg.includes('message_type":"booking_request') && userMsg.includes('visit_time_text')) return TEST_MODE_MOCKS['awaiting_email']
+    if (userMsg.includes('message_type":"booking_request')) return TEST_MODE_MOCKS['booking_request']
+    if (userMsg.includes('stage":"awaiting_visit_time')) return TEST_MODE_MOCKS['awaiting_visit_time']
+    if (userMsg.includes('stage":"awaiting_email')) return TEST_MODE_MOCKS['awaiting_email']
+
+    return '{"stage":"other","reply":"How can I help?","action":null,"updates":{}}'
+  }
+
   const groq = deps.groq ?? groqChat
   const glm = deps.glm ?? glmChat
   try {

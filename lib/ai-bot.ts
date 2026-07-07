@@ -9,10 +9,11 @@ import { supabaseAdmin } from './supabase'
 import { callLLM } from './llm'
 import { waSendText, type WaChannel } from './whatsapp'
 import { checkAbuseGuards } from './botGuards'
-import { isConfirmationReply } from './appointmentConfirmation'
+import { isConfirmationReply, isPendingAppointmentExpired } from './appointmentConfirmation'
 import { detectStage } from './stageMachine'
 import { excludeSampleProperties } from './propertyVisibility'
 import { buildPropertyRagContext } from './propertyRag'
+import { buildAgentBookingRagMarkdown } from './bookingRag'
 import { detectIndianScript } from './translate'
 import {
   formatIST,
@@ -52,9 +53,19 @@ import {
   shouldUseConversationFlow,
 } from './bot/flowDecisionAdapter'
 import { buildPostPropertyDecision } from './bot/postPropertyDecision'
+import { aiComposeReply } from './bot/aiDecoder'
 
 // Re-export BotStage for backward compatibility (other files import it from here)
 export type { BotStage } from './bot/types'
+
+function isCancelIntent(message: string): boolean {
+  const text = String(message || '').trim().toLowerCase()
+  if (!text) return false
+  return /(^|\b)(please\s+)?cancel(\s+it)?(\b|$)/i.test(text)
+    || /\bnako\s+cancel\b/i.test(text)
+    || /\btheek\s+hai[, ]*\s*cancel\b/i.test(text)
+    || /\bcancel\s+my\s+visit\b/i.test(text)
+}
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
@@ -72,7 +83,7 @@ export async function handleAiBotMessage(opts: {
   // 1. Load agent
   const { data: agent } = await supabaseAdmin
     .from('agents')
-    .select('id, name, agency_name, phone, email, office_open, office_close, weekly_off, plan, languages, property_types')
+    .select('id, name, agency_name, phone, email, office_open, office_close, weekly_off, holidays, plan, languages, property_types')
     .eq('id', agentId)
     .single()
 
@@ -147,11 +158,11 @@ export async function handleAiBotMessage(opts: {
     .from('properties')
     .select('*')
     .eq('agent_id', agentId)
-    .eq('status', 'active')
 
-  const activeProperties = simulate
+  const allProperties = simulate
     ? ((propertiesRaw || []) as any[])
     : excludeSampleProperties((propertiesRaw || []) as any[])
+  const activeProperties = allProperties.filter((p: any) => String(p?.status || 'active').toLowerCase() === 'active')
   const ragCriteria = {
     intent: (lead.intent || null) as 'buy' | 'rent' | null,
     preferred_areas: Array.isArray(lead.preferred_areas) ? lead.preferred_areas : [],
@@ -162,30 +173,87 @@ export async function handleAiBotMessage(opts: {
     agencyName: agent.agency_name,
     limit: 5,
   })
+  const bookingRag = buildAgentBookingRagMarkdown(agent, allProperties, {
+    agentName: agent.name,
+    agencyName: agent.agency_name,
+    selectedPropertyId: lead.matched_property_id || existingAppointment?.property_id || null,
+    limit: 6,
+  })
 
   const currentStage = detectStage(leadForFlow, messageCount)
+  const hasFreshPendingAppointment = !!lead.pending_appointment_time && !isPendingAppointmentExpired(lead.pending_appointment_set_at)
 
   // Deterministic confirmation for existing appointments. This covers short
   // replies like "Confirm", "Yes", or "Acknowledged" even if the LLM misses it.
-  if ((existingAppointment || lead.pending_appointment_time) && isConfirmationReply(message)) {
+  if ((existingAppointment || hasFreshPendingAppointment) && isConfirmationReply(message)) {
     const confirmedAt = new Date().toISOString()
-    const confirmedTime = existingAppointment?.scheduled_at || lead.pending_appointment_time
-    const confirmReply = `Perfect - your site visit is confirmed for ${formatIST(confirmedTime)}. See you then!`
+    if (existingAppointment) {
+      const confirmedTime = existingAppointment.scheduled_at
+      const confirmReply = `Perfect - your site visit is confirmed for ${formatIST(confirmedTime)}. See you then!`
+      const confirmOut = simulate ? { id: null } : await waSendText(channel, phone, confirmReply)
+
+      await saveLeadHistory(lead.id, {
+        last_message_at: confirmedAt,
+        last_inbound_at: confirmedAt,
+        last_outbound_at: confirmedAt,
+        status: 'visit_booked',
+        bot_stage: 'visit_confirmed',
+        nurture_state: 'paused',
+        window_nudge_count: 0,
+        last_nudge_at: null,
+        nurture_plan: null,
+        plan_d_touches: 0,
+        pending_appointment_time: null,
+        pending_appointment_set_at: null,
+        chat_history: [
+          ...history,
+          { role: 'bot', text: confirmReply, ts: confirmedAt },
+        ].slice(-MAX_HISTORY),
+      })
+
+      await saveOutboundMessages([
+        outboundMessageRow({
+          leadId: lead.id,
+          agentId,
+          content: confirmReply,
+          waMessageId: confirmOut?.id || null,
+          sent: !!(simulate || confirmOut?.id),
+        }),
+      ])
+
+      console.log(`[ai-bot] existing visit confirmed by ${phone}`)
+      return
+    }
+
+    const bookingCtx: BookingContext = {
+      agentId,
+      lead,
+      leadUpdates: { email: lead.email || undefined },
+      bookingLeadState: lead,
+      phone,
+      agent,
+      existingAppointment: null,
+      resolvedMatchedPropertyId: lead.matched_property_id || null,
+      tutorialMode,
+    }
+    const confirmReply = lead.email
+      ? await executeBookingAction('book_visit', bookingCtx, undefined)
+      : 'Please share your email address so I can send the visit confirmation.'
     const confirmOut = simulate ? { id: null } : await waSendText(channel, phone, confirmReply)
 
     await saveLeadHistory(lead.id, {
       last_message_at: confirmedAt,
       last_inbound_at: confirmedAt,
       last_outbound_at: confirmedAt,
-      status: 'visit_booked',
-      bot_stage: 'visit_confirmed',
-      nurture_state: 'paused',
+      bot_stage: lead.email ? 'visit_confirmed' : 'awaiting_email',
+      status: lead.email ? 'visit_booked' : (lead.status || 'new'),
+      nurture_state: lead.email ? 'paused' : lead.nurture_state || 'active',
       window_nudge_count: 0,
       last_nudge_at: null,
       nurture_plan: null,
       plan_d_touches: 0,
-      pending_appointment_time: null,
-      pending_appointment_set_at: null,
+      pending_appointment_time: lead.email ? null : lead.pending_appointment_time || null,
+      pending_appointment_set_at: lead.email ? null : lead.pending_appointment_set_at || null,
       chat_history: [
         ...history,
         { role: 'bot', text: confirmReply, ts: confirmedAt },
@@ -202,7 +270,7 @@ export async function handleAiBotMessage(opts: {
       }),
     ])
 
-    console.log(`[ai-bot] existing visit confirmed by ${phone}`)
+    console.log(`[ai-bot] pending visit confirmation handled by ${phone}`)
     return
   }
 
@@ -243,10 +311,18 @@ export async function handleAiBotMessage(opts: {
       console.error('[ai-bot] conversation flow error:', err)
     }
   }
+  if (existingAppointment && isCancelIntent(message)) {
+    decision = {
+      stage: 'visit_confirmed',
+      reply: 'Sure — I will cancel it now.',
+      action: 'cancel_visit',
+      updates: {},
+    }
+  }
   if (!decision) {
     try {
       const raw = await callLLM([
-        { role: 'system', content: buildSystemPrompt(agent, leadForFlow, existingAppointment, activeProperties, history.slice(-8), propertyRag) },
+        { role: 'system', content: buildSystemPrompt(agent, leadForFlow, existingAppointment, activeProperties, history.slice(-8), propertyRag, bookingRag) },
         { role: 'user', content: `Conversation:\n${conversationText}\n\nRespond with JSON only.` },
       ], { maxTokens: 600, temperature: 0.35 })
 
@@ -297,12 +373,13 @@ export async function handleAiBotMessage(opts: {
     proposedEmail,
     emailIsValid,
     newTime,
-  } = prepareLeadUpdates({
+  } = await prepareLeadUpdates({
     decision,
     lead,
     message,
     currentStage,
     forcedLang,
+    bookingKnowledge: bookingRag,
   })
   finalReply = cleanBookingAction({
     decision,
@@ -348,9 +425,28 @@ export async function handleAiBotMessage(opts: {
     searchReply = null
   }
 
+  // Rewrite finalReply to sound natural using aiComposeReply (AI encoder).
+  // Takes the app's draft and makes it warm, human, and WhatsApp-friendly.
+  // Never invents facts — only rewrites what's in the brief.
+  if (finalReply) {
+    try {
+      finalReply = await aiComposeReply(finalReply, {
+        language: lead.language,
+        recent: historyToFlowRecent(history).slice(-6),
+      })
+    } catch (err) {
+      console.error('[ai-bot] aiComposeReply failed:', err)
+      // If aiComposeReply fails, keep the original finalReply and continue
+    }
+  }
+
   // 9. Send reply (capture the Meta message id for delivery tracking).
   // In simulate mode we skip the real WhatsApp send entirely — the reply is still
   // saved below so it shows in the inbox, but nothing goes out over Meta.
+  if (process.env.TEST_MODE_LLM === 'true') {
+    console.log('[TEST-REPLY] ' + (finalReply || '(empty)'))
+  }
+
   const delivery = await deliverReplies({
     channel,
     phone,

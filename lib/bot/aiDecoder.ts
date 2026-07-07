@@ -107,3 +107,64 @@ function normalizeNoPreference(message: string, decoded: ExtractedIntent): Extra
     message_type: decoded.message_type === 'other' ? 'qualifying_answer' : decoded.message_type,
   }
 }
+
+// The app decides the facts. The model only reshapes that brief into a tiny JSON
+// envelope, and code extracts the reply text. If the model fails, the app draft
+// is returned verbatim so the outbound message still stays safe and complete.
+const AI_ENCODER_SYSTEM = `You are the reply writer for TING, a real-estate WhatsApp assistant.
+Your only job is to turn the app's draft into one natural WhatsApp reply.
+
+Return ONLY a JSON object with this shape:
+{"reply": string}
+
+Hard rules:
+- Use ONLY what is in the brief. Never add or change any number, price, name, area, date, or promise.
+- If something is not in the brief, do not mention it. Never invent.
+- Reply in the requested language, matching how the customer writes.
+- Keep it concise and human, like a helpful property agent.
+- Do not echo the brief verbatim unless it already reads well.
+- No prose. No markdown. JSON only.`
+
+function extractJsonObject(raw: string): any | null {
+  if (!raw) return null
+  const trimmed = String(raw).trim().replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/i, '')
+  const start = trimmed.indexOf('{')
+  const end = trimmed.lastIndexOf('}')
+  if (start < 0 || end <= start) return null
+  try { return JSON.parse(trimmed.slice(start, end + 1)) } catch { return null }
+}
+
+export async function aiComposeReply(
+  brief: string,
+  opts: {
+    language?: string | null
+    recent?: { role: 'user' | 'assistant'; content: string }[]
+  } = {},
+  deps: { llm?: typeof callLLM } = {},
+): Promise<string> {
+  const draft = (brief || '').trim()
+  if (!draft) return ''
+
+  const llm = deps.llm || callLLM
+  const language = opts.language || 'english'
+  const recent = (opts.recent || [])
+    .slice(-4)
+    .map(m => `${m.role === 'user' ? 'customer' : 'assistant'}: ${m.content}`)
+    .join('\n')
+
+  const messages: ChatMessage[] = [
+    { role: 'system', content: AI_ENCODER_SYSTEM },
+    { role: 'user', content: `Language: ${language}\n${recent ? `Recent:\n${recent}\n` : ''}Brief (facts to convey - add nothing): ${draft}` },
+  ]
+
+  try {
+    const raw = await llm(messages, { maxTokens: 180, temperature: 0, deadlineMs: 15000 })
+    const decoded = extractJsonObject(raw)
+    const reply = typeof decoded?.reply === 'string' ? decoded.reply.trim() : ''
+    if (reply) return reply
+  } catch {
+    // fall back to the app-authored draft below
+  }
+
+  return draft
+}
