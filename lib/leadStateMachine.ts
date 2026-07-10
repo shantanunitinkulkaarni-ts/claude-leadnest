@@ -1,20 +1,32 @@
 /**
- * Lead State Machine — TING V1
- *
- * Single authority for all lead state transitions.
- * Every state change goes through transitionLead().
- *
- * Rules:
- * - No direct state mutation
- * - All transitions checked against allowed matrix
- * - Events emitted for every transition (Sprint 4)
- * - Idempotent within a short window
+ * Lead State Machine — Single authority for lead state transitions
+ * 
+ * Defines 17 states and enforces valid transitions with precondition guards.
+ * Every transition emits an event (for Sprint 4 event log).
+ * 
+ * States:
+ * - NEW: Lead just created
+ * - IN_CONVERSATION: Bot engaged, awaiting intent signal
+ * - QUALIFYING: Intent detected, gathering qualification data
+ * - QUALIFIED: All qualification criteria met
+ * - PROPERTY_SHOWN: Bot presented a matching property
+ * - INTERESTED: Lead expressed interest in a property
+ * - VISIT_REQUESTED: Lead asked to schedule a site visit
+ * - AWAITING_BROKER_APPROVAL: Broker hasn't confirmed availability yet
+ * - VISIT_CONFIRMED: Broker approved, visit is confirmed
+ * - VISIT_COMPLETED: Lead completed the site visit
+ * - CONVERTED: Lead converted to customer (terminal)
+ * - INACTIVE_24H: No message for 24h
+ * - INACTIVE_3D: No message for 3 days
+ * - INACTIVE_7D: No message for 7 days
+ * - DORMANT: No message for 14+ days
+ * - RESURRECTED: Re-engaged after inactivity
+ * - LOST: Lead abandoned or rejected (terminal)
  */
 
-import { supabaseAdmin } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
-// ─── State Constants ───────────────────────────────────────────────────────
-export const LeadStates = {
+export const LEAD_STATES = {
   NEW: 'NEW',
   IN_CONVERSATION: 'IN_CONVERSATION',
   QUALIFYING: 'QUALIFYING',
@@ -25,176 +37,263 @@ export const LeadStates = {
   AWAITING_BROKER_APPROVAL: 'AWAITING_BROKER_APPROVAL',
   VISIT_CONFIRMED: 'VISIT_CONFIRMED',
   VISIT_COMPLETED: 'VISIT_COMPLETED',
+  CONVERTED: 'CONVERTED',
   INACTIVE_24H: 'INACTIVE_24H',
   INACTIVE_3D: 'INACTIVE_3D',
   INACTIVE_7D: 'INACTIVE_7D',
   DORMANT: 'DORMANT',
   RESURRECTED: 'RESURRECTED',
   LOST: 'LOST',
-  CONVERTED: 'CONVERTED',
 } as const
 
-export type LeadState = typeof LeadStates[keyof typeof LeadStates]
+export type LeadState = typeof LEAD_STATES[keyof typeof LEAD_STATES]
 
-// ─── Transition Matrix ───────────────────────────────────────────────────
-const ALLOWED_TRANSITIONS: Record<LeadState, LeadState[]> = {
-  NEW: [LeadStates.IN_CONVERSATION, LeadStates.INACTIVE_24H],
-  IN_CONVERSATION: [LeadStates.QUALIFYING, LeadStates.INACTIVE_24H],
-  QUALIFYING: [LeadStates.QUALIFIED, LeadStates.INACTIVE_24H],
-  QUALIFIED: [LeadStates.PROPERTY_SHOWN, LeadStates.INACTIVE_24H],
-  PROPERTY_SHOWN: [LeadStates.INTERESTED, LeadStates.QUALIFYING, LeadStates.INACTIVE_24H],
-  INTERESTED: [LeadStates.VISIT_REQUESTED, LeadStates.QUALIFYING, LeadStates.INACTIVE_24H],
-  VISIT_REQUESTED: [LeadStates.AWAITING_BROKER_APPROVAL, LeadStates.INACTIVE_24H],
-  AWAITING_BROKER_APPROVAL: [LeadStates.VISIT_CONFIRMED, LeadStates.VISIT_REQUESTED],
-  VISIT_CONFIRMED: [LeadStates.VISIT_COMPLETED, LeadStates.INACTIVE_24H],
-  VISIT_COMPLETED: [LeadStates.CONVERTED, LeadStates.INACTIVE_24H, LeadStates.LOST],
-  INACTIVE_24H: [LeadStates.RESURRECTED, LeadStates.INACTIVE_3D],
-  INACTIVE_3D: [LeadStates.RESURRECTED, LeadStates.INACTIVE_7D],
-  INACTIVE_7D: [LeadStates.RESURRECTED, LeadStates.DORMANT],
-  DORMANT: [LeadStates.RESURRECTED, LeadStates.LOST],
-  RESURRECTED: [], // Special: routes to active state based on stored criteria
-  LOST: [],
-  CONVERTED: [],
+/**
+ * Transition matrix: allowed next states per current state
+ */
+const TRANSITION_MATRIX: Record<LeadState, LeadState[]> = {
+  [LEAD_STATES.NEW]: [LEAD_STATES.IN_CONVERSATION, LEAD_STATES.LOST],
+  [LEAD_STATES.IN_CONVERSATION]: [
+    LEAD_STATES.QUALIFYING,
+    LEAD_STATES.INACTIVE_24H,
+    LEAD_STATES.LOST,
+  ],
+  [LEAD_STATES.QUALIFYING]: [
+    LEAD_STATES.QUALIFIED,
+    LEAD_STATES.INACTIVE_24H,
+    LEAD_STATES.LOST,
+  ],
+  [LEAD_STATES.QUALIFIED]: [
+    LEAD_STATES.PROPERTY_SHOWN,
+    LEAD_STATES.INACTIVE_24H,
+    LEAD_STATES.LOST,
+  ],
+  [LEAD_STATES.PROPERTY_SHOWN]: [
+    LEAD_STATES.INTERESTED,
+    LEAD_STATES.QUALIFYING,
+    LEAD_STATES.INACTIVE_24H,
+    LEAD_STATES.LOST,
+  ],
+  [LEAD_STATES.INTERESTED]: [
+    LEAD_STATES.VISIT_REQUESTED,
+    LEAD_STATES.QUALIFYING,
+    LEAD_STATES.INACTIVE_24H,
+    LEAD_STATES.LOST,
+  ],
+  [LEAD_STATES.VISIT_REQUESTED]: [
+    LEAD_STATES.AWAITING_BROKER_APPROVAL,
+    LEAD_STATES.QUALIFYING,
+    LEAD_STATES.INACTIVE_24H,
+    LEAD_STATES.LOST,
+  ],
+  [LEAD_STATES.AWAITING_BROKER_APPROVAL]: [
+    LEAD_STATES.VISIT_CONFIRMED,
+    LEAD_STATES.VISIT_REQUESTED,
+    LEAD_STATES.INACTIVE_24H,
+    LEAD_STATES.LOST,
+  ],
+  [LEAD_STATES.VISIT_CONFIRMED]: [
+    LEAD_STATES.VISIT_COMPLETED,
+    LEAD_STATES.INACTIVE_24H,
+    LEAD_STATES.LOST,
+  ],
+  [LEAD_STATES.VISIT_COMPLETED]: [
+    LEAD_STATES.CONVERTED,
+    LEAD_STATES.LOST,
+    LEAD_STATES.INACTIVE_24H,
+  ],
+  [LEAD_STATES.CONVERTED]: [], // terminal
+  [LEAD_STATES.INACTIVE_24H]: [
+    LEAD_STATES.RESURRECTED,
+    LEAD_STATES.INACTIVE_3D,
+    LEAD_STATES.LOST,
+  ],
+  [LEAD_STATES.INACTIVE_3D]: [
+    LEAD_STATES.RESURRECTED,
+    LEAD_STATES.INACTIVE_7D,
+    LEAD_STATES.LOST,
+  ],
+  [LEAD_STATES.INACTIVE_7D]: [
+    LEAD_STATES.RESURRECTED,
+    LEAD_STATES.DORMANT,
+    LEAD_STATES.LOST,
+  ],
+  [LEAD_STATES.DORMANT]: [
+    LEAD_STATES.RESURRECTED,
+    LEAD_STATES.LOST,
+  ],
+  [LEAD_STATES.RESURRECTED]: [
+    LEAD_STATES.IN_CONVERSATION,
+    LEAD_STATES.QUALIFYING,
+    LEAD_STATES.QUALIFIED,
+    LEAD_STATES.PROPERTY_SHOWN,
+  ],
+  [LEAD_STATES.LOST]: [], // terminal
 }
 
-// ─── Types ───────────────────────────────────────────────────────────────
-export interface Lead {
+interface Lead {
   id: string
-  state: LeadState
-  state_updated_at: string
-  intent?: 'buy' | 'rent' | null
-  preferred_areas?: string[] | null
+  state?: LeadState | null
+  state_updated_at?: string | null
+  conversation_stage?: string | null
+  intent?: string | null
+  area?: string | null
+  budget_min?: number | null
   budget_max?: number | null
+  matched_property_id?: string | null
+  agent_id: string
   [key: string]: any
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────
+interface TransitionContext {
+  intent?: string
+  area?: string
+  budget_min?: number
+  budget_max?: number
+  matched_property_id?: string
+  visit_time?: string
+  reason?: string
+  [key: string]: any
+}
 
 /**
- * Transition a lead to a new state.
- *
- * @param lead — current lead row
- * @param action — semantic action (e.g., 'intent_detected', 'property_shown', 'broker_approved')
- * @param context — additional data (intent, properties, etc.)
- * @returns updated lead row with new state
- * @throws if transition is invalid
+ * Check if a transition is allowed by the matrix
+ */
+export function isValidTransition(
+  fromState: LeadState,
+  toState: LeadState
+): boolean {
+  return TRANSITION_MATRIX[fromState]?.includes(toState) ?? false
+}
+
+/**
+ * Get allowed next states for a given state
+ */
+export function getNextStates(currentState: LeadState): LeadState[] {
+  return TRANSITION_MATRIX[currentState] ?? []
+}
+
+/**
+ * Guard: check preconditions before transition
+ * Throws if precondition not met
+ */
+function checkPreconditions(
+  lead: Lead,
+  targetState: LeadState,
+  context?: TransitionContext
+): void {
+  switch (targetState) {
+    case LEAD_STATES.QUALIFYING:
+      if (!context?.intent) {
+        throw new Error('Cannot move to QUALIFYING without intent')
+      }
+      break
+
+    case LEAD_STATES.QUALIFIED:
+      if (!lead.intent || !lead.area) {
+        throw new Error(
+          'Cannot move to QUALIFIED without intent and area'
+        )
+      }
+      break
+
+    case LEAD_STATES.PROPERTY_SHOWN:
+      if (!context?.matched_property_id && !lead.matched_property_id) {
+        throw new Error('Cannot move to PROPERTY_SHOWN without a matched property')
+      }
+      break
+
+    case LEAD_STATES.VISIT_REQUESTED:
+      if (!context?.visit_time) {
+        throw new Error('Cannot move to VISIT_REQUESTED without a visit_time')
+      }
+      break
+
+    case LEAD_STATES.AWAITING_BROKER_APPROVAL:
+      if (lead.state !== LEAD_STATES.VISIT_REQUESTED) {
+        throw new Error(
+          'Can only move to AWAITING_BROKER_APPROVAL from VISIT_REQUESTED'
+        )
+      }
+      break
+
+    case LEAD_STATES.VISIT_CONFIRMED:
+      if (lead.state !== LEAD_STATES.AWAITING_BROKER_APPROVAL) {
+        throw new Error(
+          'Can only move to VISIT_CONFIRMED from AWAITING_BROKER_APPROVAL'
+        )
+      }
+      break
+
+    default:
+      break
+  }
+}
+
+/**
+ * Main state transition function
+ * 
+ * Usage:
+ *   const updatedLead = await transitionLead(lead, 'QUALIFIED', { intent: 'rent', area: 'Baner' })
  */
 export async function transitionLead(
   lead: Lead,
-  action: string,
-  context?: Record<string, any>
+  targetState: LeadState,
+  context?: TransitionContext
 ): Promise<Lead> {
-  const currentState = lead.state || LeadStates.NEW
-  const nextState = getNextStateForAction(currentState, action, context)
+  const currentState = lead.state || LEAD_STATES.NEW
 
-  if (!nextState) {
-    throw new Error(`Invalid transition: ${currentState} --[${action}]--> (no valid next state)`)
-  }
-
-  if (!isValidTransition(currentState, nextState)) {
+  // Validate transition
+  if (!isValidTransition(currentState as LeadState, targetState)) {
     throw new Error(
-      `Not allowed: ${currentState} → ${nextState}. Allowed: ${ALLOWED_TRANSITIONS[currentState as LeadState].join(', ')}`
+      `Invalid transition: ${currentState} → ${targetState}`
     )
   }
 
-  // Update DB
-  const { data, error } = await supabaseAdmin
-    .from('leads')
-    .update({
-      state: nextState,
-      state_updated_at: new Date().toISOString(),
+  // Check preconditions
+  checkPreconditions(lead, targetState, context)
+
+  // Build the updated lead object
+  const updatedLead: Lead = {
+    ...lead,
+    state: targetState,
+    state_updated_at: new Date().toISOString(),
+  }
+
+  // Merge context into lead (e.g., intent, area, budget)
+  if (context) {
+    Object.entries(context).forEach(([key, value]) => {
+      if (value !== undefined && !key.startsWith('_')) {
+        updatedLead[key] = value
+      }
     })
-    .eq('id', lead.id)
-    .select()
-    .single()
-
-  if (error) {
-    throw new Error(`Failed to transition lead ${lead.id}: ${error.message}`)
   }
 
-  return (data as unknown as Lead) || (lead as Lead)
+  // TODO (Sprint 4): Emit event to lead_events table
+  // emitLeadEvent(lead.id, currentState, targetState, context)
+
+  return updatedLead
 }
 
 /**
- * Get the current state of a lead.
+ * Get current state of a lead (with fallback to conversation_stage for backward compat)
  */
-export async function getCurrentState(leadId: string): Promise<LeadState> {
-  const { data, error } = await supabaseAdmin
-    .from('leads')
-    .select('state')
-    .eq('id', leadId)
-    .single()
+export function getCurrentState(lead: Lead): LeadState {
+  if (lead.state) return lead.state as LeadState
 
-  if (error) throw new Error(`Failed to fetch lead state: ${error.message}`)
-  return (data?.state || LeadStates.NEW) as LeadState
-}
-
-/**
- * Get all valid next states from a given state.
- */
-export function getNextStates(currentState: string): LeadState[] {
-  return ALLOWED_TRANSITIONS[currentState as LeadState] || []
-}
-
-/**
- * Check if a transition is allowed.
- */
-export function isValidTransition(from: string, to: string): boolean {
-  const allowed = ALLOWED_TRANSITIONS[from as LeadState] || []
-  return allowed.includes(to as LeadState)
-}
-
-// ─── Internal Helpers ───────────────────────────────────────────────────
-
-/**
- * Determine the next state based on the semantic action.
- *
- * Action → Next State mapping (semantic layer).
- * Examples:
- *   - 'intent_detected' → IN_CONVERSATION
- *   - 'properties_shown' → PROPERTY_SHOWN
- *   - 'broker_approved' → VISIT_CONFIRMED
- */
-export function getNextStateForAction(
-  currentState: LeadState,
-  action: string,
-  context?: Record<string, any>
-): LeadState | null {
-  const actionMap: Record<string, LeadState> = {
-    greeting_done: LeadStates.IN_CONVERSATION,
-    intent_detected: LeadStates.IN_CONVERSATION,
-    area_provided: LeadStates.QUALIFYING,
-    criteria_complete: LeadStates.QUALIFIED,
-    properties_searched: LeadStates.PROPERTY_SHOWN,
-    no_match: LeadStates.PROPERTY_SHOWN,
-    property_interested: LeadStates.INTERESTED,
-    visit_requested: LeadStates.VISIT_REQUESTED,
-    broker_approved: LeadStates.VISIT_CONFIRMED,
-    broker_rejected: LeadStates.VISIT_REQUESTED,
-    visit_completed: LeadStates.VISIT_COMPLETED,
-    deal_won: LeadStates.CONVERTED,
-    deal_lost: LeadStates.LOST,
-    window_expired: LeadStates.INACTIVE_24H,
-    inactive_3d: LeadStates.INACTIVE_3D,
-    inactive_7d: LeadStates.INACTIVE_7D,
-    dormancy: LeadStates.DORMANT,
-    lead_replied: LeadStates.RESURRECTED,
+  // Fallback to old conversation_stage column (Phase 2 dual-write period)
+  if (lead.conversation_stage) {
+    const legacyMap: Record<string, LeadState> = {
+      new: LEAD_STATES.NEW,
+      awaiting_intent: LEAD_STATES.IN_CONVERSATION,
+      awaiting_area: LEAD_STATES.QUALIFYING,
+      presenting: LEAD_STATES.PROPERTY_SHOWN,
+      no_match_ai: LEAD_STATES.PROPERTY_SHOWN,
+      awaiting_booking: LEAD_STATES.VISIT_REQUESTED,
+      booked: LEAD_STATES.VISIT_CONFIRMED,
+    }
+    return legacyMap[lead.conversation_stage] ?? LEAD_STATES.NEW
   }
 
-  const targetState = actionMap[action]
-  if (!targetState) return null
-
-  // Check if this transition is allowed
-  if (!isValidTransition(currentState, targetState)) {
-    return null
-  }
-
-  return targetState
-}
-
-/**
- * All state names for validation.
- */
-export function getAllStates(): LeadState[] {
-  return Object.values(LeadStates)
+  return LEAD_STATES.NEW
 }
