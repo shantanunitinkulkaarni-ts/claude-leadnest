@@ -1,355 +1,492 @@
-/**
- * Unit Tests: leadStateMachine.ts (Playwright)
- * 50+ tests covering state definitions, transitions, preconditions, idempotency
- */
-
-import { test, expect } from '@playwright/test'
+import { describe, it, expect, beforeEach } from 'vitest'
 import {
-  LeadStates,
-  getAllStates,
-  getNextStates,
+  LEAD_STATES,
+  LeadState,
   isValidTransition,
-  getNextStateForAction,
-} from '@/lib/leadStateMachine'
+  getNextStates,
+  transitionLead,
+  getCurrentState,
+} from '../../lib/leadStateMachine'
 
-import type { LeadState } from '@/lib/leadStateMachine'
+describe('Lead State Machine', () => {
+  let lead: any
 
-test.describe('leadStateMachine', () => {
-  test.describe('State Definition Tests', () => {
-    test('all 17 states exist', () => {
-      const states = getAllStates()
-      expect(states.length).toBe(17)
+  beforeEach(() => {
+    lead = {
+      id: 'test-lead-1',
+      agent_id: 'agent-1',
+      state: null,
+      conversation_stage: null,
+      intent: null,
+      area: null,
+      budget_min: null,
+      budget_max: null,
+      matched_property_id: null,
+    }
+  })
+
+  describe('State definitions', () => {
+    it('should define all 17 states', () => {
+      const states = Object.keys(LEAD_STATES)
+      expect(states).toHaveLength(17)
     })
 
-    test('state names are correct', () => {
-      expect(LeadStates.NEW).toBe('NEW')
-      expect(LeadStates.IN_CONVERSATION).toBe('IN_CONVERSATION')
-      expect(LeadStates.QUALIFYING).toBe('QUALIFYING')
-      expect(LeadStates.QUALIFIED).toBe('QUALIFIED')
-      expect(LeadStates.PROPERTY_SHOWN).toBe('PROPERTY_SHOWN')
-      expect(LeadStates.INTERESTED).toBe('INTERESTED')
-      expect(LeadStates.VISIT_REQUESTED).toBe('VISIT_REQUESTED')
-      expect(LeadStates.AWAITING_BROKER_APPROVAL).toBe('AWAITING_BROKER_APPROVAL')
-      expect(LeadStates.VISIT_CONFIRMED).toBe('VISIT_CONFIRMED')
-      expect(LeadStates.VISIT_COMPLETED).toBe('VISIT_COMPLETED')
-      expect(LeadStates.INACTIVE_24H).toBe('INACTIVE_24H')
-      expect(LeadStates.INACTIVE_3D).toBe('INACTIVE_3D')
-      expect(LeadStates.INACTIVE_7D).toBe('INACTIVE_7D')
-      expect(LeadStates.DORMANT).toBe('DORMANT')
-      expect(LeadStates.RESURRECTED).toBe('RESURRECTED')
-      expect(LeadStates.LOST).toBe('LOST')
-      expect(LeadStates.CONVERTED).toBe('CONVERTED')
+    it('should have unique state names', () => {
+      const values = Object.values(LEAD_STATES)
+      const unique = new Set(values)
+      expect(unique.size).toBe(17)
     })
 
-    test('no duplicate state names', () => {
-      const states = getAllStates()
-      const unique = new Set(states)
-      expect(unique.size).toBe(states.length)
-    })
-
-    test('state constants are defined', () => {
-      expect(LeadStates).toBeDefined()
-      expect(Object.keys(LeadStates).length).toBe(17)
+    it('should export LEAD_STATES as frozen object', () => {
+      expect(() => {
+        ;(LEAD_STATES as any).NEW = 'MODIFIED'
+      }).toThrow()
     })
   })
 
-  test.describe('Transition Matrix Tests', () => {
-    test('NEW can transition to IN_CONVERSATION', () => {
-      expect(isValidTransition(LeadStates.NEW, LeadStates.IN_CONVERSATION)).toBe(true)
+  describe('Transition matrix validation', () => {
+    it('should allow NEW → IN_CONVERSATION', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.NEW,
+          LEAD_STATES.IN_CONVERSATION
+        )
+      ).toBe(true)
     })
 
-    test('NEW can transition to INACTIVE_24H', () => {
-      expect(isValidTransition(LeadStates.NEW, LeadStates.INACTIVE_24H)).toBe(true)
+    it('should allow IN_CONVERSATION → QUALIFYING', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.IN_CONVERSATION,
+          LEAD_STATES.QUALIFYING
+        )
+      ).toBe(true)
     })
 
-    test('NEW cannot transition to QUALIFIED', () => {
-      expect(isValidTransition(LeadStates.NEW, LeadStates.QUALIFIED)).toBe(false)
+    it('should allow QUALIFYING → QUALIFIED', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.QUALIFYING,
+          LEAD_STATES.QUALIFIED
+        )
+      ).toBe(true)
     })
 
-    test('IN_CONVERSATION can transition to QUALIFYING', () => {
-      expect(isValidTransition(LeadStates.IN_CONVERSATION, LeadStates.QUALIFYING)).toBe(true)
+    it('should allow QUALIFIED → PROPERTY_SHOWN', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.QUALIFIED,
+          LEAD_STATES.PROPERTY_SHOWN
+        )
+      ).toBe(true)
     })
 
-    test('QUALIFYING can transition to QUALIFIED', () => {
-      expect(isValidTransition(LeadStates.QUALIFYING, LeadStates.QUALIFIED)).toBe(true)
+    it('should allow PROPERTY_SHOWN → INTERESTED', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.PROPERTY_SHOWN,
+          LEAD_STATES.INTERESTED
+        )
+      ).toBe(true)
     })
 
-    test('QUALIFIED can transition to PROPERTY_SHOWN', () => {
-      expect(isValidTransition(LeadStates.QUALIFIED, LeadStates.PROPERTY_SHOWN)).toBe(true)
+    it('should allow INTERESTED → VISIT_REQUESTED', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.INTERESTED,
+          LEAD_STATES.VISIT_REQUESTED
+        )
+      ).toBe(true)
     })
 
-    test('PROPERTY_SHOWN can transition to INTERESTED', () => {
-      expect(isValidTransition(LeadStates.PROPERTY_SHOWN, LeadStates.INTERESTED)).toBe(true)
+    it('should allow VISIT_REQUESTED → AWAITING_BROKER_APPROVAL', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.VISIT_REQUESTED,
+          LEAD_STATES.AWAITING_BROKER_APPROVAL
+        )
+      ).toBe(true)
     })
 
-    test('PROPERTY_SHOWN can transition back to QUALIFYING', () => {
-      expect(isValidTransition(LeadStates.PROPERTY_SHOWN, LeadStates.QUALIFYING)).toBe(true)
+    it('should allow AWAITING_BROKER_APPROVAL → VISIT_CONFIRMED', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.AWAITING_BROKER_APPROVAL,
+          LEAD_STATES.VISIT_CONFIRMED
+        )
+      ).toBe(true)
     })
 
-    test('INTERESTED can transition to VISIT_REQUESTED', () => {
-      expect(isValidTransition(LeadStates.INTERESTED, LeadStates.VISIT_REQUESTED)).toBe(true)
+    it('should allow VISIT_CONFIRMED → VISIT_COMPLETED', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.VISIT_CONFIRMED,
+          LEAD_STATES.VISIT_COMPLETED
+        )
+      ).toBe(true)
     })
 
-    test('VISIT_REQUESTED can transition to AWAITING_BROKER_APPROVAL', () => {
-      expect(isValidTransition(LeadStates.VISIT_REQUESTED, LeadStates.AWAITING_BROKER_APPROVAL)).toBe(true)
+    it('should allow VISIT_COMPLETED → CONVERTED', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.VISIT_COMPLETED,
+          LEAD_STATES.CONVERTED
+        )
+      ).toBe(true)
     })
 
-    test('AWAITING_BROKER_APPROVAL can transition to VISIT_CONFIRMED', () => {
-      expect(isValidTransition(LeadStates.AWAITING_BROKER_APPROVAL, LeadStates.VISIT_CONFIRMED)).toBe(true)
+    it('should reject invalid transition (CONVERTED → anything)', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.CONVERTED,
+          LEAD_STATES.IN_CONVERSATION
+        )
+      ).toBe(false)
     })
 
-    test('AWAITING_BROKER_APPROVAL can transition back to VISIT_REQUESTED (rejection)', () => {
-      expect(isValidTransition(LeadStates.AWAITING_BROKER_APPROVAL, LeadStates.VISIT_REQUESTED)).toBe(true)
-    })
-
-    test('VISIT_CONFIRMED can transition to VISIT_COMPLETED', () => {
-      expect(isValidTransition(LeadStates.VISIT_CONFIRMED, LeadStates.VISIT_COMPLETED)).toBe(true)
-    })
-
-    test('VISIT_COMPLETED can transition to CONVERTED', () => {
-      expect(isValidTransition(LeadStates.VISIT_COMPLETED, LeadStates.CONVERTED)).toBe(true)
-    })
-
-    test('VISIT_COMPLETED can transition to LOST', () => {
-      expect(isValidTransition(LeadStates.VISIT_COMPLETED, LeadStates.LOST)).toBe(true)
-    })
-
-    test('INACTIVE_24H can transition to RESURRECTED', () => {
-      expect(isValidTransition(LeadStates.INACTIVE_24H, LeadStates.RESURRECTED)).toBe(true)
-    })
-
-    test('INACTIVE_24H can transition to INACTIVE_3D', () => {
-      expect(isValidTransition(LeadStates.INACTIVE_24H, LeadStates.INACTIVE_3D)).toBe(true)
-    })
-
-    test('INACTIVE_3D can transition to INACTIVE_7D', () => {
-      expect(isValidTransition(LeadStates.INACTIVE_3D, LeadStates.INACTIVE_7D)).toBe(true)
-    })
-
-    test('INACTIVE_7D can transition to DORMANT', () => {
-      expect(isValidTransition(LeadStates.INACTIVE_7D, LeadStates.DORMANT)).toBe(true)
-    })
-
-    test('DORMANT can transition to LOST', () => {
-      expect(isValidTransition(LeadStates.DORMANT, LeadStates.LOST)).toBe(true)
-    })
-
-    test('terminal states have no next states', () => {
-      expect(getNextStates(LeadStates.LOST).length).toBe(0)
-      expect(getNextStates(LeadStates.CONVERTED).length).toBe(0)
-    })
-
-    test('RESURRECTED is a transient state', () => {
-      expect(getNextStates(LeadStates.RESURRECTED).length).toBe(0)
-    })
-  })
-
-  test.describe('Disallowed Transitions', () => {
-    test('NEW cannot go directly to PROPERTY_SHOWN', () => {
-      expect(isValidTransition(LeadStates.NEW, LeadStates.PROPERTY_SHOWN)).toBe(false)
-    })
-
-    test('PROPERTY_SHOWN cannot go to CONVERTED', () => {
-      expect(isValidTransition(LeadStates.PROPERTY_SHOWN, LeadStates.CONVERTED)).toBe(false)
-    })
-
-    test('VISIT_CONFIRMED cannot go back to VISIT_REQUESTED', () => {
-      expect(isValidTransition(LeadStates.VISIT_CONFIRMED, LeadStates.VISIT_REQUESTED)).toBe(false)
-    })
-
-    test('CONVERTED cannot transition anywhere', () => {
-      expect(isValidTransition(LeadStates.CONVERTED, LeadStates.LOST)).toBe(false)
-      expect(isValidTransition(LeadStates.CONVERTED, LeadStates.NEW)).toBe(false)
-    })
-
-    test('LOST cannot transition anywhere', () => {
-      expect(isValidTransition(LeadStates.LOST, LeadStates.NEW)).toBe(false)
+    it('should reject invalid transition (LOST → anything)', () => {
+      expect(
+        isValidTransition(LEAD_STATES.LOST, LEAD_STATES.IN_CONVERSATION)
+      ).toBe(false)
     })
   })
 
-  test.describe('getNextStates (matrix inspection)', () => {
-    test('NEW has 2 next states', () => {
-      expect(getNextStates(LeadStates.NEW).length).toBe(2)
-      expect(getNextStates(LeadStates.NEW)).toContain(LeadStates.IN_CONVERSATION)
-      expect(getNextStates(LeadStates.NEW)).toContain(LeadStates.INACTIVE_24H)
+  describe('Inactivity ladder', () => {
+    it('should allow QUALIFIED → INACTIVE_24H', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.QUALIFIED,
+          LEAD_STATES.INACTIVE_24H
+        )
+      ).toBe(true)
     })
 
-    test('PROPERTY_SHOWN has 3 next states', () => {
-      expect(getNextStates(LeadStates.PROPERTY_SHOWN).length).toBe(3)
-      expect(getNextStates(LeadStates.PROPERTY_SHOWN)).toContain(LeadStates.INTERESTED)
-      expect(getNextStates(LeadStates.PROPERTY_SHOWN)).toContain(LeadStates.QUALIFYING)
-      expect(getNextStates(LeadStates.PROPERTY_SHOWN)).toContain(LeadStates.INACTIVE_24H)
+    it('should allow INACTIVE_24H → INACTIVE_3D', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.INACTIVE_24H,
+          LEAD_STATES.INACTIVE_3D
+        )
+      ).toBe(true)
     })
 
-    test('AWAITING_BROKER_APPROVAL has 2 next states', () => {
-      expect(getNextStates(LeadStates.AWAITING_BROKER_APPROVAL).length).toBe(2)
-      expect(getNextStates(LeadStates.AWAITING_BROKER_APPROVAL)).toContain(LeadStates.VISIT_CONFIRMED)
-      expect(getNextStates(LeadStates.AWAITING_BROKER_APPROVAL)).toContain(LeadStates.VISIT_REQUESTED)
+    it('should allow INACTIVE_3D → INACTIVE_7D', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.INACTIVE_3D,
+          LEAD_STATES.INACTIVE_7D
+        )
+      ).toBe(true)
     })
 
-    test('DORMANT has 2 next states', () => {
-      expect(getNextStates(LeadStates.DORMANT).length).toBe(2)
-      expect(getNextStates(LeadStates.DORMANT)).toContain(LeadStates.RESURRECTED)
-      expect(getNextStates(LeadStates.DORMANT)).toContain(LeadStates.LOST)
-    })
-  })
-
-  test.describe('Action → State Mapping', () => {
-    test('intent_detected maps to IN_CONVERSATION', () => {
-      const nextState = getNextStateForAction(LeadStates.NEW, 'intent_detected')
-      expect(nextState).toBe(LeadStates.IN_CONVERSATION)
+    it('should allow INACTIVE_7D → DORMANT', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.INACTIVE_7D,
+          LEAD_STATES.DORMANT
+        )
+      ).toBe(true)
     })
 
-    test('area_provided maps to QUALIFYING', () => {
-      const nextState = getNextStateForAction(LeadStates.IN_CONVERSATION, 'area_provided')
-      expect(nextState).toBe(LeadStates.QUALIFYING)
+    it('should allow INACTIVE_24H → RESURRECTED', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.INACTIVE_24H,
+          LEAD_STATES.RESURRECTED
+        )
+      ).toBe(true)
     })
 
-    test('criteria_complete maps to QUALIFIED', () => {
-      const nextState = getNextStateForAction(LeadStates.QUALIFYING, 'criteria_complete')
-      expect(nextState).toBe(LeadStates.QUALIFIED)
+    it('should allow DORMANT → RESURRECTED', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.DORMANT,
+          LEAD_STATES.RESURRECTED
+        )
+      ).toBe(true)
     })
 
-    test('properties_searched maps to PROPERTY_SHOWN', () => {
-      const nextState = getNextStateForAction(LeadStates.QUALIFIED, 'properties_searched')
-      expect(nextState).toBe(LeadStates.PROPERTY_SHOWN)
-    })
-
-    test('no_match maps to PROPERTY_SHOWN (same state)', () => {
-      const nextState = getNextStateForAction(LeadStates.QUALIFIED, 'no_match')
-      expect(nextState).toBe(LeadStates.PROPERTY_SHOWN)
-    })
-
-    test('property_interested maps to INTERESTED', () => {
-      const nextState = getNextStateForAction(LeadStates.PROPERTY_SHOWN, 'property_interested')
-      expect(nextState).toBe(LeadStates.INTERESTED)
-    })
-
-    test('visit_requested maps to VISIT_REQUESTED', () => {
-      const nextState = getNextStateForAction(LeadStates.INTERESTED, 'visit_requested')
-      expect(nextState).toBe(LeadStates.VISIT_REQUESTED)
-    })
-
-    test('broker_approved maps to VISIT_CONFIRMED', () => {
-      const nextState = getNextStateForAction(LeadStates.AWAITING_BROKER_APPROVAL, 'broker_approved')
-      expect(nextState).toBe(LeadStates.VISIT_CONFIRMED)
-    })
-
-    test('broker_rejected maps to VISIT_REQUESTED', () => {
-      const nextState = getNextStateForAction(LeadStates.AWAITING_BROKER_APPROVAL, 'broker_rejected')
-      expect(nextState).toBe(LeadStates.VISIT_REQUESTED)
-    })
-
-    test('visit_completed maps to VISIT_COMPLETED', () => {
-      const nextState = getNextStateForAction(LeadStates.VISIT_CONFIRMED, 'visit_completed')
-      expect(nextState).toBe(LeadStates.VISIT_COMPLETED)
-    })
-
-    test('deal_won maps to CONVERTED', () => {
-      const nextState = getNextStateForAction(LeadStates.VISIT_COMPLETED, 'deal_won')
-      expect(nextState).toBe(LeadStates.CONVERTED)
-    })
-
-    test('deal_lost maps to LOST', () => {
-      const nextState = getNextStateForAction(LeadStates.VISIT_COMPLETED, 'deal_lost')
-      expect(nextState).toBe(LeadStates.LOST)
-    })
-
-    test('window_expired maps to INACTIVE_24H', () => {
-      const nextState = getNextStateForAction(LeadStates.QUALIFIED, 'window_expired')
-      expect(nextState).toBe(LeadStates.INACTIVE_24H)
-    })
-
-    test('lead_replied maps to RESURRECTED from INACTIVE_24H', () => {
-      const nextState = getNextStateForAction(LeadStates.INACTIVE_24H, 'lead_replied')
-      expect(nextState).toBe(LeadStates.RESURRECTED)
-    })
-
-    test('invalid action returns null', () => {
-      const nextState = getNextStateForAction(LeadStates.NEW, 'unknown_action')
-      expect(nextState).toBeNull()
-    })
-
-    test('action that violates matrix returns null', () => {
-      const nextState = getNextStateForAction(LeadStates.NEW, 'deal_won')
-      expect(nextState).toBeNull()
+    it('should allow RESURRECTED → IN_CONVERSATION', () => {
+      expect(
+        isValidTransition(
+          LEAD_STATES.RESURRECTED,
+          LEAD_STATES.IN_CONVERSATION
+        )
+      ).toBe(true)
     })
   })
 
-  test.describe('Full Funnel Paths', () => {
-    test('happy path: NEW → IN_CONVERSATION → QUALIFYING → QUALIFIED → PROPERTY_SHOWN → INTERESTED → VISIT_REQUESTED → AWAITING_BROKER_APPROVAL → VISIT_CONFIRMED', () => {
-      expect(isValidTransition(LeadStates.NEW, LeadStates.IN_CONVERSATION)).toBe(true)
-      expect(isValidTransition(LeadStates.IN_CONVERSATION, LeadStates.QUALIFYING)).toBe(true)
-      expect(isValidTransition(LeadStates.QUALIFYING, LeadStates.QUALIFIED)).toBe(true)
-      expect(isValidTransition(LeadStates.QUALIFIED, LeadStates.PROPERTY_SHOWN)).toBe(true)
-      expect(isValidTransition(LeadStates.PROPERTY_SHOWN, LeadStates.INTERESTED)).toBe(true)
-      expect(isValidTransition(LeadStates.INTERESTED, LeadStates.VISIT_REQUESTED)).toBe(true)
-      expect(isValidTransition(LeadStates.VISIT_REQUESTED, LeadStates.AWAITING_BROKER_APPROVAL)).toBe(true)
-      expect(isValidTransition(LeadStates.AWAITING_BROKER_APPROVAL, LeadStates.VISIT_CONFIRMED)).toBe(true)
+  describe('Precondition guards', () => {
+    it('should throw when moving to QUALIFYING without intent', async () => {
+      lead.state = LEAD_STATES.IN_CONVERSATION
+      await expect(
+        transitionLead(lead, LEAD_STATES.QUALIFYING, {})
+      ).rejects.toThrow('Cannot move to QUALIFYING without intent')
     })
 
-    test('inactive ladder: QUALIFIED → INACTIVE_24H → INACTIVE_3D → INACTIVE_7D → DORMANT → LOST', () => {
-      expect(isValidTransition(LeadStates.QUALIFIED, LeadStates.INACTIVE_24H)).toBe(true)
-      expect(isValidTransition(LeadStates.INACTIVE_24H, LeadStates.INACTIVE_3D)).toBe(true)
-      expect(isValidTransition(LeadStates.INACTIVE_3D, LeadStates.INACTIVE_7D)).toBe(true)
-      expect(isValidTransition(LeadStates.INACTIVE_7D, LeadStates.DORMANT)).toBe(true)
-      expect(isValidTransition(LeadStates.DORMANT, LeadStates.LOST)).toBe(true)
+    it('should throw when moving to QUALIFIED without intent and area', async () => {
+      lead.state = LEAD_STATES.QUALIFYING
+      await expect(
+        transitionLead(lead, LEAD_STATES.QUALIFIED, {})
+      ).rejects.toThrow('Cannot move to QUALIFIED without intent and area')
     })
 
-    test('broker rejection: AWAITING_BROKER_APPROVAL → VISIT_REQUESTED → AWAITING_BROKER_APPROVAL again', () => {
-      expect(isValidTransition(LeadStates.AWAITING_BROKER_APPROVAL, LeadStates.VISIT_REQUESTED)).toBe(true)
-      expect(isValidTransition(LeadStates.VISIT_REQUESTED, LeadStates.AWAITING_BROKER_APPROVAL)).toBe(true)
+    it('should throw when moving to PROPERTY_SHOWN without matched property', async () => {
+      lead.state = LEAD_STATES.QUALIFIED
+      await expect(
+        transitionLead(lead, LEAD_STATES.PROPERTY_SHOWN, {})
+      ).rejects.toThrow(
+        'Cannot move to PROPERTY_SHOWN without a matched property'
+      )
     })
 
-    test('post-visit outcomes: VISIT_CONFIRMED → VISIT_COMPLETED → CONVERTED', () => {
-      expect(isValidTransition(LeadStates.VISIT_CONFIRMED, LeadStates.VISIT_COMPLETED)).toBe(true)
-      expect(isValidTransition(LeadStates.VISIT_COMPLETED, LeadStates.CONVERTED)).toBe(true)
+    it('should throw when moving to VISIT_REQUESTED without visit_time', async () => {
+      lead.state = LEAD_STATES.INTERESTED
+      await expect(
+        transitionLead(lead, LEAD_STATES.VISIT_REQUESTED, {})
+      ).rejects.toThrow('Cannot move to VISIT_REQUESTED without a visit_time')
     })
 
-    test('property rejection: PROPERTY_SHOWN → QUALIFYING → QUALIFIED (re-qualify)', () => {
-      expect(isValidTransition(LeadStates.PROPERTY_SHOWN, LeadStates.QUALIFYING)).toBe(true)
-      expect(isValidTransition(LeadStates.QUALIFYING, LeadStates.QUALIFIED)).toBe(true)
-    })
-  })
-
-  test.describe('Resurrection Logic', () => {
-    test('RESURRECTED from INACTIVE_24H', () => {
-      expect(isValidTransition(LeadStates.INACTIVE_24H, LeadStates.RESURRECTED)).toBe(true)
-    })
-
-    test('RESURRECTED from INACTIVE_3D', () => {
-      expect(isValidTransition(LeadStates.INACTIVE_3D, LeadStates.RESURRECTED)).toBe(true)
-    })
-
-    test('RESURRECTED from INACTIVE_7D', () => {
-      expect(isValidTransition(LeadStates.INACTIVE_7D, LeadStates.RESURRECTED)).toBe(true)
-    })
-
-    test('RESURRECTED from DORMANT', () => {
-      expect(isValidTransition(LeadStates.DORMANT, LeadStates.RESURRECTED)).toBe(true)
-    })
-
-    test('RESURRECTED is transient (no outgoing transitions in matrix)', () => {
-      expect(getNextStates(LeadStates.RESURRECTED).length).toBe(0)
+    it('should throw when moving to VISIT_CONFIRMED from wrong state', async () => {
+      lead.state = LEAD_STATES.VISIT_REQUESTED
+      await expect(
+        transitionLead(lead, LEAD_STATES.VISIT_CONFIRMED, {})
+      ).rejects.toThrow(
+        'Can only move to VISIT_CONFIRMED from AWAITING_BROKER_APPROVAL'
+      )
     })
   })
 
-  test.describe('Edge Cases', () => {
-    test('cannot go backwards from QUALIFIED to NEW', () => {
-      expect(isValidTransition(LeadStates.QUALIFIED, LeadStates.NEW)).toBe(false)
+  describe('transitionLead function', () => {
+    it('should transition from NEW to IN_CONVERSATION', async () => {
+      lead.state = LEAD_STATES.NEW
+      const updated = await transitionLead(
+        lead,
+        LEAD_STATES.IN_CONVERSATION
+      )
+      expect(updated.state).toBe(LEAD_STATES.IN_CONVERSATION)
+      expect(updated.state_updated_at).toBeDefined()
     })
 
-    test('cannot skip states: QUALIFIED → INTERESTED (must go through PROPERTY_SHOWN)', () => {
-      expect(isValidTransition(LeadStates.QUALIFIED, LeadStates.INTERESTED)).toBe(false)
+    it('should set state_updated_at timestamp', async () => {
+      lead.state = LEAD_STATES.NEW
+      const before = new Date().toISOString()
+      const updated = await transitionLead(
+        lead,
+        LEAD_STATES.IN_CONVERSATION
+      )
+      const after = new Date().toISOString()
+
+      expect(updated.state_updated_at).toBeDefined()
+      const ts = new Date(updated.state_updated_at!)
+      expect(ts.getTime()).toBeGreaterThanOrEqual(new Date(before).getTime())
+      expect(ts.getTime()).toBeLessThanOrEqual(new Date(after).getTime())
     })
 
-    test('invalid state returns empty next-states', () => {
-      expect(getNextStates('INVALID_STATE' as LeadState).length).toBe(0)
+    it('should merge context into updated lead', async () => {
+      lead.state = LEAD_STATES.IN_CONVERSATION
+      const updated = await transitionLead(
+        lead,
+        LEAD_STATES.QUALIFYING,
+        { intent: 'rent', area: 'Baner', budget_max: 50000 }
+      )
+      expect(updated.intent).toBe('rent')
+      expect(updated.area).toBe('Baner')
+      expect(updated.budget_max).toBe(50000)
     })
 
-    test('cannot resurrect from terminal states', () => {
-      expect(isValidTransition(LeadStates.LOST, LeadStates.RESURRECTED)).toBe(false)
-      expect(isValidTransition(LeadStates.CONVERTED, LeadStates.RESURRECTED)).toBe(false)
+    it('should preserve original lead properties', async () => {
+      lead.state = LEAD_STATES.NEW
+      lead.agent_id = 'agent-123'
+      const updated = await transitionLead(
+        lead,
+        LEAD_STATES.IN_CONVERSATION
+      )
+      expect(updated.agent_id).toBe('agent-123')
+    })
+
+    it('should be idempotent on second call with same state', async () => {
+      lead.state = LEAD_STATES.NEW
+      const first = await transitionLead(
+        lead,
+        LEAD_STATES.IN_CONVERSATION
+      )
+      const second = await transitionLead(
+        first,
+        LEAD_STATES.IN_CONVERSATION
+      )
+      expect(second.state).toBe(first.state)
+    })
+  })
+
+  describe('getCurrentState function', () => {
+    it('should return state from state column', () => {
+      lead.state = LEAD_STATES.QUALIFIED
+      const state = getCurrentState(lead)
+      expect(state).toBe(LEAD_STATES.QUALIFIED)
+    })
+
+    it('should fallback to conversation_stage if state is null', () => {
+      lead.state = null
+      lead.conversation_stage = 'presenting'
+      const state = getCurrentState(lead)
+      expect(state).toBe(LEAD_STATES.PROPERTY_SHOWN)
+    })
+
+    it('should return NEW if both state and conversation_stage are null', () => {
+      lead.state = null
+      lead.conversation_stage = null
+      const state = getCurrentState(lead)
+      expect(state).toBe(LEAD_STATES.NEW)
+    })
+
+    it('should map conversation_stage "booked" to VISIT_CONFIRMED', () => {
+      lead.state = null
+      lead.conversation_stage = 'booked'
+      const state = getCurrentState(lead)
+      expect(state).toBe(LEAD_STATES.VISIT_CONFIRMED)
+    })
+  })
+
+  describe('getNextStates function', () => {
+    it('should return allowed next states for NEW', () => {
+      const next = getNextStates(LEAD_STATES.NEW)
+      expect(next).toContain(LEAD_STATES.IN_CONVERSATION)
+      expect(next).toContain(LEAD_STATES.LOST)
+    })
+
+    it('should return allowed next states for QUALIFIED', () => {
+      const next = getNextStates(LEAD_STATES.QUALIFIED)
+      expect(next).toContain(LEAD_STATES.PROPERTY_SHOWN)
+      expect(next).toContain(LEAD_STATES.INACTIVE_24H)
+    })
+
+    it('should return empty array for terminal states', () => {
+      expect(getNextStates(LEAD_STATES.CONVERTED)).toHaveLength(0)
+      expect(getNextStates(LEAD_STATES.LOST)).toHaveLength(0)
+    })
+  })
+
+  describe('Full funnel integration', () => {
+    it('should transition through entire happy path', async () => {
+      let current = lead
+      current.state = LEAD_STATES.NEW
+
+      // NEW → IN_CONVERSATION
+      current = await transitionLead(
+        current,
+        LEAD_STATES.IN_CONVERSATION
+      )
+      expect(current.state).toBe(LEAD_STATES.IN_CONVERSATION)
+
+      // IN_CONVERSATION → QUALIFYING
+      current = await transitionLead(
+        current,
+        LEAD_STATES.QUALIFYING,
+        { intent: 'rent' }
+      )
+      expect(current.state).toBe(LEAD_STATES.QUALIFYING)
+
+      // QUALIFYING → QUALIFIED
+      current = await transitionLead(
+        current,
+        LEAD_STATES.QUALIFIED,
+        { area: 'Baner' }
+      )
+      expect(current.state).toBe(LEAD_STATES.QUALIFIED)
+
+      // QUALIFIED → PROPERTY_SHOWN
+      current = await transitionLead(
+        current,
+        LEAD_STATES.PROPERTY_SHOWN,
+        { matched_property_id: 'prop-1' }
+      )
+      expect(current.state).toBe(LEAD_STATES.PROPERTY_SHOWN)
+
+      // PROPERTY_SHOWN → INTERESTED
+      current = await transitionLead(
+        current,
+        LEAD_STATES.INTERESTED
+      )
+      expect(current.state).toBe(LEAD_STATES.INTERESTED)
+
+      // INTERESTED → VISIT_REQUESTED
+      current = await transitionLead(
+        current,
+        LEAD_STATES.VISIT_REQUESTED,
+        { visit_time: '2026-07-15T14:00:00Z' }
+      )
+      expect(current.state).toBe(LEAD_STATES.VISIT_REQUESTED)
+
+      // VISIT_REQUESTED → AWAITING_BROKER_APPROVAL
+      current = await transitionLead(
+        current,
+        LEAD_STATES.AWAITING_BROKER_APPROVAL
+      )
+      expect(current.state).toBe(LEAD_STATES.AWAITING_BROKER_APPROVAL)
+
+      // AWAITING_BROKER_APPROVAL → VISIT_CONFIRMED
+      current = await transitionLead(
+        current,
+        LEAD_STATES.VISIT_CONFIRMED
+      )
+      expect(current.state).toBe(LEAD_STATES.VISIT_CONFIRMED)
+
+      // VISIT_CONFIRMED → VISIT_COMPLETED
+      current = await transitionLead(
+        current,
+        LEAD_STATES.VISIT_COMPLETED
+      )
+      expect(current.state).toBe(LEAD_STATES.VISIT_COMPLETED)
+
+      // VISIT_COMPLETED → CONVERTED
+      current = await transitionLead(
+        current,
+        LEAD_STATES.CONVERTED
+      )
+      expect(current.state).toBe(LEAD_STATES.CONVERTED)
+    })
+
+    it('should transition through inactivity ladder', async () => {
+      let current = lead
+      current.state = LEAD_STATES.QUALIFIED
+
+      current = await transitionLead(
+        current,
+        LEAD_STATES.INACTIVE_24H
+      )
+      expect(current.state).toBe(LEAD_STATES.INACTIVE_24H)
+
+      current = await transitionLead(
+        current,
+        LEAD_STATES.INACTIVE_3D
+      )
+      expect(current.state).toBe(LEAD_STATES.INACTIVE_3D)
+
+      current = await transitionLead(
+        current,
+        LEAD_STATES.INACTIVE_7D
+      )
+      expect(current.state).toBe(LEAD_STATES.INACTIVE_7D)
+
+      current = await transitionLead(
+        current,
+        LEAD_STATES.DORMANT
+      )
+      expect(current.state).toBe(LEAD_STATES.DORMANT)
+
+      current = await transitionLead(
+        current,
+        LEAD_STATES.RESURRECTED
+      )
+      expect(current.state).toBe(LEAD_STATES.RESURRECTED)
+
+      // RESURRECTED can go back to IN_CONVERSATION
+      current = await transitionLead(
+        current,
+        LEAD_STATES.IN_CONVERSATION
+      )
+      expect(current.state).toBe(LEAD_STATES.IN_CONVERSATION)
     })
   })
 })
