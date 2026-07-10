@@ -13,6 +13,101 @@ import { newInboundLeadDefaults } from '@/lib/bot/newLeadDefaults'
 import { randomUUID } from 'crypto'
 import * as Sentry from '@sentry/nextjs'
 
+type InboundMessage = {
+  fromPhone: string
+  messageText: string
+  waMessageId: string
+  isNonTextMedia: boolean
+}
+
+type ParsedInbound =
+  | {
+      ok: true
+      forcedAgentId: string
+      metaPhoneNumberId: string
+      inboundMessages: InboundMessage[]
+    }
+  | {
+      ok: false
+      status: string
+      httpStatus?: number
+    }
+
+function metaMessageText(msg: any): string {
+  return (
+    msg?.text?.body ||
+    msg?.button?.text ||
+    msg?.button?.payload ||
+    msg?.interactive?.button_reply?.title ||
+    msg?.interactive?.list_reply?.title ||
+    ''
+  )
+}
+
+function toInboundMessage(msg: any): InboundMessage | null {
+  const messageText = metaMessageText(msg)
+  const isNonTextMedia = !messageText && !!msg?.type && msg.type !== 'text'
+  if (!messageText && !isNonTextMedia) return null
+  return {
+    fromPhone: msg?.from || '',
+    messageText,
+    waMessageId: msg?.id || '',
+    isNonTextMedia,
+  }
+}
+
+function parseInboundMessages(
+  rawBody: string,
+  contentType: string,
+  logError: (event: string, data?: any) => void
+): ParsedInbound {
+  if (contentType.includes('application/x-www-form-urlencoded')) {
+    const params = new URLSearchParams(rawBody)
+    let fromPhone = (params.get('From') || '').replace('whatsapp:', '').trim()
+    if (fromPhone && !fromPhone.startsWith('+')) fromPhone = '+' + fromPhone
+    const messageText = params.get('Body') || ''
+    const waMessageId = params.get('MessageSid') || ''
+    const forcedAgentId = params.get('AgentId') || ''
+    if (!messageText || !fromPhone) return { ok: false, status: 'no_text' }
+    return {
+      ok: true,
+      forcedAgentId,
+      metaPhoneNumberId: '',
+      inboundMessages: [{ fromPhone, messageText, waMessageId, isNonTextMedia: false }],
+    }
+  }
+
+  let body: any = {}
+  try { body = JSON.parse(rawBody) } catch {}
+  if (body.object !== 'whatsapp_business_account') return { ok: false, status: 'ignored' }
+
+  let metaPhoneNumberId = ''
+  const inboundMessages: InboundMessage[] = []
+  for (const entry of body.entry || []) {
+    for (const change of entry.changes || []) {
+      const value = change.value
+      if (!value?.messages?.length) continue
+
+      const phoneNumberId = value.metadata?.phone_number_id || ''
+      if (phoneNumberId) {
+        if (metaPhoneNumberId && metaPhoneNumberId !== phoneNumberId) {
+          logError('mixed_agent_batch', { first: metaPhoneNumberId, next: phoneNumberId })
+          return { ok: false, status: 'mixed_agent_batch', httpStatus: 400 }
+        }
+        metaPhoneNumberId = phoneNumberId
+      }
+
+      for (const msg of value.messages) {
+        const inbound = toInboundMessage(msg)
+        if (inbound) inboundMessages.push(inbound)
+      }
+    }
+  }
+
+  if (!inboundMessages.length) return { ok: false, status: 'no_messages' }
+  return { ok: true, forcedAgentId: '', metaPhoneNumberId, inboundMessages }
+}
+
 // ─── GET: WhatsApp webhook verification ──────────────────────────────────────
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -76,99 +171,12 @@ export async function POST(request: NextRequest) {
     // Two sources: Meta Cloud API (real WhatsApp) and the dashboard "simulate
     // lead" form post (forcedAgentId). the legacy provider has been removed.
     const contentType = request.headers.get('content-type') || ''
-    let fromPhone = '', messageText = '', waMessageId = '', forcedAgentId = '', metaPhoneNumberId = ''
-    let isNonTextMedia = false
-    const inboundMessages: Array<{
-      fromPhone: string
-      messageText: string
-      waMessageId: string
-      isNonTextMedia: boolean
-    }> = []
-
-    if (contentType.includes('application/x-www-form-urlencoded')) {
-      const params = new URLSearchParams(rawBody)
-      let fromPhone = (params.get('From') || '').replace('whatsapp:', '').trim()
-      if (fromPhone && !fromPhone.startsWith('+')) fromPhone = '+' + fromPhone
-      const messageText = params.get('Body') || ''
-      const waMessageId = params.get('MessageSid') || ''
-      forcedAgentId = params.get('AgentId') || ''
-      if (!messageText || !fromPhone) return NextResponse.json({ status: 'no_text' })
-      inboundMessages.push({ fromPhone, messageText, waMessageId, isNonTextMedia: false })
-    } else {
-      let body: any = {}
-      try { body = JSON.parse(rawBody) } catch {}
-      if (body.object === 'whatsapp_business_account') {
-        const value = body.entry?.[0]?.changes?.[0]?.value
-        if (!value?.messages?.length) return NextResponse.json({ status: 'no_messages' })
-        metaPhoneNumberId = value.metadata?.phone_number_id || ''
-        const msg = value.messages[0]
-        fromPhone = msg.from || ''
-        messageText =
-          msg.text?.body ||
-          // Template quick-reply buttons arrive as type:'button' (button.text/payload) —
-          // without this, a customer tapping a button on a nurture template sent an
-          // empty message and got the "Sorry, I didn't catch that" fallback.
-          msg.button?.text ||
-          msg.button?.payload ||
-          msg.interactive?.button_reply?.title ||
-          msg.interactive?.list_reply?.title ||
-          ''
-        waMessageId = msg.id || ''
-        if (!messageText && msg.type && msg.type !== 'text') isNonTextMedia = true
-        if (messageText || isNonTextMedia) {
-          inboundMessages.push({ fromPhone, messageText, waMessageId, isNonTextMedia })
-        }
-
-        for (const extraMsg of value.messages.slice(1)) {
-          const extraText =
-            extraMsg.text?.body ||
-            extraMsg.button?.text ||
-            extraMsg.button?.payload ||
-            extraMsg.interactive?.button_reply?.title ||
-            extraMsg.interactive?.list_reply?.title ||
-            ''
-          const extraIsNonTextMedia = !extraText && !!extraMsg.type && extraMsg.type !== 'text'
-          if (!extraText && !extraIsNonTextMedia) continue
-          inboundMessages.push({
-            fromPhone: extraMsg.from || '',
-            messageText: extraText,
-            waMessageId: extraMsg.id || '',
-            isNonTextMedia: extraIsNonTextMedia,
-          })
-        }
-        for (const entry of body.entry || []) {
-          for (const change of entry.changes || []) {
-            const extraValue = change.value
-            if (!extraValue?.messages?.length || extraValue === value) continue
-            const phoneNumberId = extraValue.metadata?.phone_number_id || ''
-            if (phoneNumberId) {
-              if (metaPhoneNumberId && metaPhoneNumberId !== phoneNumberId) {
-                logError('mixed_agent_batch', { first: metaPhoneNumberId, next: phoneNumberId })
-                return NextResponse.json({ status: 'mixed_agent_batch' }, { status: 400 })
-              }
-              metaPhoneNumberId = phoneNumberId
-            }
-            for (const extraMsg of extraValue.messages) {
-              const extraText =
-                extraMsg.text?.body ||
-                extraMsg.button?.text ||
-                extraMsg.button?.payload ||
-                extraMsg.interactive?.button_reply?.title ||
-                extraMsg.interactive?.list_reply?.title ||
-                ''
-              const extraIsNonTextMedia = !extraText && !!extraMsg.type && extraMsg.type !== 'text'
-              if (!extraText && !extraIsNonTextMedia) continue
-              inboundMessages.push({
-                fromPhone: extraMsg.from || '',
-                messageText: extraText,
-                waMessageId: extraMsg.id || '',
-                isNonTextMedia: extraIsNonTextMedia,
-              })
-            }
-          }
-        }
-      } else return NextResponse.json({ status: 'ignored' })
+    const parsedInbound = parseInboundMessages(rawBody, contentType, logError)
+    if (!parsedInbound.ok) {
+      return NextResponse.json({ status: parsedInbound.status }, { status: parsedInbound.httpStatus || 200 })
     }
+    const { forcedAgentId, metaPhoneNumberId, inboundMessages } = parsedInbound
+
 
     // ── Agent lookup ─────────────────────────────────────────────────────
     // Meta: identify the agent by the business phone number that received it.
@@ -204,10 +212,7 @@ export async function POST(request: NextRequest) {
     // ── Lead lookup / create ──────────────────────────────────────────────
     const results: any[] = []
     for (const inbound of inboundMessages) {
-      fromPhone = inbound.fromPhone
-      messageText = inbound.messageText
-      waMessageId = inbound.waMessageId
-      isNonTextMedia = inbound.isNonTextMedia
+      const { fromPhone, messageText, waMessageId } = inbound
       try {
 
     const now = new Date().toISOString()

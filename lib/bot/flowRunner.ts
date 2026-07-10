@@ -29,6 +29,7 @@ export async function runConversationFlowStep(
   const extracted = await decoder(args.message, {
     recent: args.recent,
     known: {
+      name: args.lead.name || null,
       intent: args.lead.intent || null,
       areas: args.lead.preferred_areas || [],
       budget_max: args.lead.budget_max || null,

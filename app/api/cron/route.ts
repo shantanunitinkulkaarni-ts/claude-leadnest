@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic"
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { sendAppointmentReminder, sendToLead, sendWhatsAppTemplate } from '@/lib/whatsapp'
-import { generateNudge } from '@/lib/gemini'
+import { generateNudge } from '@/lib/promptEngine'
 import { runNurtureEmails } from '@/lib/nurture'
 import { pickTemplate, renderTemplate } from '@/lib/outreach'
 import { decideNurtureStep, type NurturePlan } from '@/lib/nurtureFlow'

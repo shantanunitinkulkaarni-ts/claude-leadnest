@@ -156,3 +156,37 @@ Continue with webhook fix 1:
 4. If not clean enough, refactor only the message collection into a small helper inside the same file or nearby helper, then rerun checks.
 
 Do not move to the next issue until founder approves this first fix.
+
+## Update - 2026-07-07 - Codex after laptop reset
+
+Workspace recovery:
+
+- Restored the repo into `TING`.
+- Reattached real Git metadata using the bundled Codex Git runtime.
+- Installed dependencies with bundled `pnpm` because system `node`, `npm`, `git`, and `gh` were not on PATH after the reset.
+
+Webhook fix 1 follow-up:
+
+- Cleaned `app/api/webhook/route.ts` parser into small helpers:
+  - `metaMessageText`
+  - `toInboundMessage`
+  - `parseInboundMessages`
+- The main `POST` flow now receives a clean parsed object instead of building `inboundMessages` inline.
+- Meta batches are collected by walking all entries/changes/messages once.
+- Mixed `phone_number_id` batches still return `mixed_agent_batch` with HTTP 400.
+- Form-urlencoded simulate requests still use `AgentId`.
+- Per-message processing now uses local `fromPhone`, `messageText`, and `waMessageId` constants inside the loop.
+
+Validation run:
+
+- Typecheck: passed.
+- Focused tests: `time-parser.spec.ts` + `webhook-parsing.spec.ts` passed, 83 tests.
+- Full unit suite: passed, 1157 tests.
+- Lint: passed with existing warnings outside this fix.
+- Build: compiled, typechecked, linted, generated static pages, then failed at the final standalone copy step because Windows denied symlink creation inside `.next/standalone` from pnpm-linked dependencies. This looks like a local reset/Windows symlink permission issue, not a TypeScript or app compile failure.
+
+Current caveats:
+
+- Raw `git status` is noisy because the original ZIP checkout and attached `.git` metadata disagree on line endings across many files.
+- `git diff --ignore-space-at-eol --name-only` shows the meaningful code diff is only `app/api/webhook/route.ts`.
+- No commit has been made.

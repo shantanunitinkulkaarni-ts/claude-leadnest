@@ -1,7 +1,7 @@
 import { callLLM } from './llm'
 
-// Same check as gemini.ts's isMediaPlaceholder — duplicated rather than
-// imported to avoid a circular dependency (gemini.ts imports this module).
+// Same check as promptEngine.ts's isMediaPlaceholder — duplicated rather than
+// imported to avoid a circular dependency (promptEngine.ts imports this module).
 function isMediaPlaceholder(text: string): boolean {
   return /^\s*\[(photo|image|video|media|file|attachment)\b/i.test(text || '')
 }

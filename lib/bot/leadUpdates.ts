@@ -36,12 +36,17 @@ export async function prepareLeadUpdates(args: {
   const emailIsValid = !proposedEmail || isValidEmail(proposedEmail)
   if (proposedEmail && emailIsValid) leadUpdates.email = proposedEmail
 
-  const bookingResolution = await resolveAppointmentTimeWithAI({
-    customerText: decision.updates?.visit_time || null,
-    replyText: message,
-    nowMs,
-    bookingKnowledge,
-  }, { llm: deps.llm })
+  // Only call the AI time decoder when the customer actually mentioned a visit time.
+  // This saves 1 LLM call on ~90% of messages (every "hi", "2BHK", "Baner", etc.).
+  const hasVisitTime = !!decision.updates?.visit_time
+  const bookingResolution = hasVisitTime
+    ? await resolveAppointmentTimeWithAI({
+        customerText: decision.updates!.visit_time || null,
+        replyText: message,
+        nowMs,
+        bookingKnowledge,
+      }, { llm: deps.llm })
+    : { ok: false, reason: 'no_visit_time_in_decision' } as const
   if (bookingResolution.ok) {
     leadUpdates.pending_appointment_time = bookingResolution.iso
     leadUpdates.pending_appointment_set_at = new Date(nowMs).toISOString()

@@ -15,7 +15,7 @@ export type SimulatedTurn = {
 }
 
 export function meaningFromIntent(intent: ExtractedIntent): ExtractedCustomerMeaning {
-  return {
+  const meaning: ExtractedCustomerMeaning = {
     name: intent.name || undefined,
     language: intent.language || undefined,
     property_category: intent.property_category || undefined,
@@ -25,6 +25,18 @@ export function meaningFromIntent(intent: ExtractedIntent): ExtractedCustomerMea
     budget_max: intent.budget_max || undefined,
     bhk: intent.bhk || undefined,
   }
+  // Pass through size fields if the decoder captured them (aiDecoder adds these)
+  const any = intent as any
+  if (any.sqft_preference && typeof any.sqft_preference === 'number') {
+    meaning.sqft_preference = any.sqft_preference
+  }
+  if (any.size_preference && typeof any.size_preference === 'string') {
+    meaning.size_preference = any.size_preference
+  }
+  if (any.no_size_preference === true) {
+    meaning.no_size_preference = true
+  }
+  return meaning
 }
 
 export function simulateFlowTurns(args: {

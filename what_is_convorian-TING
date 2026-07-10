@@ -1,0 +1,466 @@
+# Codebase Analysis - TING (formerly LeadNest/Convorian)
+
+## Project Overview
+**TING** is a production-grade AI-powered WhatsApp SaaS platform for Indian real estate agents. It helps automate lead qualification, nurture conversations, and book site visits with AI-first design and robust architecture.
+
+---
+
+## Tech Stack
+
+### Frontend & Backend
+- **Next.js 14.2.29** with App Router and TypeScript 5
+- **Tailwind CSS 3.4.1** for styling
+- **React 18** with modern hooks and patterns
+
+### Database & Authentication
+- **Supabase PostgreSQL** with Row Level Security (RLS)
+- **@supabase/ssr** for server-side auth
+- **Supabase Auth** for user authentication and sessions
+
+### AI & LLM Integration
+- **Groq API** (llama-3.3-70b-versatile) - Primary LLM
+- **GLM-4.5-Flash (Z.ai)** - Fallback LLM
+- Hedged request system with parallel attempts and retries
+
+### WhatsApp Integration
+- **Meta Cloud API Direct** (Tech Provider) - Primary channel
+- MSG91 removed from live path (legacy peripheral systems only)
+- Per-agent credentials stored in database
+
+### Payments
+- **Razorpay** - Subscription and wallet top-up system
+- Webhook integration for payment events
+
+### DevOps & CI/CD
+- **Vercel** - Primary hosting platform
+- **GitHub Actions** - CI/CD workflows and scheduled cron jobs
+- **Playwright** - E2E testing
+- **Sentry** - Error tracking and monitoring
+
+### Other Tools
+- **Papaparse** - CSV processing
+- **Sharp** - Image processing
+- **Zustand** - State management (for client-side)
+
+---
+
+## Key Architecture
+
+### Bot State Machine
+8-stage conversation flow:
+1. Greeting → 2. Language → 3. Name → 4. Intent → 5. Qualifying → 6. Property shown → 7. Awaiting visit time → 8. Awaiting email → 9. Visit confirmed → 10. Handover
+
+### AI-First Design
+- AI decodes intent, code executes actions
+- AI never types property facts directly
+- State machine pattern with clear transitions
+- Max conversation history constraint (12 messages)
+
+### Hedged LLM Strategy
+- Parallel Groq attempts
+- Automatic GLM fallback on failure
+- Retry mechanism with exponential backoff
+- Minimizes API costs and improves reliability
+
+### Data Architecture
+- Migration-based schema (37+ migration files)
+- Comprehensive indexing (50+ indexes)
+- JSONB metadata for flexibility
+- Conversation history limited to last 12 exchanges
+
+### Security Model
+- Row Level Security (30+ policies)
+- Tenant isolation - each agent/team only sees their data
+- Role-based access (service role, authenticated, public)
+- Rate limiting at multiple levels
+- CSP headers with HSTS
+
+---
+
+## Core Features
+
+### 1. AI-Powered WhatsApp Bot
+- 24/7 automated WhatsApp conversations
+- Multi-language support (English, Hindi, Marathi, Hinglish)
+- Real-time lead tracking with chat history
+- Property matching based on intent, budget, location
+- Seamless handover to human when needed
+
+### 2. Lead Qualification System
+- AI-powered scoring and classification
+- Intent detection (buy/rent/sell/other)
+- Budget range parsing and categorization
+- Phone number validation
+- Lead scoring with confidence thresholds
+
+### 3. Property Matching Engine
+- Intent-based property recommendations
+- Budget range filtering
+- Location and proximity matching
+- Multi-property browsing
+- Media gallery (photos/videos)
+
+### 4. Site Visit Booking
+- Automated visit time scheduling
+- Availability checking
+- Confirmation flow with bot
+- Email reminders
+- Google Calendar sync (implied)
+
+### 5. Nurture System
+- Automated follow-up sequences
+- 3-stage nudge system (3h, 10h, 23h after lead)
+- Template-based touchpoints
+- Opt-in/out tracking with consent management
+- Handover when lead disengages
+
+### 6. Agent Dashboard
+- **Inbox View** - All WhatsApp conversations
+- **Leads Management** - Qualification status and AI scores
+- **Property Management** - Upload, edit, and filter inventory
+- **Appointments** - Site visit scheduling and reminders
+- **ROI Tracking** - Conversion metrics and analytics
+- **Knowledge Gaps** - AI-identified areas needing human review
+- **Settings** - Bot tone, languages, office hours, etc.
+- **Balance** - WhatsApp message credits and subscriptions
+
+### 7. Onboarding & Setup
+- Self-service WhatsApp onboarding via Facebook SDK
+- Demo chat mode for testing before going live
+- Tutorial walkthrough for first-time users
+- Agent PIN protection for sensitive operations
+
+---
+
+## API Endpoints
+
+### Authentication & User Management
+- `POST /api/auth/register` - User registration with IP rate limiting
+- `GET /api/auth/callback` - OAuth callback handler
+- `POST /api/auth/mfa/verify` - 2FA verification endpoint
+
+### Bot & WhatsApp
+- `POST /api/webhook` - Meta WhatsApp webhook handler (primary inbound route)
+- `POST /api/demo-chat` - Manual bot message testing
+- `POST /api/whatsapp/send` - Direct WhatsApp messaging
+- `GET /api/whatsapp/verify` - Meta webhook verification
+
+### Lead & Conversation
+- `GET/POST /api/leads` - Lead CRUD operations
+- `GET/POST /api/messages` - Message history and tracking
+- `GET/POST /api/agent/message` - Bot reply generation
+
+### Property Management
+- `GET/POST/PUT /api/properties` - Property CRUD with search/filter
+- `GET/POST /api/properties/search` - AI-powered property matching
+- `POST /api/properties/media/upload` - Photo/video uploads
+
+### Appointment Management
+- `GET/POST /api/appointments` - Appointment scheduling
+- `GET/POST /api/appointments/confirm` - Appointment confirmation flow
+- `GET/POST /api/appointments/reminder` - Reminder system
+
+### Analytics & Reporting
+- `GET /api/analytics/dashboard` - Overview metrics
+- `GET /api/analytics/roi` - ROI calculations and charts
+- `GET /api/analytics/lead-qualification` - Lead scoring breakdown
+
+### Admin & Management
+- `GET/PUT/DELETE /api/admin/agents` - Agent management
+- `GET /api/admin/leads` - Lead export and management
+- `GET/POST /api/admin/support-ticket` - Support ticket creation
+
+### System & Support
+- `POST /api/support-chat` - Human support chat
+- `POST /api/support-feedback` - Chat feedback
+- `GET /api/knowledge-gaps` - AI knowledge gap analysis
+
+### Cron & Jobs
+- `GET /api/cron` - Scheduled job handler (protected by secret)
+- `GET /api/subscription/status` - Subscription check
+- `GET /api/meta/onboard` - WhatsApp onboarding completion
+
+### Razorpay Integration
+- `POST /api/razorpay-webhook` - Payment notification handler
+- `GET/POST /api/subscription/manage` - Subscription management
+
+---
+
+## Database Schema
+
+### Core Tables (14 total)
+
+1. **agents** - User accounts with WhatsApp credentials, subscription info, settings
+2. **leads** - Customer profiles with AI scores, status, conversation history
+3. **properties** - Real estate inventory (price, location, features, media)
+4. **messages** - Conversation logs with delivery status tracking
+5. **appointments** - Site visit scheduling and reminders
+6. **team_members** - Agency team member management
+7. **activity_log** - System activity tracking
+8. **knowledge_gaps** - AI-identified gaps in bot knowledge
+9. **support_chat_logs** - Human support conversation history
+10. **support_tickets** - Formal support requests
+11. **wa_transactions** - WhatsApp credit transactions
+12. **subscription_events** - Payment history and events
+13. **superadmins** - Platform administrators
+
+### Key Features
+- **UUID primary keys** for all records
+- **Timestamp tracking** (created_at, updated_at, last_message_at)
+- **JSONB columns** for flexible metadata
+- **Array columns** for tags, features, preferences
+- **Foreign key relationships** with cascade/delete rules
+- **Unique constraints** for phone numbers and emails
+- **Specialized indexes** for performance
+
+---
+
+## Frontend Structure
+
+### Public Pages
+- `/` - Landing page with hero, features, pricing
+- `/login` - Authentication page
+- `/onboarding` - New user setup flow
+- `/mfa` - Two-factor authentication page
+- `/forgot-password` - Password reset
+- `/reset-password` - Password change
+- `/help` - Help documentation
+- `/privacy-policy`, `/refund-policy`, `/terms-of-service` - Legal pages
+
+### Protected Pages
+- `/dashboard` - Main application dashboard
+- `/dashboard/overview` - Analytics overview
+- `/dashboard/inbox` - WhatsApp conversations
+- `/dashboard/leads` - Lead management
+- `/dashboard/properties` - Property inventory
+- `/dashboard/appointments` - Appointment scheduling
+- `/dashboard/balance` - Credits and subscriptions
+- `/dashboard/settings` - Account and bot settings
+- `/dashboard/knowledge_gaps` - AI insights
+- `/admin` - Admin panel for platform management
+
+### Key Components
+- **LiveChatDemo.tsx** - Interactive bot demo component
+- **SupportChat.tsx** - Human support chat interface
+- **Sidebar.tsx** - Navigation sidebar
+- **Topbar.tsx** - Header with user controls
+- **ErrorBoundary.tsx** - Global error handling
+- **TutorialWalkthrough.tsx** - Step-by-step onboarding guide
+- **ConnectWhatsAppButton.tsx** - Meta integration for WhatsApp setup
+
+### Screen Components (dashboard pages)
+- OverviewScreen.tsx - Analytics dashboard
+- InboxScreen.tsx - Conversation management (44KB)
+- LeadsScreen.tsx - Lead qualification (30KB)
+- PropertiesScreen.tsx - Property management (50KB)
+- AppointmentsScreen.tsx - Visit scheduling (24KB)
+- ROIScreen.tsx - ROI tracking (22KB)
+- BalanceScreen.tsx - Credit management (19KB)
+- SettingsScreen.tsx - Configuration (29KB)
+- KnowledgeGapsScreen.tsx - AI insights (5KB)
+
+---
+
+## Authentication & Authorization
+
+### Authentication Flow
+1. **Email/Password Registration** - IP rate limited (5/min) with validation
+2. **Supabase Auth** - OAuth with email/password, Google OAuth support
+3. **OAuth Callback** - Handled at `/api/auth/callback`
+4. **Session Management** - Supabase SSR with cookie-based sessions
+5. **Middleware Protection** - Route-based auth checking for `/dashboard` and `/admin`
+
+### Authorization (RLS Policies)
+- **Tenant isolation** - Each agent/team only sees their data
+- **Role-based access** - Service role, authenticated, public
+- **Row Level Security** - 30+ policies across tables
+- **Policy categories**:
+  - Agents: Create/update own workspace, superadmin reads all
+  - Appointments/Leads/Messages/Properties: Tenant-scoped access
+  - Team members: Admin vs member roles
+  - Superadmins: Read own records
+
+### Security Features
+- **2FA/MFA** - Optional TOTP-based 2FA (opt-in)
+- **Rate limiting** - Multiple levels (signup 5/min, support chat 20/min)
+- **CSRF protection** - Supabase automatically handles
+- **Whitelist-only domains** - Server actions restricted to specific origins
+- **Timing-safe pin hashing** - SHA256 with constant-time comparison
+- **Sentry integration** - Error tracking with security headers
+
+---
+
+## Notable Patterns & Architectural Decisions
+
+### AI-First Bot Design
+- **AI decodes intent, code executes actions** - AI never types property facts directly
+- **State machine pattern** - Bot progresses through stages with clear transitions
+- **Hedged LLM requests** - Parallel Groq attempts with GLM fallback
+- **Max history constraint** - Keeps conversation focused (12 messages max)
+
+### Separation of Concerns
+- **Bot orchestration** - `lib/ai-bot.ts` as central handler (495 lines)
+- **Pure functions** - Testable logic extracted to `lib/bot/` subdirectory
+- **Prompt engineering** - Separate `lib/bot/prompt.ts` with system prompts
+- **Flow control** - Decision adapter pattern for AI→code translation
+
+### Data Architecture
+- **Migration-based schema** - 37+ migration files tracking changes
+- **Comprehensive indexing** - 50+ indexes for query performance
+- **JSONB metadata** - Flexible schema for evolving requirements
+- **Conversation history** - Keep only last 12 exchanges to limit token usage
+
+### Testing Strategy
+- **Playwright for E2E** - Full flow testing (smoke, golden path, security, live booking)
+- **Unit tests for pure functions** - 50+ individual tests for LLM, intent, time parsing
+- **Critical gate tests** - 5-minute timeout for important flows
+- **Evaluations suite** - Engine evaluation with replay capabilities
+
+### Security Hardening
+- **Fail-closed** - Missing env vars cause errors, not silent fallbacks
+- **CSP headers** - Report-Only initially, then enforce after monitoring
+- **Service role never in client** - Always server-side only
+- **Whitelist domains** - Server actions restricted to specific origins
+
+---
+
+## Configuration Files
+
+### Environment Variables (.env.example)
+- **Supabase**: URLs, anon key, service role key
+- **AI APIs**: GLM, Cerebras (fallback)
+- **WhatsApp**: Meta app ID, config ID, app secret, verify token
+- **Email**: Resend API key and from address
+- **App**: Public URL
+- **Cron**: Security secret for webhook verification
+- **Optional**: Test agent ID for local testing
+
+### Next.js Configuration (next.config.js)
+- Standalone output for deployment
+- Server actions with origin whitelist
+- Image optimization domain (Supabase)
+- Comprehensive security headers:
+  - HSTS (63072000 seconds)
+  - X-Frame-Options, X-Content-Type-Options
+  - Referrer-Policy, Permissions-Policy
+  - CSP with report-only mode
+
+### TypeScript Configuration (tsconfig.json)
+- ES5 target with modern lib features
+- Strict mode enabled
+- Path aliases (@/* maps to root)
+- Include/Exclude patterns for tests
+
+### Playwright Configuration (playwright.config.ts)
+- Port configuration (default 3003)
+- Test timeout (90s for dev, 15s for assertions)
+- CI workflow with 1 worker for rate limits
+- Auto-start dev server option
+
+### GitHub Actions Workflows
+- **ci.yml** - Continuous integration (lint, typecheck, tests)
+- **deploy.yml** - AWS App Runner deployment (currently disabled)
+- **nurture-cron.yml** - 15-minute scheduling for nurture engine
+- **critical-gates.yml** - Critical path validation before merge
+- **db-backup.yml** - Database backup automation
+- **keep-warm.yml** - App warmup for cold starts
+
+### Other Config Files
+- **tsconfig.test.json** - TypeScript config for tests
+- **next-env.d.ts** - Next.js type definitions
+- **vercel.json** - Vercel deployment settings
+- **fly.toml** - Fly.io deployment config (alternative hosting)
+- **dockerignore** - Docker build exclusions
+
+---
+
+## File Organization & Conventions
+
+### Directory Structure
+```
+TING/
+├── app/              # Next.js App Router pages and API routes
+├── components/       # React components (screen, utility, layout)
+├── db/              # Database schema and migrations
+├── lib/             # Core business logic
+│   ├── bot/         # Bot engine modules (AI, prompts, flows)
+│   └── nurture/     # Nurture system modules
+├── tests/           # Test suites (api, critical, e2e, unit, evals)
+├── docs/            # Documentation and plans
+├── scripts/         # Utility scripts
+├── public/          # Static assets
+├── reports/         # Generated reports
+├── .github/         # GitHub Actions workflows
+└── [config files]   # Project configuration
+```
+
+### Naming Conventions
+- **Files**: kebab-case (e.g., `ai-bot.ts`, `whatsapp.ts`, `leadStateMachine.ts`)
+- **Directories**: kebab-case (e.g., `lib/bot`, `app/api`)
+- **API routes**: snake_case with folder structure (e.g., `api/leads/route.ts`)
+- **Components**: PascalCase (e.g., `InboxScreen.tsx`, `Topbar.tsx`)
+- **Tests**: snake_case with `.spec.ts` extension (e.g., `bot.spec.ts`, `leadStateMachine.spec.ts`)
+- **Migrations**: Numbered with description (e.g., `01_data_safety.sql`)
+- **Constants**: UPPER_SNAKE_CASE (e.g., `GROQ_MODEL`, `REGISTER_IP_LIMIT`)
+
+### Code Style
+- **Function names**: camelCase (e.g., `handleAiBotMessage`, `waSendText`)
+- **Types/Interfaces**: PascalCase (e.g., `BotStage`, `AIDecision`)
+- **Private functions**: camelCase with underscore prefix (e.g., `_supabase`)
+- **Comments**: JSDoc style for public APIs
+
+### File Size Patterns
+- **Largest files**:
+  - `lib/ai-bot.ts` (495 lines) - Bot orchestrator
+  - `app/page.tsx` (430 lines) - Landing page
+  - `components/screens/PropertiesScreen.tsx` (50KB)
+  - `components/screens/InboxScreen.tsx` (44KB)
+  - `components/screens/LeadsScreen.tsx` (30KB)
+
+### Testing Coverage
+- **Unit tests**: ~50 individual test files for pure functions
+- **E2E tests**: 6 test suites covering critical flows
+- **Eval tests**: Engine evaluation scenarios (scenarios.ts)
+- **Total**: 70+ test files with comprehensive coverage
+
+---
+
+## Summary
+
+This is a **production-grade AI-powered SaaS platform** with a clean architecture and comprehensive testing. The codebase demonstrates:
+
+1. **Robust security practices** with RLS, rate limiting, and CSP
+2. **AI-first design** with sophisticated state machine and hedging strategies
+3. **Well-structured codebase** with clear separation of concerns
+4. **Comprehensive testing** covering unit, integration, and E2E scenarios
+5. **Modern tech stack** with Next.js 14, Supabase, and AI APIs
+6. **Strong documentation** including architecture PDFs and source of truth documents
+
+### Project Status
+**Live at**: https://convorian.in
+**Branch**: main
+**Recent Work**: Bot flow improvements, photo upload support, AI budget range decoding, subscription setup
+
+### Architecture Highlights
+- **AI decodes intent, code executes actions** - Never mix these responsibilities
+- **State machine pattern** for predictable conversation flows
+- **Hedged LLM requests** with parallel attempts and automatic fallbacks
+- **Tenant isolation** with comprehensive RLS policies
+- **Comprehensive testing** with 70+ test files across all layers
+
+### Strengths
+- Production-ready with comprehensive error handling
+- Strong security posture with multiple defense layers
+- AI-first design minimizes repetitive work
+- Well-structured codebase for maintainability
+- Excellent testing coverage for reliability
+
+### Areas of Focus
+- Continuous monitoring of AI performance
+- Regular security audits and updates
+- Performance optimization for large-scale usage
+- Feature expansion based on user feedback
+
+---
+
+**Project Status**: Launch-ready with recent security hardening and optimization improvements. The core loop (qualify → match → book → email) is proven and production-stable.
