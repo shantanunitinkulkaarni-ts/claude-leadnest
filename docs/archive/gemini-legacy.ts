@@ -1,9 +1,14 @@
-// Sentry removed — generateNudge (the only live function here) does not need it
+import * as Sentry from '@sentry/nextjs'
 import { supabaseAdmin } from './supabase'
 import { callLLM } from './llm'
 import { detectStage, type ConversationStage } from './stageMachine'
-import { filterPropertiesForLead, findNearMatches } from './propertyMatcher'
+import { filterPropertiesForLead, findNearMatches, isValidMatchedProperty } from './propertyMatcher'
+import { validateReply } from './replyValidator'
+import { guardReplyFacts } from './factGuard'
+import { shouldRefreshSummary, refreshConversationSummary, SUMMARY_OLDER_WINDOW } from './conversationSummary'
 import { personalityBrief } from './nurtureEngine'
+import { formatKnowledgeGapsForPrompt } from './knowledgeGaps'
+import { parseBudgetRupees } from './budgetParse'
 
 export { detectStage, type ConversationStage }
 
@@ -544,17 +549,217 @@ export function detectMessageLanguage(
 }
 
 export async function generateBotReply(
-  _agentId: string,
-  _leadId: string,
-  _incomingMessage: string,
-  _options?: Record<string, any>
-): Promise<any> {
-  // DEPRECATED: This function was the legacy engine entry point.
-  // The live bot path is lib/ai-bot.ts → lib/bot/flowRunner.ts.
-  // Kept as a stub to avoid breaking any external references.
-  throw new Error('generateBotReply is deprecated — use ai-bot.ts instead')
-}
+  agentId: string,
+  leadId: string,
+  incomingMessage: string
+): Promise<{ reply: string; metadata: any }> {
 
+  const [agentRes, leadRes, propertiesRes, messagesRes, rescheduleRes, lastStageRes, totalMessagesRes, knowledgeGapsRes] = await Promise.all([
+    supabaseAdmin.from('agents').select('*').eq('id', agentId).single(),
+    supabaseAdmin.from('leads').select('*').eq('id', leadId).single(),
+    supabaseAdmin.from('properties').select('*').eq('agent_id', agentId).eq('status', 'active'),
+    supabaseAdmin.from('messages').select('direction, content, sent_by').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(14),
+    supabaseAdmin.from('activity_log').select('*', { count: 'exact', head: true }).eq('lead_id', leadId).eq('title', 'Site visit rescheduled by AI'),
+    supabaseAdmin.from('activity_log').select('metadata').eq('lead_id', leadId).eq('type', 'stage_transition').order('created_at', { ascending: false }).limit(1),
+    // Raw history is capped at 12 messages below (~3-4 rounds) — this count is
+    // ONLY so we know the TRUE conversation length, to decide whether the
+    // rolling summary (see lib/conversationSummary.ts) needs refreshing.
+    supabaseAdmin.from('messages').select('*', { count: 'exact', head: true }).eq('lead_id', leadId),
+    // Per-agent FAQ (Phase 4D) — questions the bot once deferred on, now
+    // answered by the agent in the dashboard. Scoped to the agent, not the
+    // lead, so every lead benefits once the agent answers it once.
+    supabaseAdmin.from('knowledge_gaps').select('question, answer').eq('agent_id', agentId).eq('status', 'answered').order('answered_at', { ascending: false }).limit(20),
+  ])
+
+  const agent = agentRes.data as any
+  const lead = leadRes.data as any
+  const properties = propertiesRes.data || []
+  const recentMessages = (messagesRes.data || []).reverse()
+
+  if (!agent) throw new Error('Agent not found')
+  if (!lead) throw new Error('Lead not found')
+
+  agent.answeredKnowledgeGapsPrompt = formatKnowledgeGapsForPrompt(knowledgeGapsRes.data || [])
+
+  const messageCount = recentMessages.length
+  const totalMessageCount = totalMessagesRes.count ?? messageCount
+  const stage = detectStage(lead, messageCount)
+
+  // Refresh the rolling conversation summary once enough new messages have
+  // piled up beyond the raw history window. Fire-and-forget: this is purely
+  // for FUTURE replies (injected into the prompt below from `lead.*` as
+  // already-fetched), never something the current reply waits on.
+  if (shouldRefreshSummary(totalMessageCount, lead.conversation_summary_message_count)) {
+    ;(async () => {
+      const { data: olderRows } = await supabaseAdmin
+        .from('messages')
+        .select('direction, content')
+        .eq('lead_id', leadId)
+        .order('created_at', { ascending: false })
+        .range(12, 12 + SUMMARY_OLDER_WINDOW - 1)
+      const olderMessages = (olderRows || []).reverse()
+      const summary = await refreshConversationSummary(lead.conversation_summary || null, olderMessages)
+      const { error } = await supabaseAdmin.from('leads').update({
+        conversation_summary: summary,
+        conversation_summary_message_count: totalMessageCount,
+      }).eq('id', leadId)
+      if (error) Sentry.captureException(error)
+    })().catch(err => Sentry.captureException(err))
+  }
+
+  // Record every stage change to activity_log so an agent can see in the
+  // dashboard WHY the bot's behavior shifted (e.g. "why did it show properties
+  // now?") without asking the developer. Fire-and-forget: this is pure
+  // observability and must never slow down or break reply generation.
+  const previousStage = (lastStageRes.data?.[0]?.metadata as any)?.to ?? null
+  if (previousStage !== stage) {
+    supabaseAdmin.from('activity_log').insert({
+      agent_id: agentId, lead_id: leadId, type: 'stage_transition',
+      title: `Stage: ${previousStage || 'none'} → ${stage}`,
+      description: `messageCount=${messageCount}`,
+      metadata: { from: previousStage, to: stage, messageCount },
+    }).then(({ error }: any) => { if (error) Sentry.captureException(error) })
+  }
+
+  // Filterable context for any Sentry event captured during this call — lets
+  // you search/filter production incidents by lead/stage instead of digging
+  // through the `extra` blob on each individual captureMessage call.
+  Sentry.setContext('lead', { id: leadId, agentId, stage, score: lead.ai_score, temperature: lead.temperature })
+
+  // Server-side filter: the LLM only ever sees properties that already match
+  // the lead's known intent/areas/budget, so it can't recommend a mismatch.
+  //
+  // RACE-CONDITION FIX: the persisted `lead` reflects criteria up to the
+  // PREVIOUS turn. The lead's current message may state a new budget we
+  // haven't persisted yet (extraction happens AFTER the LLM call). Without
+  // this inline augmentation, a lead saying "Baner, budget 70 lakhs" on their
+  // first criteria-revealing turn gets the full unfiltered inventory shown
+  // back — which is how Lodha at ₹90L ended up framed as fitting a ₹70L
+  // budget in production. We re-parse the latest message inline and merge so
+  // the filter (and the near-match stretch band below) use the freshest budget.
+  const inlineBudget = parseBudgetRupees(incomingMessage)
+  const augmentedLead = {
+    ...lead,
+    budget_max: lead.budget_max || (inlineBudget ?? undefined),
+  }
+  const filteredProperties = filterPropertiesForLead(properties, augmentedLead)
+  // When NOTHING fits the budget, surface the closest above-budget options (same
+  // area + type) so the bot can offer an honest stretch pick instead of going
+  // empty-handed. Only computed when there are no exact matches.
+  const nearMatches = filteredProperties.length === 0 ? findNearMatches(properties, augmentedLead) : []
+  // The LLM is shown filtered + near matches, so both are valid to reference.
+  const shownProperties = [...filteredProperties, ...nearMatches]
+  Sentry.setContext('engine', { stage, messageCount, filteredPropertyCount: filteredProperties.length, nearMatchCount: nearMatches.length, totalPropertyCount: properties.length, inlineBudgetParsed: inlineBudget, augmentedBudgetMax: augmentedLead.budget_max })
+
+  // Server-side language detection — runs before the LLM so we can inject a
+  // hard directive. Uses the current message + stored lead.language as fallback.
+  const detectedLang = detectMessageLanguage(incomingMessage, lead.language)
+
+  const ctx = {
+    agent,
+    lead,
+    properties: filteredProperties,
+    nearMatches,
+    // Full active count (pre lead-filter) so the prompt can tell "no inventory"
+    // apart from "inventory exists but nothing matches THIS lead's criteria".
+    totalActiveCount: properties.length,
+    currentTime: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+    isOfficeHours: isOfficeHours(agent.office_open, agent.office_close),
+    // 3+ AI reschedules → a human is coordinating the final time; the bot must
+    // stop touching the appointment (mirrors the webhook's hard guard).
+    reschedulingLocked: (rescheduleRes.count ?? 0) >= 3,
+    detectedLang,
+    incomingMessage,
+    // Photo sending is gated by WA_MEDIA_LIVE (Meta media).
+    canSendPhotos: process.env.WA_MEDIA_LIVE === 'true',
+  }
+
+  const systemPrompt = buildEnginePrompt(ctx, stage, messageCount)
+  console.log(`[engine] stage=${stage} lang=${detectedLang} prompt≈${Math.round(systemPrompt.length / 4)}tok`)
+
+  // Build conversation history — exclude the LAST message (the one we just inserted).
+  // 12 messages gives ~3-4 rounds of context without meaningfully bloating the prompt.
+  const historyMessages = recentMessages.slice(0, -1).slice(-12)
+
+  // Convert to OpenAI chat format
+  const chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
+  for (const m of historyMessages) {
+    const role = m.direction === 'inbound' ? 'user' : 'assistant'
+    const text = (m.content || '').toString()
+    if (!text.trim()) continue
+    // Skip photo/media placeholder rows ("[photo] Title") — these are DB markers
+    // for images we sent, NOT real text. If fed back, the model imitates them and
+    // writes literal "[photo] Title" into its reply. The images are sent by the
+    // webhook automatically; the model must never see or echo these markers.
+    if (isMediaPlaceholder(text)) continue
+    const last = chatHistory[chatHistory.length - 1]
+    if (last && last.role === role) {
+      last.content += '\n' + text
+    } else {
+      chatHistory.push({ role, content: text })
+    }
+  }
+
+  // ─── Generate reply via GLM (fast attempt + auto-retry) ──────────────────
+  const responseText = await callEngineLLM(systemPrompt, chatHistory, incomingMessage)
+  if (!responseText) throw new Error('Engine LLM returned empty')
+
+  const result = parseEngineResponse(responseText, stage)
+
+  // The LLM was only shown filtered + near matches — if it claims a property ID
+  // outside that set, it hallucinated. Discard the field rather than letting
+  // the webhook look up (or send photos for) a property the lead never asked
+  // about, and alert so we can see how often this happens in production.
+  const matchedId = result.metadata?.matched_property_id
+  if (matchedId && !isValidMatchedProperty(matchedId, shownProperties)) {
+    Sentry.captureMessage('Engine recommended property outside filtered set', {
+      level: 'warning',
+      extra: { agentId, leadId, matchedId, stage, filteredCount: filteredProperties.length, nearMatchCount: nearMatches.length },
+    })
+    delete result.metadata.matched_property_id
+  }
+
+  // Last line of defense: every rupee figure the LLM just wrote must match
+  // either (a) an inventory property within 5%, (b) the lead's stated budget
+  // within 10% (budget echoes are fine), or (c) sit in a comparator/delta
+  // context (deltas like "₹5L over" are not price claims). The validator is
+  // high-precision (skips budget echoes + deltas), so a failure here is a GENUINE
+  // fabrication — an invented property/price (e.g. "a 2BHK rental in Baner at
+  // ₹18,000/month" when no such listing exists). The customer must NEVER see it.
+  // We flag it so the webhook REPLACES the whole reply with the honest agent
+  // contact card AND escalates (alert agent + superadmin + train) — never a mere
+  // disclaimer footer, which used to let the fabrication through.
+  const validation = validateReply(result.reply, properties, augmentedLead)
+  if (!validation.valid) {
+    Sentry.captureMessage('Reply contained a price not found in inventory — replaced with fallback', {
+      level: 'warning',
+      extra: { agentId, leadId, stage, quotedPrice: validation.price, reply: result.reply },
+    })
+    result.metadata = { ...(result.metadata || {}), unsafePrice: true, unsafePriceValue: validation.price }
+    // Drop any property the LLM attached — it's part of the fabrication.
+    if (result.metadata.matched_property_id) delete result.metadata.matched_property_id
+  }
+
+  // Fact guard: catches fabricated possession dates, direction/vastu claims, and
+  // parking specifics that aren't in the matched property's inventory. validateReply
+  // above only handles ₹ prices; this covers the other founder-reported fabrication
+  // classes, rewriting the offending fragment to an honest defer rather than dropping
+  // the whole reply. Checked against the property the bot actually referenced (filtered
+  // or near-match) so above-budget stretch picks are guarded too.
+  const matchedProp = matchedId && isValidMatchedProperty(matchedId, shownProperties)
+    ? shownProperties.find(p => p.id === matchedId) || null
+    : null
+  const factCheck = guardReplyFacts(result.reply, matchedProp)
+  if (factCheck.rewritten) {
+    Sentry.captureMessage('Engine reply contained inventory fabrications', {
+      level: 'warning',
+      extra: { agentId, leadId, stage, fabrications: factCheck.fabrications, original: result.reply, rewritten: factCheck.reply },
+    })
+    result.reply = factCheck.reply
+  }
+
+  return result
+}
 
 // ─── Proactive follow-up nudge (the lead went quiet) ─────────────────────────
 // Composes ONE short, NEW, value-adding re-engagement message from the full

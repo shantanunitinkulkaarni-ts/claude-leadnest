@@ -30,3 +30,6 @@ gist-export/
 .vscode/
 tsconfig.tsbuildinfo
 .aider*
+
+# Phase 1 cleanup backups (safe to delete once app is verified working)
+_cleanup_backup/
