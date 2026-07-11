@@ -10,7 +10,22 @@ import { callLLM } from './llm'
 import { waSendText, type WaChannel } from './whatsapp'
 import { checkAbuseGuards } from './botGuards'
 import { isConfirmationReply, isPendingAppointmentExpired } from './appointmentConfirmation'
-import { detectStage } from './stageMachine'
+import { detectStage, type ConversationStage } from './stageMachine'
+
+function conversationStageToBotStage(stage: ConversationStage): string {
+  const mapping: Record<ConversationStage, string> = {
+    greeting: 'greeting',
+    discovery: 'qualifying',
+    qualification: 'qualifying',
+    presentation: 'property_shown',
+    objection: 'qualifying',
+    commitment: 'awaiting_visit_time',
+    post_visit: 'property_shown',
+    nurture: 'qualifying',
+    closed: 'handover',
+  }
+  return mapping[stage] || 'qualifying'
+}
 import { excludeSampleProperties } from './propertyVisibility'
 import { buildPropertyRagContext } from './propertyRag'
 import { buildAgentBookingRagMarkdown } from './bookingRag'
@@ -182,6 +197,7 @@ export async function handleAiBotMessage(opts: {
   })
 
   const currentStage = detectStage(leadForFlow, messageCount)
+  const botStage = conversationStageToBotStage(currentStage)
   const hasFreshPendingAppointment = !!lead.pending_appointment_time && !isPendingAppointmentExpired(lead.pending_appointment_set_at)
 
   // Deterministic confirmation for existing appointments. This covers short
@@ -379,7 +395,7 @@ export async function handleAiBotMessage(opts: {
     decision,
     lead,
     message,
-    currentStage,
+    currentStage: botStage,
     forcedLang,
     bookingKnowledge: bookingRag,
   })
