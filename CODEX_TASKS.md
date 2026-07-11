@@ -45,9 +45,9 @@ The current `README.md` is just `# TING` (6 bytes). Write a proper one:
 - [x] Keep it under 50 lines. Do NOT duplicate the source of truth.
 
 ### Task B — Run typecheck and lint
-- [ ] `npm run typecheck` — must be clean
-- [ ] `npm run lint` — must be clean
-- [ ] If any errors: fix them (only the errors, do not refactor). Commit.
+- [x] `npm run typecheck` — must be clean
+- [x] `npm run lint` — must be clean
+- [x] If any errors: fix them (only the errors, do not refactor). Commit.
 
 ### Task C — Run tests
 - [ ] `npm test` — run full suite
@@ -122,7 +122,7 @@ vercel deploy --prod --yes
 - [x] Phase 1 dead code removal (Codex, commit bb3c422)
 - [x] Merge conflict resolution (commit 9e893b6)
 - [x] Task A: README.md (Codex, updated README and kept it under 50 lines)
-- [ ] Task B: typecheck + lint
+- [x] Task B: typecheck + lint (Codex, ran equivalent local binaries because npm is not on PATH; typecheck clean, lint exits 0 with existing warnings)
 - [ ] Task C: tests
 - [ ] Task D: stray file verification
 - [ ] Phase 7: CI → merge → deploy
