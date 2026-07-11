@@ -7,7 +7,7 @@ import {
   type FlowDecision,
   type FlowLead,
 } from './flowController'
-import { meaningFromIntent } from './flowSimulation'
+import type { ExtractedCustomerMeaning } from './flowController'
 
 export type FlowRunnerResult = {
   extracted: ExtractedIntent
@@ -39,7 +39,16 @@ export async function runConversationFlowStep(
     },
   })
 
-  const meaning = meaningFromIntent(extracted)
+  const meaning: ExtractedCustomerMeaning = {
+    name: extracted.name || undefined,
+    language: extracted.language || undefined,
+    property_category: extracted.property_category || undefined,
+    intent: extracted.intent || undefined,
+    preferred_areas: extracted.areas.length ? extracted.areas : undefined,
+    budget_min: extracted.budget_min || undefined,
+    budget_max: extracted.budget_max || undefined,
+    bhk: extracted.bhk || undefined,
+  }
   const requestedLanguage = detectLanguageSwitchRequest(args.message)
   if (requestedLanguage) meaning.language = requestedLanguage
 

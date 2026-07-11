@@ -25,9 +25,14 @@ gist-export/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Generated reports (test outputs, transcripts)
 /reports/
 
 # Editor + build artifacts
 .vscode/
 tsconfig.tsbuildinfo
 .aider*
+
+# Phase 1 cleanup backups (safe to delete once app is verified working)
+_cleanup_backup/
