@@ -142,6 +142,7 @@ export async function executeBookingAction(
       .from('appointments')
       .select('id', { count: 'exact', head: true })
       .eq('lead_id', lead.id)
+      .eq('status', 'upcoming')
 
     if (!shouldAllowReschedule(apptCount || 0)) {
       await notifyAgentOfTrollHalt(agent, lead, phone, 'too many reschedules')
