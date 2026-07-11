@@ -145,7 +145,11 @@ export async function executeBookingAction(
       .eq('status', 'upcoming')
 
     if (!shouldAllowReschedule(apptCount || 0)) {
-      await notifyAgentOfTrollHalt(agent, lead, phone, 'too many reschedules')
+      try {
+        await notifyAgentOfTrollHalt(agent, lead, phone, 'too many reschedules')
+      } catch (err) {
+        console.error('[ai-bot] troll halt notification failed:', err)
+      }
       return buildTrollHaltReply()
     }
     if (!newTime) {
@@ -164,15 +168,19 @@ export async function executeBookingAction(
         reason: rescheduleIssue,
       })
       if (agent?.email) {
-        await notifyAgentOfBookingIssue(
-          agent.email,
-          lead.name || phone,
-          phone,
-          leadUpdates.email || bookingLeadState?.email || lead.email || '',
-          property?.title || existingAppointment?.property_id || 'Selected property',
-          newTime,
-          rescheduleIssue,
-        )
+        try {
+          await notifyAgentOfBookingIssue(
+            agent.email,
+            lead.name || phone,
+            phone,
+            leadUpdates.email || bookingLeadState?.email || lead.email || '',
+            property?.title || existingAppointment?.property_id || 'Selected property',
+            newTime,
+            rescheduleIssue,
+          )
+        } catch (err) {
+          console.error('[ai-bot] booking issue notification failed:', err)
+        }
       }
       return alert.reply
     }
@@ -189,15 +197,19 @@ export async function executeBookingAction(
         reason,
       })
       if (agent?.email) {
-        await notifyAgentOfBookingIssue(
-          agent.email,
-          lead.name || phone,
-          phone,
-          leadUpdates.email || bookingLeadState?.email || lead.email || '',
-          property?.title || existingAppointment?.property_id || 'Selected property',
-          newTime,
-          reason,
-        )
+        try {
+          await notifyAgentOfBookingIssue(
+            agent.email,
+            lead.name || phone,
+            phone,
+            leadUpdates.email || bookingLeadState?.email || lead.email || '',
+            property?.title || existingAppointment?.property_id || 'Selected property',
+            newTime,
+            reason,
+          )
+        } catch (err) {
+          console.error('[ai-bot] booking issue notification failed:', err)
+        }
       }
       return alert.reply
     }
@@ -249,7 +261,11 @@ export async function executeBookingAction(
       reason: issue,
     })
     if (agent?.email) {
-      await notifyAgentOfBookingIssue(agent.email, leadName, phone, customerEmail || '', property?.title || propertyId, visitTime, issue)
+      try {
+        await notifyAgentOfBookingIssue(agent.email, leadName, phone, customerEmail || '', property?.title || propertyId, visitTime, issue)
+      } catch (err) {
+        console.error('[ai-bot] booking issue notification failed:', err)
+      }
     }
     return alert.reply
   }
@@ -271,15 +287,19 @@ export async function executeBookingAction(
       reason,
     })
     if (agent?.email) {
-      await notifyAgentOfBookingIssue(
-        agent.email,
-        leadName,
-        phone,
-        customerEmail || '',
-        property?.title || propertyId || 'Selected property',
-        visitTime,
-        reason,
-      )
+      try {
+        await notifyAgentOfBookingIssue(
+          agent.email,
+          leadName,
+          phone,
+          customerEmail || '',
+          property?.title || propertyId || 'Selected property',
+          visitTime,
+          reason,
+        )
+      } catch (err) {
+        console.error('[ai-bot] booking issue notification failed:', err)
+      }
     }
     return alert.reply
   }
