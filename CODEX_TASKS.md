@@ -113,7 +113,7 @@ vercel deploy --prod --yes
 
 ## BLOCKERS
 
-(none yet)
+- **Task C blocked locally (2026-07-11, Codex):** `npm test` could not be run directly because `npm` is not on PATH after the laptop reset. I ran the equivalent Playwright command with bundled Node. The default config first failed for missing `npm`; a temporary local config then started Next with bundled Node, but the dev server never became healthy because middleware requires Supabase URL/key env vars (`NEXT_PUBLIC_SUPABASE_URL` and anon key). This is an environment blocker, not a code failure from the cleanup. No test assertions ran in the full app suite.
 
 ---
 
