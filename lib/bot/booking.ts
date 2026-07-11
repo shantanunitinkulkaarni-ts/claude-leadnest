@@ -97,9 +97,21 @@ export async function createAppointment(
   }).eq('id', lead.id)
   const { data: prop } = await supabaseAdmin.from('properties').select('title').eq('id', propertyId).single()
   const propertyTitle = prop?.title || 'Selected Property'
-  if (customerEmail) await sendCustomerConfirmation(customerEmail, leadName, propertyTitle, visitTime, agent)
-  if (agent!.email) await sendAgentNotification(agent!.email, leadName, phone, customerEmail || 'Not provided', propertyTitle, visitTime)
-  await sendSuperadminBookingCopy(leadName, phone, customerEmail || 'Not provided', propertyTitle, visitTime, agent)
+  try {
+    if (customerEmail) await sendCustomerConfirmation(customerEmail, leadName, propertyTitle, visitTime, agent)
+  } catch (err) {
+    console.error('[ai-bot] customer confirmation email failed:', err)
+  }
+  try {
+    if (agent!.email) await sendAgentNotification(agent!.email, leadName, phone, customerEmail || 'Not provided', propertyTitle, visitTime)
+  } catch (err) {
+    console.error('[ai-bot] agent notification email failed:', err)
+  }
+  try {
+    await sendSuperadminBookingCopy(leadName, phone, customerEmail || 'Not provided', propertyTitle, visitTime, agent)
+  } catch (err) {
+    console.error('[ai-bot] superadmin copy email failed:', err)
+  }
 
   const confirmationReply = await formatVisitConfirmationWithAI({
     scheduledIso: visitTime,
