@@ -10,9 +10,9 @@ export async function applyHandover(args: {
   const { reply, agent, lead, leadPhone, channel } = args
   const finalReply = `${reply}\n\n${buildAgentContactCard(agent)}`
 
-  const agentPhone = (agent.phone || '').replace(/\D/g, '')
+  const agentPhone = (agent?.phone || '').replace(/\D/g, '')
   if (agentPhone) {
-    const leadName = lead.name || leadPhone
+    const leadName = lead?.name || leadPhone
     await waSendText(
       channel,
       agentPhone,
@@ -24,10 +24,10 @@ export async function applyHandover(args: {
 }
 
 function buildAgentContactCard(agent: any) {
-  return (
-    `👤 *${agent.name}*\n` +
-    `📞 ${agent.phone || 'Contact via this chat'}\n` +
-    (agent.email ? `📧 ${agent.email}\n` : '') +
-    `🕐 Available: ${agent.office_open || '9:00 AM'} – ${agent.office_close || '7:00 PM'}`
-  )
+  const name = agent?.name || 'Agent'
+  const phone = agent?.phone ? `📞 ${agent.phone}\n` : '📞 Contact via this chat\n'
+  const email = agent?.email ? `📧 ${agent.email}\n` : ''
+  const open = agent?.office_open || '9:00 AM'
+  const close = agent?.office_close || '7:00 PM'
+  return `${name}\n${phone}${email}🕐 Available: ${open} – ${close}`
 }
