@@ -170,7 +170,11 @@ function fitScore(p: any, criteria: any): number {
     else if (areas.some((a) => areaMatches(p.location, a))) s += 25 // fuzzy/typo match
   }
   const wantBhk = criteria.bhk
-  if (wantBhk && p.bhk && String(p.bhk).toLowerCase().includes(String(wantBhk).toLowerCase())) s += 30
+  if (wantBhk && p.bhk) {
+    const leadBhk = String(wantBhk).toLowerCase().trim()
+    const propBhk = String(p.bhk).toLowerCase().trim()
+    if (leadBhk === propBhk || propBhk.startsWith(leadBhk)) s += 30
+  }
   return s
 }
 
