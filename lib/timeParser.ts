@@ -320,10 +320,9 @@ export function parseTimeString(timeStr: string): string | null {
       if (ap[1] === 'pm' && h < 12) h += 12
       if (ap[1] === 'am' && h === 12) h = 0
     }
-    const cal = new Date(Date.UTC(y, mo, d))
-    const yyyy = String(cal.getUTCFullYear())
-    const mm = String(cal.getUTCMonth() + 1).padStart(2, '0')
-    const dd = String(cal.getUTCDate()).padStart(2, '0')
+    const yyyy = String(y)
+    const mm = String(mo + 1).padStart(2, '0')
+    const dd = String(d).padStart(2, '0')
     const hh = String(h).padStart(2, '0')
     const min = String(mi).padStart(2, '0')
     return `${yyyy}-${mm}-${dd}T${hh}:${min}:00+05:30`
