@@ -74,7 +74,7 @@ export function decideOutreach(
   return { send: true, reason: `touch_${touches + 1}_${intensity}` }
 }
 
-// ─── Approved template suite (see TEMPLATE_SUITE.md) ─────────────────────────
+// ─── Approved template suite (see docs/TING_SOURCE_OF_TRUTH.md) ──────────────
 // Names + which languages are APPROVED. Update `approvedLangs` as Meta approves them
 // each. The cron only sends templates listed here as approved.
 export const TEMPLATES = {

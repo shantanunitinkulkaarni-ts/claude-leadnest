@@ -60,7 +60,7 @@ Run this **from the repo root** so `require('pg')` resolves. Destructive DDL (DR
 
 **LLM chain** (`lib/llm.ts`, entry `callLLM`): Groq `llama-3.3-70b-versatile` (hedged) → GLM-4.5-Flash fallback. The bot is NOT dependent on Claude.
 
-**The live bot = `lib/ai-bot.ts` → `handleAiBotMessage`.** Called by `app/api/webhook/route.ts` on every inbound. Contract: **AI decodes intent/language; CODE does every fact** (search/match/present/book). AI never types a property fact. `lib/gemini.ts` is a legacy prompt file — only `generateNudge` is used live; `generateBotReply` is NOT.
+**The live bot = `lib/ai-bot.ts` → `handleAiBotMessage`.** Called by `app/api/webhook/route.ts` on every inbound. Contract: **AI decodes intent/language; CODE does every fact** (search/match/present/book). AI never types a property fact. `lib/promptEngine.ts` is the prompt engine.
 
 **Key files:**
 - `lib/ai-bot.ts` — THE monolith to split. Suggested seams: intent-decode (LLM call + parse), qualification/state, property-match+present (`propertySearch.ts`/`propertyPresenter.ts` already exist), booking/reschedule/cancel, reply-assembly+send, language/translation.

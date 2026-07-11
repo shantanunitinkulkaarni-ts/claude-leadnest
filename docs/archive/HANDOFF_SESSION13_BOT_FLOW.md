@@ -67,7 +67,7 @@
 - **Reports** (weekly/monthly/quarterly/annual to agent + superadmin + dashboard): larger,
   separate build.
 - **Post-visit nurture (tier-2):** explicitly a paid-tier/future feature.
-- **Setup / number-integration / billing:** see `files/SETUP_AND_INTEGRATION_PLAN.md` — PLAN ONLY,
+- **Setup / number-integration / billing:** see `docs/TING_SOURCE_OF_TRUTH.md` — current source of truth,
   review together (includes the answer to "how do we connect each client's number" + markup/billing).
 - **Reports/A-B testing/behavioural analytics/retraining automation:** future / human-dev-team per
   founder.

@@ -13,7 +13,7 @@ This answers Clinepass's intake questionnaire. Read `HANDOFF.md` first for full 
 - `app/api/webhook/route.ts` (~line 221) calls `handleAiBotMessage()` on every inbound message. That is the only runtime path.
 - **`lib/botOrchestrator.ts` is NOT wired in.** Its only reference anywhere is `tests/unit/bot-orchestrator.spec.ts` (unit tests of its pure functions). The **"BOT_V2 flag" exists only in its own comments** — there is no env var, no DB column, no code that checks it. It's an aspirational "code-first" v2 that was never connected.
 - **Do NOT delete `botOrchestrator.ts`** without founder approval — it's dead but harmless, has passing tests, and represents an intended future direction. Just ignore it for launch work.
-- The prompt engine lives in `lib/gemini.ts` (legacy filename — it is NOT Gemini; it builds the system prompt the live bot uses).
+- The prompt engine lives in `lib/promptEngine.ts`; it builds the system prompt the live bot uses.
 
 **Design contract (do not violate):** AI decodes intent/language/ambiguity only. CODE does every fact — property fetch/match/present, booking, cancel. The AI must never type a property fact or claim a booking/cancel happened unless the matching action was set.
 
@@ -25,7 +25,7 @@ Three previously-reported bugs are **already fixed** (verified in code):
 - Manual mode not pausing → `bot_paused && !simulate` guard + 5-minute auto-resume (webhook + cron).
 
 **Soft spots to PROBE (best targets — not confirmed live failures; traffic is ~zero pre-launch):**
-- **Language consistency** — staying in Hindi/Marathi when the lead writes in it; Hinglish code-switching ("Mujhe 2BHK chahiye in Baner"). Prompt-driven in `lib/gemini.ts`. Most likely failure area.
+- **Language consistency** — staying in Hindi/Marathi when the lead writes in it; Hinglish code-switching ("Mujhe 2BHK chahiye in Baner"). Prompt-driven in `lib/promptEngine.ts`. Most likely failure area.
 - **Time/date parsing** — "kal subah", "day after tomorrow", "22-06" (dd-mm), "next Monday". Touched by Codex #160 ("prefer customer text when resolving visit dates"); needs adversarial tests.
 - **No-match loop** — when zero properties match, confirm the bot doesn't re-ask the same question forever.
 

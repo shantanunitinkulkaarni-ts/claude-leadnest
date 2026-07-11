@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { parseEngineResponse, isMediaPlaceholder } from '../../lib/gemini'
+import { parseEngineResponse, isMediaPlaceholder } from '../../lib/promptEngine'
 
 // The engine asks the model for: reply text, then a metadata JSON object.
 // Models drift on formatting (code fences, multi-line JSON, no JSON at all) —

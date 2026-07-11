@@ -117,7 +117,7 @@ test.describe('Phase 0C — cross-field validation logic', () => {
   })
 })
 
-test.describe('Phase 0F — gemini engine property prompt uses property_media', () => {
+test.describe('Phase 0F — prompt engine property prompt uses property_media', () => {
   test('engine reads property_media first for media count in prompt', () => {
     // Simulates what buildEnginePrompt does for a property
     const p = {

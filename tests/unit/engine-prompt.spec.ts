@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { buildEnginePrompt } from '../../lib/gemini'
+import { buildEnginePrompt } from '../../lib/promptEngine'
 
 // Minimal context fixture for the prompt builder. Only the fields it reads
 // are populated — the rest can be omitted because TypeScript is `any` here.

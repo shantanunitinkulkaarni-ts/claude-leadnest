@@ -25,6 +25,7 @@ gist-export/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+/reports/
 
 # Editor + build artifacts
 .vscode/

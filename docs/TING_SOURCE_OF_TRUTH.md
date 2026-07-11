@@ -539,13 +539,13 @@ Two ways evals run:
 ```bash
 npm run eval
 ```
-Needs `GROQ_API_KEY` (+ `GLM_API_KEY`/`CEREBRAS_API_KEY`) in `.env`. Runs the **real** engine prompt (`buildEnginePrompt` in `lib/gemini.ts`) against scenarios in `tests/evals/scenarios.ts` and uses Groq as an AI judge to grade each reply (PASS/FAIL).
+Needs `GROQ_API_KEY` (+ `GLM_API_KEY`/`CEREBRAS_API_KEY`) in `.env`. Runs the **real** engine prompt (`buildEnginePrompt` in `lib/promptEngine.ts`) against scenarios in `tests/evals/scenarios.ts` and uses Groq as an AI judge to grade each reply (PASS/FAIL).
 
 **2. Fixture replay (zero API calls, runs in every `npm test` / CI):**
 `tests/evals/engine-eval-replay.spec.ts` replays committed fixtures. Re-runs `parseEngineResponse()` against frozen raw output (catches parser regressions) and asserts the recorded judge verdict was PASS. Does not call any LLM.
 
 **Workflow for prompt change:**
-1. Edit prompt in `lib/gemini.ts`
+1. Edit prompt in `lib/promptEngine.ts`
 2. `npm run eval` → confirm target scenario passes, nothing regressed
 3. `npm run eval:record` → regenerates fixtures
 4. Review fixture diff in PR
@@ -565,7 +565,7 @@ Needs `GROQ_API_KEY` (+ `GLM_API_KEY`/`CEREBRAS_API_KEY`) in `.env`. Runs the **
 
 ### Working Rules
 1. **No uncommitted WIP.** Commit to branch immediately. **NEVER leave bot/UI changes loose on working tree.**
-2. **`lib/ai-bot.ts` + `lib/gemini.ts`: behaviour-preserving fixes only.** No refactor before launch.
+2. **`lib/ai-bot.ts` + `lib/promptEngine.ts`: behaviour-preserving fixes only.** No refactor before launch.
 3. Every PR: `npm run typecheck && npm run lint && npm run test:critical` green before requesting review.
 4. All bot/prompt PRs need Claude review and must land by deadline.
 5. A lead reply MUST reset nurture counters, or the timeline silently breaks.

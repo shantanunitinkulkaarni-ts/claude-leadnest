@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import fs from 'fs'
 import path from 'path'
-import { detectStage, parseEngineResponse } from '../../lib/gemini'
+import { detectStage, parseEngineResponse } from '../../lib/promptEngine'
 import { scenarios, slugify } from './scenarios'
 
 /**

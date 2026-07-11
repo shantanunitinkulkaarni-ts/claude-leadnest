@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { buildEnginePrompt, stripEmojisFromReplyLine } from '../../lib/gemini'
+import { buildEnginePrompt, stripEmojisFromReplyLine } from '../../lib/promptEngine'
 import { baseAgent, sampleProperties } from '../evals/scenarios'
 
 /**

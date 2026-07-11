@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { detectMessageLanguage } from '@/lib/gemini'
+import { detectMessageLanguage } from '@/lib/promptEngine'
 
 // ─── Server-side language detector unit tests ─────────────────────────────────
 // These run without a DB or LLM — pure function tests.

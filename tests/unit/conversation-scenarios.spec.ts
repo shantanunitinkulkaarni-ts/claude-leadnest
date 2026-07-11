@@ -11,7 +11,7 @@
 import { test, expect } from '@playwright/test'
 import { detectInboundSignals, topSignal } from '../../lib/intentSignals'
 import { detectStage } from '../../lib/stageMachine'
-import { detectMessageLanguage } from '../../lib/gemini'
+import { detectMessageLanguage } from '../../lib/promptEngine'
 
 // ─── VERY_INTERESTED — Indian RE-specific buying signals ──────────────────────
 

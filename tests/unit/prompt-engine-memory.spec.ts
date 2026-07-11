@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { buildNudgeMemoryContext } from '../../lib/gemini'
+import { buildNudgeMemoryContext } from '../../lib/promptEngine'
 
 test.describe('buildNudgeMemoryContext', () => {
   test('includes the visit outcome, summary, and notes for post-visit follow-up', () => {
