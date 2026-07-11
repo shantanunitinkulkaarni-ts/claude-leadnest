@@ -29,6 +29,12 @@ export async function prepareLeadUpdates(args: {
   if (decision.updates?.preferred_areas?.length) leadUpdates.preferred_areas = decision.updates.preferred_areas
   if (decision.updates?.budget_min) leadUpdates.budget_min = decision.updates.budget_min
   if (decision.updates?.budget_max) leadUpdates.budget_max = decision.updates.budget_max
+  // Swap budget_min and budget_max if inverted (e.g., user said "30-50L" but AI parsed as min=50L, max=30L)
+  if (leadUpdates.budget_min && leadUpdates.budget_max && leadUpdates.budget_min > leadUpdates.budget_max) {
+    const temp = leadUpdates.budget_min
+    leadUpdates.budget_min = leadUpdates.budget_max
+    leadUpdates.budget_max = temp
+  }
   if (decision.updates?.bhk) leadUpdates.bhk = decision.updates.bhk
   if (decision.updates?.sqft_preference) leadUpdates.sqft_preference = decision.updates.sqft_preference
 
