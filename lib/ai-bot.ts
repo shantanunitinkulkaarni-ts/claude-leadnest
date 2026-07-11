@@ -461,8 +461,17 @@ export async function handleAiBotMessage(opts: {
   searchReply = delivery.searchReply
   const finalOut = delivery.finalOut
   const searchOut = delivery.searchOut
+
   // 10. Send photos (one by one) - skipped in simulation.
-  await sendPhotoUrls(channel, phone, photosToSend, simulate)
+  // Photo sending failures don't affect history - the reply was already sent.
+  // We log failures for debugging but don't block history save.
+  if (photosToSend.length > 0) {
+    try {
+      await sendPhotoUrls(channel, phone, photosToSend, simulate)
+    } catch (err) {
+      console.error('[ai-bot] photo sending failed:', err)
+    }
+  }
 
   // 11. Save updated history (now that finalReply reflects the real outcome)
   history.push({ role: 'bot', text: finalReply, ts: new Date().toISOString() })
