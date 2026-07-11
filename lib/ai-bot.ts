@@ -18,6 +18,7 @@ import { detectIndianScript } from './translate'
 import {
   formatIST,
   detectLanguageSwitchRequest,
+  isValidEmail,
 } from './timeParser'
 
 // Extracted modules (Phase 1 refactor)
@@ -236,7 +237,8 @@ export async function handleAiBotMessage(opts: {
       resolvedMatchedPropertyId: lead.matched_property_id || null,
       tutorialMode,
     }
-    const confirmReply = lead.email
+    const emailIsValid = isValidEmail(lead.email || '')
+    const confirmReply = emailIsValid
       ? await executeBookingAction('book_visit', bookingCtx, undefined)
       : 'Please share your email address so I can send the visit confirmation.'
     const confirmOut = simulate ? { id: null } : await waSendText(channel, phone, confirmReply)
@@ -245,15 +247,15 @@ export async function handleAiBotMessage(opts: {
       last_message_at: confirmedAt,
       last_inbound_at: confirmedAt,
       last_outbound_at: confirmedAt,
-      bot_stage: lead.email ? 'visit_confirmed' : 'awaiting_email',
-      status: lead.email ? 'visit_booked' : (lead.status || 'new'),
-      nurture_state: lead.email ? 'paused' : lead.nurture_state || 'active',
+      bot_stage: emailIsValid ? 'visit_confirmed' : 'awaiting_email',
+      status: emailIsValid ? 'visit_booked' : (lead.status || 'new'),
+      nurture_state: emailIsValid ? 'paused' : lead.nurture_state || 'active',
       window_nudge_count: 0,
       last_nudge_at: null,
       nurture_plan: null,
       plan_d_touches: 0,
-      pending_appointment_time: lead.email ? null : lead.pending_appointment_time || null,
-      pending_appointment_set_at: lead.email ? null : lead.pending_appointment_set_at || null,
+      pending_appointment_time: emailIsValid ? null : lead.pending_appointment_time || null,
+      pending_appointment_set_at: emailIsValid ? null : lead.pending_appointment_set_at || null,
       chat_history: [
         ...history,
         { role: 'bot', text: confirmReply, ts: confirmedAt },
