@@ -62,57 +62,71 @@ export function buildSystemPrompt(
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata',
   })
 
-  // ── Deterministic NEXT STEP ──────────────────────────────────────────────
-  // The LLM was restarting the funnel because it had to *infer* what to ask
-  // from the missing[] array. Now we compute the exact next step in code and
-  // tell the LLM to do THAT and nothing else.
-  const known = {
-    language: !!lead.language,
-    name: !!lead.name,
-    intent: !!lead.intent,
-    area: Array.isArray(lead.preferred_areas) && lead.preferred_areas.length > 0,
-    budget: !!lead.budget_max,
-    bhk: !!lead.bhk,
-    visitTime: !!lead.pending_appointment_time || !!existingAppointment,
-    email: !!lead.email,
-  }
-  const hasExistingAppt = !!existingAppointment
-  let nextStep = ''
-  let expectedStage = ''
+   // ── Deterministic NEXT STEP (CODE-FIRST: flowController decides, AI only executes) ─────────────────────────────
+   // The flowController (lib/bot/flowController.ts) computes the exact next step based on known fields.
+   // AI's job: extract answers from user message and follow the flowController's decision.
+   // This prevents AI from restarting the funnel or asking redundant questions.
+   const known = {
+     language: !!lead.language,
+     name: !!lead.name,
+     intent: !!lead.intent,
+     area: Array.isArray(lead.preferred_areas) && lead.preferred_areas.length > 0,
+     budget: !!lead.budget_max || !!lead.budget_min,
+     bhk: !!lead.bhk,
+     visitTime: !!lead.pending_appointment_time || !!existingAppointment,
+     email: !!lead.email,
+     propertyCategory: !!lead.property_category,
+   }
+   const hasExistingAppt = !!existingAppointment
+   let nextStep = ''
+   let expectedStage = ''
 
-  if (hasExistingAppt) {
-    nextStep = 'The lead already has a site visit booked. Tell them the existing appointment time and ask if they want to reschedule or cancel. Do NOT ask any qualification questions.'
-    expectedStage = 'visit_confirmed'
-  } else if (!known.language) {
-    nextStep = 'Ask: "Which language are you most comfortable in — English, Hindi, or Hinglish?"'
-    expectedStage = 'language'
-  } else if (!known.name) {
-    nextStep = `Ask for their name warmly. Do NOT ask about language (already known: ${langLabel}).`
-    expectedStage = 'name'
-  } else if (!known.intent) {
-    nextStep = 'Ask: "Are you looking to rent or buy?"'
-    expectedStage = 'intent'
-  } else if (!known.area) {
-    nextStep = 'Ask: "Which area are you looking for?"'
-    expectedStage = 'qualifying'
-  } else if (!known.budget) {
-    nextStep = lead.intent === 'rent'
-      ? 'Ask: "What is your monthly budget for rent?"'
-      : 'Ask: "What is your total budget for buying?"'
-    expectedStage = 'qualifying'
-  } else if (!known.bhk) {
-    nextStep = 'Ask: "How many bedrooms — 1BHK, 2BHK, or 3BHK?"'
-    expectedStage = 'qualifying'
-  } else if (!known.visitTime) {
-    nextStep = 'Ask: "What day and time would suit you for a site visit?"'
-    expectedStage = 'awaiting_visit_time'
-  } else if (!known.email) {
-    nextStep = 'Ask: "Please share your email address so I can send the visit confirmation."'
-    expectedStage = 'awaiting_email'
-  } else {
-    nextStep = 'All details collected. Set action to "book_visit" to create the appointment.'
-    expectedStage = 'visit_confirmed'
-  }
+   if (hasExistingAppt) {
+     nextStep = 'The lead already has a site visit booked. Tell them the existing appointment time and ask if they want to reschedule or cancel. Do NOT ask any qualification questions.'
+     expectedStage = 'visit_confirmed'
+   } else if (!known.language) {
+     nextStep = 'Ask: "Which language are you most comfortable in — English, Hindi, or Hinglish?"'
+     expectedStage = 'language'
+   } else if (!known.name) {
+     nextStep = `Ask for their name warmly. Do NOT ask about language (already known: ${langLabel}).`
+     expectedStage = 'name'
+   } else if (!known.propertyCategory) {
+     nextStep = 'Ask: "What type of property are you looking for — flat/apartment, independent house, row house, office, shop, or plot?"'
+     expectedStage = 'qualifying'
+   } else if (!known.intent) {
+     nextStep = lead.property_category === 'plot' 
+       ? 'Plots are typically for buying. Are you looking to buy this plot, or do you have a different intention?'
+       : lead.property_category === 'office' || lead.property_category === 'shop'
+         ? `What type of deal are you looking for ${agent.agency_name}? Rent or buy?`
+         : 'Ask: "Are you looking to rent or buy?"'
+     expectedStage = 'intent'
+   } else if (!known.area) {
+     nextStep = 'Ask: "Which area are you looking for?"'
+     expectedStage = 'qualifying'
+   } else if (!known.budget) {
+     nextStep = lead.intent === 'rent'
+       ? 'Ask: "What is your monthly budget for rent?"'
+       : 'Ask: "What is your total budget for buying?"'
+     expectedStage = 'qualifying'
+   } else if (!known.bhk) {
+     nextStep = lead.property_category === 'office'
+       ? 'Ask: "How much carpet area or space do you need?"'
+       : lead.property_category === 'shop'
+         ? 'Ask: "How much carpet area or space do you need?"'
+         : lead.property_category === 'plot'
+           ? 'Ask: "What plot size are you looking for?"'
+           : 'Ask: "How many bedrooms — 1BHK, 2BHK, or 3BHK? You can also say no preference."'
+     expectedStage = 'qualifying'
+   } else if (!known.visitTime) {
+     nextStep = 'Ask: "What day and time would suit you for a site visit?"'
+     expectedStage = 'awaiting_visit_time'
+   } else if (!known.email) {
+     nextStep = 'Ask: "Please share your email address so I can send the visit confirmation."'
+     expectedStage = 'awaiting_email'
+   } else {
+     nextStep = 'All details collected. Set action to "book_visit" to create the appointment.'
+     expectedStage = 'visit_confirmed'
+   }
 
   const knownNameRule = lead.name
     ? `- The lead's name is already known as "${lead.name}". Use their name SPARINGLY — an occasional, natural touch at most. Do NOT open messages with "Hello ${lead.name}" or "${lead.name}," — repeating their name every message sounds robotic. DO NOT ask for their name again unless they explicitly correct it.`
@@ -145,15 +159,15 @@ ${knownLanguageRule}
 - Continue from the highest known point in the funnel. Never restart from greeting/name/language if CURRENT LEAD STATE or CURRENT CHAT HISTORY already contains that information.
 - If the customer changes a previously known field (e.g. they want a different area), update it and continue from there.
 
-CONVERSATION FLOW (only ask for what is still unknown):
-1. Greet warmly
-2. If language is unknown → ask language preference (English / Hindi / Hinglish)
-3. If name is unknown → ask their name
-4. If intent is unknown → ask: looking to Rent or Buy?
-5. If area is unknown → ask: which area?
-6. If budget is unknown → ask: monthly budget? (for rent) or total budget? (for buy)
-7. If bedrooms are unknown → ask: how many bedrooms? (1BHK / 2BHK / 3BHK etc.)
-8. Once you have intent + area → set action to "search_properties"
+CONVERSATION FLOW (code-first: flowController determines next step, AI extracts answers):
+1. If language unknown → ask: English / Hindi / Hinglish
+2. If name unknown → ask name
+3. If property type unknown → ask: flat/apartment, house, office, shop, plot
+4. If intent unknown → ask: rent or buy (skip if plot)
+5. If area unknown → ask: which area?
+6. If budget unknown → ask: monthly (rent) or total (buy)?
+7. If size/bedrooms unknown → ask based on property type
+8. Once property category + intent + area + budget + bhk known → code sets action "search_properties"
 9. Present matched properties using ONLY the data provided
 10. Offer photos when presenting properties ("Would you like photos?")
 11. When user wants to visit → ASK for preferred date and time (e.g. "tomorrow at 11 AM")
@@ -178,9 +192,9 @@ RULES:
 BOOKING LOGIC (critical — must follow):
 - CHECK FIRST: does the lead already have an upcoming appointment? See CURRENT LEAD DATA (existing_appointment).
 - NO existing appointment:
-  - When user wants to book → ask for date/time
-  - When user gives date/time → ask for email
-  - When you have BOTH date/time AND email → set action "book_visit"
+- When user wants to book → ask for date/time
+- When user gives date/time → ask for email
+- When you have BOTH date/time AND email → set action "book_visit"
 - HAS an existing appointment:
   - If user wants a DIFFERENT time → put the new date/time in updates.visit_time and set action "reschedule_visit"
   - If user wants to CANCEL → set action "cancel_visit"
@@ -193,7 +207,8 @@ BOOKING LOGIC (critical — must follow):
   the final confirmation message, so keep your reply short and let the action do the work.
 - Always refer to the existing appointment time exactly as shown in existing_appointment (already in India time).
 - Never restart from step 1 if CURRENT LEAD DATA already contains answers or CURRENT CHAT HISTORY shows an ongoing conversation.
-- Continue from the highest known point in the flow. If name, intent, area, budget, or appointment time are already known, do not ask for them again unless the customer is clearly changing that detail.
+- Continue from the highest known point in the flow. If name, intent, area, budget, property_category, or appointment time are already known, do not ask for them again unless the customer is clearly changing that detail.
+- When property_category + intent + area + budget + bhk are all known → code sets action "search_properties" (do NOT set this action yourself, code does it)
 
 CURRENT LEAD STATE (source of truth — never override these values with guesswork):
 ${leadContext}
@@ -226,10 +241,12 @@ RESPOND WITH VALID JSON ONLY. No text outside the JSON block.
   "updates": {
     "name": "string or omit",
     "language": "en|hi|hinglish or omit",
+    "property_category": "flat|apartment|independent_house|row_house|office|shop|plot or omit",
     "intent": "rent|buy or omit",
     "preferred_areas": ["area"] or omit",
+    "budget_min": number or omit",
     "budget_max": number or omit",
-    "bhk": "2BHK" or omit",
+    "bhk": "2BHK|no_preference or omit",
     "sqft_preference": number or omit",
     "visit_time": "ALWAYS full ISO with the resolved date+time, e.g. '2026-07-05T13:00' (compute from TODAY above) or omit",
     "email": "string or omit"
