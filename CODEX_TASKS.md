@@ -36,13 +36,13 @@
 ### Task A — Write a proper README.md
 The current `README.md` is just `# TING` (6 bytes). Write a proper one:
 
-- [ ] Project name + one-line description ("AI WhatsApp assistant SaaS for Indian real-estate agents")
-- [ ] Live URL (https://convorian.in)
-- [ ] Tech stack summary (Next.js 14, Supabase, Groq/GLM, Meta Cloud API, Razorpay, Vercel)
-- [ ] Link to `docs/TING_SOURCE_OF_TRUTH.md` for full documentation
-- [ ] Quick start: `npm install` → `npm run dev`
-- [ ] Scripts: `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:critical`
-- [ ] Keep it under 50 lines. Do NOT duplicate the source of truth.
+- [x] Project name + one-line description ("AI WhatsApp assistant SaaS for Indian real-estate agents")
+- [x] Live URL (https://convorian.in)
+- [x] Tech stack summary (Next.js 14, Supabase, Groq/GLM, Meta Cloud API, Razorpay, Vercel)
+- [x] Link to `docs/TING_SOURCE_OF_TRUTH.md` for full documentation
+- [x] Quick start: `npm install` → `npm run dev`
+- [x] Scripts: `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:critical`
+- [x] Keep it under 50 lines. Do NOT duplicate the source of truth.
 
 ### Task B — Run typecheck and lint
 - [ ] `npm run typecheck` — must be clean
@@ -121,7 +121,7 @@ vercel deploy --prod --yes
 
 - [x] Phase 1 dead code removal (Codex, commit bb3c422)
 - [x] Merge conflict resolution (commit 9e893b6)
-- [ ] Task A: README.md
+- [x] Task A: README.md (Codex, updated README and kept it under 50 lines)
 - [ ] Task B: typecheck + lint
 - [ ] Task C: tests
 - [ ] Task D: stray file verification
