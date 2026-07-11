@@ -9,6 +9,7 @@ export async function prepareBookingSupport(args: {
   resolvedMatchedPropertyId: string | null
 }) {
   const { decision, agentId, lead, tutorialMode } = args
+  if (!lead) return { bookingLeadState: null, resolvedMatchedPropertyId: args.resolvedMatchedPropertyId }
   let { resolvedMatchedPropertyId } = args
   let bookingLeadState: any = null
 
