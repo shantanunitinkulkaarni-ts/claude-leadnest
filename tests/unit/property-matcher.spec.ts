@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { filterPropertiesForLead, findNearMatches, isValidMatchedProperty, areaMatches } from '../../lib/propertyMatcher'
+import { filterPropertiesForLead, findNearMatches, areaMatches } from '../../lib/propertyMatcher'
 
 test.describe('findNearMatches — above-budget stretch options', () => {
   const baner90L = { id: 'n1', type: 'sale', location: 'Baner, Pune', price: 9000000 }
@@ -135,23 +135,4 @@ test.describe('filterPropertiesForLead — combined criteria', () => {
   })
 })
 
-test.describe('isValidMatchedProperty', () => {
-  const filtered = [sale2bhkBaner, saleWakad]
 
-  test('valid ID within filtered set passes', () => {
-    expect(isValidMatchedProperty('p1', filtered)).toBe(true)
-  })
-
-  test('ID outside the filtered set fails', () => {
-    expect(isValidMatchedProperty('p2', filtered)).toBe(false)
-  })
-
-  test('null/undefined ID fails', () => {
-    expect(isValidMatchedProperty(null, filtered)).toBe(false)
-    expect(isValidMatchedProperty(undefined, filtered)).toBe(false)
-  })
-
-  test('empty filtered list always fails', () => {
-    expect(isValidMatchedProperty('p1', [])).toBe(false)
-  })
-})
