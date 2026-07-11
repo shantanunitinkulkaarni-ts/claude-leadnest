@@ -28,7 +28,6 @@ export async function prepareBookingSupport(args: {
       .select('id')
       .eq('agent_id', agentId)
       .eq('is_sample', true)
-      .eq('status', 'active')
       .ilike('location', 'Wakad')
       .limit(1)
       .maybeSingle()
