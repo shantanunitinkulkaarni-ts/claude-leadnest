@@ -272,12 +272,3 @@ export function getNearbyProperties(properties: any[], criteria: {
   return { properties: ranked, nearbyAreas }
 }
 
-// Validates that a property ID the LLM claims to have recommended actually
-// came from the filtered list it was given. If the LLM hallucinates an ID
-// (wrong UUID, an inactive property, or one outside the lead's filtered
-// match set), the caller should discard the field and alert — never trust
-// an unvalidated property reference forward to the lead.
-export function isValidMatchedProperty(propertyId: string | undefined | null, filteredProperties: any[]): boolean {
-  if (!propertyId) return false
-  return filteredProperties.some((p) => p.id === propertyId)
-}
