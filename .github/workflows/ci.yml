@@ -2,6 +2,7 @@ name: CI
 
 # Runs on every PR and on pushes to main. Catches type errors, lint issues,
 # and broken critical flows before they reach production.
+# Note: Auto-deploy to Vercel is now handled by deploy-vercel.yml
 on:
   pull_request:
   push:
